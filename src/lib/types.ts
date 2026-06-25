@@ -45,25 +45,17 @@ export interface GenerationResult {
 export interface Template {
   id: string;
   name: string;
-  device: 'hh1x3' | 'solo' | 'l40';
-  animationType: 'idle' | 'talk';
-  model: string;
-  duration: number;
-  fps: number;
-  resolution: string;
+  description: string;
+  type: 'image' | 'video';
+  device: 'hh1x3' | 'solo' | 'l40' | 'any';
+  modelId: string;
+  modelLabel: string;
   promptTemplate: string;
-  referenceVideos: string[];
-}
-
-export interface PipelineJob {
-  id: string;
-  templateId: string;
-  sourceImage: string;
-  referenceVideo: string;
-  status: 'queued' | 'running' | 'done' | 'error';
-  progress: number;
-  resultUrl?: string;
-  approved?: boolean;
+  params: Record<string, unknown>;
+  referenceUrls: string[];
+  createdBy: string;
+  createdAt: number;
+  updatedAt: number;
 }
 
 export interface AppUser {

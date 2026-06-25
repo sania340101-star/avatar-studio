@@ -1,6 +1,6 @@
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'fs';
 import { join } from 'path';
-import { Project, Generation } from './types';
+import { Project, Generation, Template } from './types';
 
 const DATA_DIR = process.env.DATA_DIR || join(/* turbopackIgnore: true */ process.cwd(), 'data');
 const PROJECTS_FILE = join(DATA_DIR, 'projects.json');
@@ -121,4 +121,50 @@ export function deleteGeneration(projectId: string, generationId: string): boole
 export function getUploadsDir(): string {
   ensureDirs();
   return UPLOADS_DIR;
+}
+
+const TEMPLATES_FILE = join(DATA_DIR, 'templates.json');
+
+export function getTemplates(): Template[] {
+  ensureDirs();
+  return readJson<Template[]>(TEMPLATES_FILE, []).sort((a, b) => b.updatedAt - a.updatedAt);
+}
+
+export function getTemplate(id: string): Template | null {
+  const all = getTemplates();
+  return all.find(t => t.id === id) || null;
+}
+
+export function createTemplate(tmpl: Omit<Template, 'id' | 'createdAt' | 'updatedAt'>): Template {
+  ensureDirs();
+  const all: Template[] = readJson(TEMPLATES_FILE, []);
+  const template: Template = {
+    ...tmpl,
+    id: `tmpl-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+  };
+  all.push(template);
+  writeJson(TEMPLATES_FILE, all);
+  return template;
+}
+
+export function updateTemplate(id: string, updates: Partial<Omit<Template, 'id' | 'createdAt' | 'createdBy'>>): Template | null {
+  ensureDirs();
+  const all: Template[] = readJson(TEMPLATES_FILE, []);
+  const idx = all.findIndex(t => t.id === id);
+  if (idx === -1) return null;
+  Object.assign(all[idx], updates, { updatedAt: Date.now() });
+  writeJson(TEMPLATES_FILE, all);
+  return all[idx];
+}
+
+export function deleteTemplate(id: string): boolean {
+  ensureDirs();
+  const all: Template[] = readJson(TEMPLATES_FILE, []);
+  const idx = all.findIndex(t => t.id === id);
+  if (idx === -1) return false;
+  all.splice(idx, 1);
+  writeJson(TEMPLATES_FILE, all);
+  return true;
 }
