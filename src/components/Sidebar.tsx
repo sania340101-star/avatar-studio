@@ -2,6 +2,8 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useState } from 'react';
+import { useProject } from '@/lib/ProjectContext';
 
 const NAV_ITEMS = [
   {
@@ -31,15 +33,6 @@ const NAV_ITEMS = [
       </svg>
     ),
   },
-  {
-    label: 'Pipeline',
-    href: '/pipeline',
-    icon: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5">
-        <path d="M12 2L2 7l10 5 10-5-10-5z" /><path d="M2 17l10 5 10-5" /><path d="M2 12l10 5 10-5" />
-      </svg>
-    ),
-  },
   { type: 'separator' as const },
   {
     label: 'Gallery',
@@ -63,6 +56,16 @@ const NAV_ITEMS = [
 
 export default function Sidebar() {
   const pathname = usePathname();
+  const { projects, activeProject, setActiveProjectId, createProject, deleteProject } = useProject();
+  const [creating, setCreating] = useState(false);
+  const [newTitle, setNewTitle] = useState('');
+
+  async function handleCreate() {
+    if (!newTitle.trim()) return;
+    await createProject(newTitle.trim());
+    setNewTitle('');
+    setCreating(false);
+  }
 
   return (
     <aside className="w-56 flex-shrink-0 h-full flex flex-col border-r" style={{ borderColor: 'var(--border)', background: 'var(--bg-card)' }}>
@@ -71,7 +74,47 @@ export default function Sidebar() {
         <p className="text-xs mt-0.5" style={{ color: 'var(--text3)' }}>HYPERVSN</p>
       </div>
 
-      <nav className="flex-1 p-3 space-y-1">
+      <div className="p-3 border-b" style={{ borderColor: 'var(--border)' }}>
+        <label className="block text-xs mb-1 font-medium" style={{ color: 'var(--text3)' }}>PROJECT</label>
+        {projects.length > 0 ? (
+          <select
+            value={activeProject?.id || ''}
+            onChange={e => setActiveProjectId(e.target.value)}
+            className="w-full text-sm !py-1.5 !px-2"
+          >
+            {projects.map(p => (
+              <option key={p.id} value={p.id}>{p.title}</option>
+            ))}
+          </select>
+        ) : (
+          <p className="text-xs" style={{ color: 'var(--text3)' }}>No projects yet</p>
+        )}
+
+        {creating ? (
+          <div className="mt-2 flex gap-1">
+            <input
+              autoFocus
+              value={newTitle}
+              onChange={e => setNewTitle(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && handleCreate()}
+              placeholder="Project name"
+              className="flex-1 text-xs !py-1 !px-2"
+            />
+            <button onClick={handleCreate} className="text-xs px-2 py-1 rounded" style={{ background: 'var(--accent)', color: 'white' }}>+</button>
+            <button onClick={() => setCreating(false)} className="text-xs px-1" style={{ color: 'var(--text3)' }}>x</button>
+          </div>
+        ) : (
+          <button
+            onClick={() => setCreating(true)}
+            className="mt-2 w-full py-1.5 rounded-lg border border-dashed text-xs"
+            style={{ borderColor: 'var(--border)', color: 'var(--text3)' }}
+          >
+            + New Project
+          </button>
+        )}
+      </div>
+
+      <nav className="flex-1 p-3 space-y-1 overflow-auto">
         {NAV_ITEMS.map((item, i) => {
           if ('type' in item && item.type === 'separator') {
             return <div key={i} className="my-3 border-t" style={{ borderColor: 'var(--border)' }} />;
@@ -95,8 +138,24 @@ export default function Sidebar() {
         })}
       </nav>
 
+      {activeProject && (
+        <div className="p-3 border-t" style={{ borderColor: 'var(--border)' }}>
+          <button
+            onClick={() => {
+              if (confirm(`Delete project "${activeProject.title}"?`)) {
+                deleteProject(activeProject.id);
+              }
+            }}
+            className="w-full py-1.5 rounded-lg text-xs"
+            style={{ color: 'var(--red)', background: 'rgba(239,68,68,0.08)' }}
+          >
+            Delete Project
+          </button>
+        </div>
+      )}
+
       <div className="p-3 border-t text-xs" style={{ borderColor: 'var(--border)', color: 'var(--text3)' }}>
-        v1.0.0
+        v1.1.0
       </div>
     </aside>
   );

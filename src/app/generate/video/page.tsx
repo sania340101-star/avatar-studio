@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   VIDEO_MODEL_OPTIONS,
   VIDEO_MODEL_GROUPS,
@@ -9,10 +9,14 @@ import {
   getVideoModelType,
 } from '@/lib/models';
 import { getSessionUser } from '@/lib/auth';
-import { VideoModelTypeFilter } from '@/lib/types';
+import { useProject } from '@/lib/ProjectContext';
+import { VideoModelTypeFilter, Generation } from '@/lib/types';
+import ImagePicker from '@/components/ImagePicker';
+import VersionHistory from '@/components/VersionHistory';
 
 export default function GenerateVideoPage() {
   const user = getSessionUser();
+  const { activeProject } = useProject();
   const [typeFilter, setTypeFilter] = useState<VideoModelTypeFilter>('all');
   const [model, setModel] = useState(VIDEO_MODEL_OPTIONS[0].id);
   const [prompt, setPrompt] = useState('');
@@ -21,6 +25,7 @@ export default function GenerateVideoPage() {
   const [generating, setGenerating] = useState(false);
   const [results, setResults] = useState<{ url: string }[]>([]);
   const [error, setError] = useState('');
+  const [history, setHistory] = useState<Generation[]>([]);
 
   const filteredModels = filterVideoModelsByType(typeFilter);
   const selectedModel = VIDEO_MODEL_OPTIONS.find(m => m.id === model);
@@ -38,6 +43,15 @@ export default function GenerateVideoPage() {
     generalByGroup[key].push(m);
   }
 
+  const loadHistory = useCallback(async () => {
+    if (!activeProject) return;
+    const res = await fetch(`/api/generations?projectId=${activeProject.id}&type=video`);
+    const data = await res.json();
+    if (Array.isArray(data)) setHistory(data);
+  }, [activeProject]);
+
+  useEffect(() => { loadHistory(); }, [loadHistory]);
+
   function handleTypeFilterChange(newFilter: VideoModelTypeFilter) {
     setTypeFilter(newFilter);
     const available = filterVideoModelsByType(newFilter);
@@ -47,7 +61,7 @@ export default function GenerateVideoPage() {
   }
 
   async function handleGenerate() {
-    if (!prompt.trim()) return;
+    if (!prompt.trim() || !activeProject) return;
     setGenerating(true);
     setError('');
     try {
@@ -65,7 +79,28 @@ export default function GenerateVideoPage() {
       });
       const data = await res.json();
       if (data.error) throw new Error(data.error);
-      if (data.video) setResults(prev => [data.video, ...prev]);
+      if (data.video) {
+        setResults(prev => [data.video, ...prev]);
+
+        const modelOpt = VIDEO_MODEL_OPTIONS.find(m => m.id === model);
+        await fetch('/api/generations', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            projectId: activeProject.id,
+            userId: user?.userId,
+            type: 'video',
+            modelId: model,
+            modelLabel: modelOpt?.label || model,
+            prompt: prompt.trim(),
+            params: { duration, typeFilter, sourceImage: sourceImage || undefined },
+            referenceUrls: sourceImage ? [sourceImage] : [],
+            resultUrls: [data.video.url],
+            status: 'completed',
+          }),
+        });
+        loadHistory();
+      }
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Generation failed');
     } finally {
@@ -73,9 +108,35 @@ export default function GenerateVideoPage() {
     }
   }
 
+  function handleSelectVersion(gen: Generation) {
+    setModel(gen.modelId);
+    setPrompt(gen.prompt);
+    if (gen.params.duration) setDuration(gen.params.duration as number);
+    if (gen.params.typeFilter) setTypeFilter(gen.params.typeFilter as VideoModelTypeFilter);
+    if (gen.params.sourceImage) setSourceImage(gen.params.sourceImage as string);
+    else setSourceImage('');
+    setResults(gen.resultUrls.map(url => ({ url })));
+  }
+
+  async function handleDeleteVersion(genId: string) {
+    if (!activeProject) return;
+    await fetch(`/api/generations?projectId=${activeProject.id}&generationId=${genId}`, { method: 'DELETE' });
+    loadHistory();
+  }
+
+  if (!activeProject) {
+    return (
+      <div className="text-center py-16">
+        <p className="text-lg mb-2" style={{ color: 'var(--text2)' }}>No project selected</p>
+        <p className="text-sm" style={{ color: 'var(--text3)' }}>Create a project in the sidebar to start generating.</p>
+      </div>
+    );
+  }
+
   return (
     <div>
-      <h2 className="text-xl font-semibold mb-6">Generate Video</h2>
+      <h2 className="text-xl font-semibold mb-1">Generate Video</h2>
+      <p className="text-sm mb-6" style={{ color: 'var(--text3)' }}>Project: {activeProject.title}</p>
 
       <div className="space-y-5">
         <div className="grid grid-cols-2 gap-4">
@@ -153,16 +214,7 @@ export default function GenerateVideoPage() {
               ))}
             </select>
           </div>
-          <div>
-            <label className="block text-sm mb-1.5" style={{ color: 'var(--text2)' }}>Source Image URL</label>
-            <input
-              type="text"
-              value={sourceImage}
-              onChange={e => setSourceImage(e.target.value)}
-              placeholder="https://... or leave empty"
-              className="w-full"
-            />
-          </div>
+          <ImagePicker value={sourceImage} onChange={setSourceImage} />
         </div>
 
         <div className="flex items-center justify-between pt-2">
@@ -210,6 +262,8 @@ export default function GenerateVideoPage() {
           </div>
         </div>
       )}
+
+      <VersionHistory generations={history} onSelect={handleSelectVersion} onDelete={handleDeleteVersion} />
     </div>
   );
 }

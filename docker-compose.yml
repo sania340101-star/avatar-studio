@@ -5,6 +5,8 @@ services:
     restart: unless-stopped
     ports:
       - "3000"
+    volumes:
+      - app-data:/app/data
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.${ENV}-${PROJECT_NAME}.rule=Host(`${SITE_BASENAME}`)"
@@ -12,6 +14,9 @@ services:
       - "traefik.http.services.${ENV}-${PROJECT_NAME}.loadbalancer.server.port=3000"
     networks:
       - traefik-network
+
+volumes:
+  app-data:
 
 networks:
   traefik-network:

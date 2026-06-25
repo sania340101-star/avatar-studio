@@ -73,3 +73,28 @@ export interface AppUser {
   authMethod: 'sso' | 'otp';
   falKey?: string;
 }
+
+export interface Project {
+  id: string;
+  userId: string;
+  title: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface Generation {
+  id: string;
+  projectId: string;
+  userId: string;
+  type: 'image' | 'video';
+  modelId: string;
+  modelLabel: string;
+  prompt: string;
+  params: Record<string, unknown>;
+  referenceUrls: string[];
+  resultUrls: string[];
+  status: 'pending' | 'completed' | 'failed';
+  error?: string;
+  parentId?: string;
+  createdAt: number;
+}

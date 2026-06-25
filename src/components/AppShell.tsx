@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { AppUser } from '@/lib/types';
-import { tryAutoLogin, clearSession } from '@/lib/auth';
+import { tryAutoLogin } from '@/lib/auth';
+import { ProjectProvider } from '@/lib/ProjectContext';
 import Sidebar from './Sidebar';
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
@@ -43,13 +44,15 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="h-full flex">
-      <Sidebar />
-      <main className="flex-1 overflow-auto p-6">
-        <div className="max-w-5xl mx-auto">
-          {children}
-        </div>
-      </main>
-    </div>
+    <ProjectProvider>
+      <div className="h-full flex">
+        <Sidebar />
+        <main className="flex-1 overflow-auto p-6">
+          <div className="max-w-5xl mx-auto">
+            {children}
+          </div>
+        </main>
+      </div>
+    </ProjectProvider>
   );
 }

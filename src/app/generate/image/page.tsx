@@ -1,8 +1,11 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { IMAGE_MODEL_OPTIONS, IMAGE_MODEL_GROUPS, getImageModelFormat, imageSizeToAspectRatio } from '@/lib/models';
 import { getSessionUser } from '@/lib/auth';
+import { useProject } from '@/lib/ProjectContext';
+import { Generation } from '@/lib/types';
+import VersionHistory from '@/components/VersionHistory';
 
 interface GeneratedImage {
   url: string;
@@ -11,6 +14,7 @@ interface GeneratedImage {
 
 export default function GenerateImagePage() {
   const user = getSessionUser();
+  const { activeProject } = useProject();
   const [model, setModel] = useState(IMAGE_MODEL_OPTIONS[0].id);
   const [prompt, setPrompt] = useState('');
   const [size, setSize] = useState('portrait_16_9');
@@ -19,10 +23,20 @@ export default function GenerateImagePage() {
   const [generating, setGenerating] = useState(false);
   const [results, setResults] = useState<GeneratedImage[]>([]);
   const [error, setError] = useState('');
+  const [history, setHistory] = useState<Generation[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);
 
+  const loadHistory = useCallback(async () => {
+    if (!activeProject) return;
+    const res = await fetch(`/api/generations?projectId=${activeProject.id}&type=image`);
+    const data = await res.json();
+    if (Array.isArray(data)) setHistory(data);
+  }, [activeProject]);
+
+  useEffect(() => { loadHistory(); }, [loadHistory]);
+
   async function handleGenerate() {
-    if (!prompt.trim()) return;
+    if (!prompt.trim() || !activeProject) return;
     setGenerating(true);
     setError('');
     try {
@@ -44,7 +58,27 @@ export default function GenerateImagePage() {
       });
       const data = await res.json();
       if (data.error) throw new Error(data.error);
-      setResults(prev => [...(data.images || []), ...prev]);
+      const images: GeneratedImage[] = data.images || [];
+      setResults(prev => [...images, ...prev]);
+
+      const modelOpt = IMAGE_MODEL_OPTIONS.find(m => m.id === model);
+      await fetch('/api/generations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          projectId: activeProject.id,
+          userId: user?.userId,
+          type: 'image',
+          modelId: model,
+          modelLabel: modelOpt?.label || model,
+          prompt: prompt.trim(),
+          params: { size, count, format },
+          referenceUrls: references,
+          resultUrls: images.map(img => img.url),
+          status: 'completed',
+        }),
+      });
+      loadHistory();
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Generation failed');
     } finally {
@@ -52,24 +86,47 @@ export default function GenerateImagePage() {
     }
   }
 
-  function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
+  async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const files = e.target.files;
     if (!files) return;
-    Array.from(files).forEach(file => {
-      const reader = new FileReader();
-      reader.onload = () => {
-        if (typeof reader.result === 'string') {
-          setReferences(prev => [...prev, reader.result as string]);
-        }
-      };
-      reader.readAsDataURL(file);
-    });
+    for (const file of Array.from(files)) {
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await fetch('/api/upload', { method: 'POST', body: formData });
+      const data = await res.json();
+      if (data.url) setReferences(prev => [...prev, data.url]);
+    }
     e.target.value = '';
+  }
+
+  function handleSelectVersion(gen: Generation) {
+    setModel(gen.modelId);
+    setPrompt(gen.prompt);
+    if (gen.params.size) setSize(gen.params.size as string);
+    if (gen.params.count) setCount(gen.params.count as number);
+    setReferences(gen.referenceUrls || []);
+    setResults(gen.resultUrls.map(url => ({ url })));
+  }
+
+  async function handleDeleteVersion(genId: string) {
+    if (!activeProject) return;
+    await fetch(`/api/generations?projectId=${activeProject.id}&generationId=${genId}`, { method: 'DELETE' });
+    loadHistory();
+  }
+
+  if (!activeProject) {
+    return (
+      <div className="text-center py-16">
+        <p className="text-lg mb-2" style={{ color: 'var(--text2)' }}>No project selected</p>
+        <p className="text-sm" style={{ color: 'var(--text3)' }}>Create a project in the sidebar to start generating.</p>
+      </div>
+    );
   }
 
   return (
     <div>
-      <h2 className="text-xl font-semibold mb-6">Generate Image</h2>
+      <h2 className="text-xl font-semibold mb-1">Generate Image</h2>
+      <p className="text-sm mb-6" style={{ color: 'var(--text3)' }}>Project: {activeProject.title}</p>
 
       <div className="space-y-5">
         <div>
@@ -197,6 +254,8 @@ export default function GenerateImagePage() {
           </div>
         </div>
       )}
+
+      <VersionHistory generations={history} onSelect={handleSelectVersion} onDelete={handleDeleteVersion} />
     </div>
   );
 }
