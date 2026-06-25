@@ -42,17 +42,23 @@ export interface GenerationResult {
   approved?: boolean;
 }
 
+export interface TemplateRef {
+  url: string;
+  type: 'image' | 'video' | 'audio';
+  name: string;
+}
+
 export interface Template {
   id: string;
   name: string;
   description: string;
   type: 'image' | 'video';
-  device: 'hh1x3' | 'solo' | 'l40' | 'any';
+  device: 'hh1x3' | 'solo' | 'any';
   modelId: string;
   modelLabel: string;
   promptTemplate: string;
   params: Record<string, unknown>;
-  referenceUrls: string[];
+  references: TemplateRef[];
   createdBy: string;
   createdAt: number;
   updatedAt: number;

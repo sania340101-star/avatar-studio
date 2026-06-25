@@ -1,0 +1,131 @@
+'use client';
+
+import { useRef, useState } from 'react';
+import { TemplateRef } from '@/lib/types';
+
+interface Props {
+  references: TemplateRef[];
+  onChange: (refs: TemplateRef[]) => void;
+  accept?: string;
+  label?: string;
+}
+
+function getRefType(file: File): TemplateRef['type'] {
+  if (file.type.startsWith('audio/')) return 'audio';
+  if (file.type.startsWith('video/')) return 'video';
+  return 'image';
+}
+
+export default function ReferenceUpload({ references, onChange, accept, label = 'References' }: Props) {
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+
+  async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = e.target.files;
+    if (!files) return;
+    setUploading(true);
+    const newRefs: TemplateRef[] = [];
+    for (const file of Array.from(files)) {
+      const formData = new FormData();
+      formData.append('file', file);
+      try {
+        const res = await fetch('/api/upload', { method: 'POST', body: formData });
+        const data = await res.json();
+        if (data.url) {
+          newRefs.push({ url: data.url, type: getRefType(file), name: file.name });
+        }
+      } catch {}
+    }
+    onChange([...references, ...newRefs]);
+    setUploading(false);
+    e.target.value = '';
+  }
+
+  function handleRemove(idx: number) {
+    onChange(references.filter((_, i) => i !== idx));
+  }
+
+  const images = references.filter(r => r.type === 'image');
+  const videos = references.filter(r => r.type === 'video');
+  const audios = references.filter(r => r.type === 'audio');
+
+  return (
+    <div>
+      <label className="block text-sm mb-1.5" style={{ color: 'var(--text2)' }}>{label}</label>
+
+      {references.length > 0 && (
+        <div className="mb-2 space-y-2">
+          {images.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {images.map((ref, i) => {
+                const globalIdx = references.indexOf(ref);
+                return (
+                  <div key={i} className="relative w-16 h-16 rounded-lg overflow-hidden border" style={{ borderColor: 'var(--border)' }}>
+                    <img src={ref.url} alt={ref.name} className="w-full h-full object-cover" />
+                    <button
+                      onClick={() => handleRemove(globalIdx)}
+                      className="absolute top-0 right-0 w-5 h-5 flex items-center justify-center text-xs rounded-bl-lg"
+                      style={{ background: 'var(--red)', color: 'white' }}
+                    >x</button>
+                    <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-[10px] text-white px-1 truncate">{ref.name}</div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {videos.map((ref, i) => {
+            const globalIdx = references.indexOf(ref);
+            return (
+              <div key={i} className="flex items-center gap-2 p-2 rounded-lg" style={{ background: 'var(--bg-input)', border: '1px solid var(--border)' }}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--accent)' }}>
+                  <polygon points="5 3 19 12 5 21 5 3" />
+                </svg>
+                <span className="text-sm flex-1 truncate" style={{ color: 'var(--text2)' }}>{ref.name}</span>
+                <button onClick={() => handleRemove(globalIdx)} className="text-xs px-1" style={{ color: 'var(--red)' }}>x</button>
+              </div>
+            );
+          })}
+
+          {audios.map((ref, i) => {
+            const globalIdx = references.indexOf(ref);
+            return (
+              <div key={i} className="flex items-center gap-2 p-2 rounded-lg" style={{ background: 'var(--bg-input)', border: '1px solid var(--border)' }}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--green)' }}>
+                  <path d="M9 18V5l12-2v13" /><circle cx="6" cy="18" r="3" /><circle cx="18" cy="16" r="3" />
+                </svg>
+                <span className="text-sm flex-1 truncate" style={{ color: 'var(--text2)' }}>{ref.name}</span>
+                <button onClick={() => handleRemove(globalIdx)} className="text-xs px-1" style={{ color: 'var(--red)' }}>x</button>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      <button
+        onClick={() => fileRef.current?.click()}
+        disabled={uploading}
+        className="w-full py-2.5 rounded-lg border-2 border-dashed text-sm"
+        style={{ borderColor: 'var(--border)', color: 'var(--text3)' }}
+      >
+        {uploading ? 'Uploading...' : '+ Add images, videos, or audio'}
+      </button>
+      <input
+        ref={fileRef}
+        type="file"
+        accept={accept || 'image/*,video/*,audio/*'}
+        multiple
+        className="hidden"
+        onChange={handleUpload}
+      />
+
+      {references.length > 0 && (
+        <p className="text-xs mt-1" style={{ color: 'var(--text3)' }}>
+          {images.length > 0 && `${images.length} image${images.length > 1 ? 's' : ''}`}
+          {videos.length > 0 && `${images.length > 0 ? ', ' : ''}${videos.length} video${videos.length > 1 ? 's' : ''}`}
+          {audios.length > 0 && `${(images.length > 0 || videos.length > 0) ? ', ' : ''}${audios.length} audio`}
+        </p>
+      )}
+    </div>
+  );
+}

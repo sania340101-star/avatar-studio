@@ -427,5 +427,4 @@ export function imageSizeToAspectRatio(imageSize: string): string {
 export const DEVICE_PRESETS = {
   hh1x3: { name: 'HH 1x3', width: 930, height: 2174, fps: 60 },
   solo: { name: 'Solo', width: 880, height: 880, fps: 60 },
-  l40: { name: 'L40', width: 1080, height: 1920, fps: 60 },
 };

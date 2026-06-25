@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import AppShell from '@/components/AppShell';
 import { useProject } from '@/lib/ProjectContext';
-import { Template, Generation } from '@/lib/types';
+import { Template, TemplateRef, Generation } from '@/lib/types';
 import { getSessionUser } from '@/lib/auth';
 import {
   IMAGE_MODEL_OPTIONS, IMAGE_MODEL_GROUPS,
@@ -11,7 +11,7 @@ import {
   DEVICE_PRESETS, getImageModelFormat, imageSizeToAspectRatio,
 } from '@/lib/models';
 import VersionHistory from '@/components/VersionHistory';
-import ImagePicker from '@/components/ImagePicker';
+import ReferenceUpload from '@/components/ReferenceUpload';
 
 type View = 'list' | 'create' | 'use';
 
@@ -44,28 +44,13 @@ function TemplatesContent() {
   return (
     <div>
       {view === 'list' && (
-        <TemplateList
-          templates={templates}
-          onUse={handleUse}
-          onDelete={handleDelete}
-          onCreate={() => setView('create')}
-        />
+        <TemplateList templates={templates} onUse={handleUse} onDelete={handleDelete} onCreate={() => setView('create')} />
       )}
       {view === 'create' && (
-        <TemplateForm
-          userId={user?.userId || ''}
-          onSave={() => { load(); setView('list'); }}
-          onCancel={() => setView('list')}
-        />
+        <TemplateForm userId={user?.userId || ''} onSave={() => { load(); setView('list'); }} onCancel={() => setView('list')} />
       )}
       {view === 'use' && selectedTemplate && (
-        <TemplateRunner
-          template={selectedTemplate}
-          onBack={() => setView('list')}
-          projectId={activeProject?.id}
-          userId={user?.userId}
-          falKey={user?.falKey}
-        />
+        <TemplateRunner template={selectedTemplate} onBack={() => setView('list')} projectId={activeProject?.id} userId={user?.userId} falKey={user?.falKey} />
       )}
     </div>
   );
@@ -86,11 +71,7 @@ function TemplateList({ templates, onUse, onDelete, onCreate }: {
           <h2 className="text-xl font-semibold">Templates</h2>
           {activeProject && <p className="text-sm" style={{ color: 'var(--text3)' }}>Project: {activeProject.title}</p>}
         </div>
-        <button
-          onClick={onCreate}
-          className="px-4 py-2 rounded-lg text-sm font-semibold text-white"
-          style={{ background: 'var(--accent)' }}
-        >
+        <button onClick={onCreate} className="px-4 py-2 rounded-lg text-sm font-semibold text-white" style={{ background: 'var(--accent)' }}>
           + New Template
         </button>
       </div>
@@ -98,48 +79,51 @@ function TemplateList({ templates, onUse, onDelete, onCreate }: {
       {templates.length === 0 ? (
         <div className="rounded-xl p-8 text-center" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
           <p className="font-medium mb-1" style={{ color: 'var(--text2)' }}>No templates yet</p>
-          <p className="text-sm" style={{ color: 'var(--text3)' }}>Create a template to save model + params + prompt presets for quick generation.</p>
+          <p className="text-sm" style={{ color: 'var(--text3)' }}>Create a template to save model + params + prompt + references for quick generation.</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {templates.map(tmpl => (
-            <div key={tmpl.id} className="rounded-xl border p-4" style={{ borderColor: 'var(--border)', background: 'var(--bg-card)' }}>
-              <div className="flex items-start justify-between mb-2">
-                <div>
-                  <h3 className="font-semibold">{tmpl.name}</h3>
-                  {tmpl.description && <p className="text-sm mt-0.5" style={{ color: 'var(--text2)' }}>{tmpl.description}</p>}
+          {templates.map(tmpl => {
+            const refs = tmpl.references || [];
+            const imgCount = refs.filter(r => r.type === 'image').length;
+            const vidCount = refs.filter(r => r.type === 'video').length;
+            const audCount = refs.filter(r => r.type === 'audio').length;
+
+            return (
+              <div key={tmpl.id} className="rounded-xl border p-4" style={{ borderColor: 'var(--border)', background: 'var(--bg-card)' }}>
+                <div className="flex items-start justify-between mb-2">
+                  <div>
+                    <h3 className="font-semibold">{tmpl.name}</h3>
+                    {tmpl.description && <p className="text-sm mt-0.5" style={{ color: 'var(--text2)' }}>{tmpl.description}</p>}
+                  </div>
+                  <div className="flex gap-1">
+                    <span className="text-xs px-2 py-0.5 rounded" style={{ background: 'var(--accent-subtle)', color: 'var(--accent)' }}>{tmpl.type}</span>
+                    {tmpl.device !== 'any' && (
+                      <span className="text-xs px-2 py-0.5 rounded" style={{ background: 'var(--bg-input)', color: 'var(--text3)' }}>{tmpl.device.toUpperCase()}</span>
+                    )}
+                  </div>
                 </div>
-                <div className="flex gap-1">
-                  <span className="text-xs px-2 py-0.5 rounded" style={{ background: 'var(--accent-subtle)', color: 'var(--accent)' }}>
-                    {tmpl.type}
-                  </span>
-                  {tmpl.device !== 'any' && (
-                    <span className="text-xs px-2 py-0.5 rounded" style={{ background: 'var(--bg-input)', color: 'var(--text3)' }}>
-                      {tmpl.device.toUpperCase()}
+                <p className="text-xs mb-1" style={{ color: 'var(--text3)' }}>{tmpl.modelLabel}</p>
+
+                {refs.length > 0 && (
+                  <div className="flex items-center gap-2 mb-2">
+                    {refs.filter(r => r.type === 'image').slice(0, 4).map((r, i) => (
+                      <img key={i} src={r.url} alt="" className="w-8 h-8 rounded object-cover" />
+                    ))}
+                    <span className="text-xs" style={{ color: 'var(--text3)' }}>
+                      {imgCount > 0 && `${imgCount} img`}{vidCount > 0 && `${imgCount > 0 ? ', ' : ''}${vidCount} vid`}{audCount > 0 && `${(imgCount > 0 || vidCount > 0) ? ', ' : ''}${audCount} aud`}
                     </span>
-                  )}
+                  </div>
+                )}
+
+                <p className="text-sm mb-4 line-clamp-2" style={{ color: 'var(--text2)' }}>{tmpl.promptTemplate}</p>
+                <div className="flex gap-2">
+                  <button onClick={() => onUse(tmpl)} className="flex-1 py-2 rounded-lg text-sm font-medium text-white" style={{ background: 'var(--accent)' }}>Use Template</button>
+                  <button onClick={() => onDelete(tmpl.id)} className="px-3 py-2 rounded-lg text-sm" style={{ color: 'var(--red)', background: 'rgba(239,68,68,0.08)' }}>Del</button>
                 </div>
               </div>
-              <p className="text-xs mb-3" style={{ color: 'var(--text3)' }}>{tmpl.modelLabel}</p>
-              <p className="text-sm mb-4 line-clamp-2" style={{ color: 'var(--text2)' }}>{tmpl.promptTemplate}</p>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => onUse(tmpl)}
-                  className="flex-1 py-2 rounded-lg text-sm font-medium text-white"
-                  style={{ background: 'var(--accent)' }}
-                >
-                  Use Template
-                </button>
-                <button
-                  onClick={() => onDelete(tmpl.id)}
-                  className="px-3 py-2 rounded-lg text-sm"
-                  style={{ color: 'var(--red)', background: 'rgba(239,68,68,0.08)' }}
-                >
-                  Del
-                </button>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </>
@@ -160,6 +144,7 @@ function TemplateForm({ userId, onSave, onCancel }: {
   const [size, setSize] = useState('portrait_16_9');
   const [duration, setDuration] = useState(5);
   const [count, setCount] = useState(1);
+  const [references, setReferences] = useState<TemplateRef[]>([]);
   const [saving, setSaving] = useState(false);
 
   const modelOptions = type === 'image' ? IMAGE_MODEL_OPTIONS : VIDEO_MODEL_OPTIONS;
@@ -168,6 +153,8 @@ function TemplateForm({ userId, onSave, onCancel }: {
   useEffect(() => {
     setModelId(modelOptions[0].id);
   }, [type, modelOptions]);
+
+  const refAccept = type === 'image' ? 'image/*' : 'image/*,video/*,audio/*';
 
   async function handleSave() {
     if (!name.trim() || !promptTemplate.trim()) return;
@@ -189,7 +176,7 @@ function TemplateForm({ userId, onSave, onCancel }: {
         modelLabel: modelOpt?.label || modelId,
         promptTemplate: promptTemplate.trim(),
         params,
-        referenceUrls: [],
+        references,
         createdBy: userId,
       }),
     });
@@ -287,8 +274,14 @@ function TemplateForm({ userId, onSave, onCancel }: {
             placeholder="Professional full-body portrait of a person standing in a relaxed pose, clean white background, studio lighting..."
             className="w-full h-32 resize-none"
           />
-          <p className="text-xs mt-1" style={{ color: 'var(--text3)' }}>Tip: this prompt will be used for all generations from this template.</p>
         </div>
+
+        <ReferenceUpload
+          references={references}
+          onChange={setReferences}
+          accept={refAccept}
+          label={type === 'image' ? 'Reference Images' : 'References (images, videos, audio)'}
+        />
 
         <div className="flex gap-3 pt-2">
           <button onClick={onCancel} className="px-5 py-2.5 rounded-lg text-sm" style={{ color: 'var(--text2)', background: 'var(--bg-input)' }}>Cancel</button>
@@ -313,8 +306,9 @@ function TemplateRunner({ template, onBack, projectId, userId, falKey }: {
   userId?: string;
   falKey?: string;
 }) {
+  const templateRefs = template.references || [];
   const [prompt, setPrompt] = useState(template.promptTemplate);
-  const [sourceImage, setSourceImage] = useState('');
+  const [references, setReferences] = useState<TemplateRef[]>(templateRefs);
   const [generating, setGenerating] = useState(false);
   const [results, setResults] = useState<{ url: string }[]>([]);
   const [error, setError] = useState('');
@@ -336,6 +330,10 @@ function TemplateRunner({ template, onBack, projectId, userId, falKey }: {
     setGenerating(true);
     setError('');
     try {
+      const imageRefs = references.filter(r => r.type === 'image').map(r => r.url);
+      const videoRefs = references.filter(r => r.type === 'video').map(r => r.url);
+      const audioRefs = references.filter(r => r.type === 'audio').map(r => r.url);
+
       const body: Record<string, unknown> = {
         type: template.type,
         model: template.modelId,
@@ -351,9 +349,12 @@ function TemplateRunner({ template, onBack, projectId, userId, falKey }: {
         if (format === 'aspect_ratio') {
           body.aspectRatio = imageSizeToAspectRatio(body.size as string);
         }
+        if (imageRefs.length > 0) body.references = imageRefs;
       } else {
         body.duration = template.params.duration || 5;
-        if (sourceImage) body.sourceImage = sourceImage;
+        if (imageRefs.length > 0) body.sourceImage = imageRefs[0];
+        if (videoRefs.length > 0) body.sourceVideo = videoRefs[0];
+        if (audioRefs.length > 0) body.audioUrl = audioRefs[0];
       }
 
       const res = await fetch('/api/generate', {
@@ -381,7 +382,7 @@ function TemplateRunner({ template, onBack, projectId, userId, falKey }: {
           modelLabel: template.modelLabel,
           prompt: prompt.trim(),
           params: { ...template.params, templateId: template.id, templateName: template.name },
-          referenceUrls: sourceImage ? [sourceImage] : [],
+          referenceUrls: references.map(r => r.url),
           resultUrls,
           status: 'completed',
         }),
@@ -419,12 +420,14 @@ function TemplateRunner({ template, onBack, projectId, userId, falKey }: {
           <textarea value={prompt} onChange={e => setPrompt(e.target.value)} className="w-full h-28 resize-none" />
         </div>
 
-        {template.type === 'video' && (
-          <ImagePicker value={sourceImage} onChange={setSourceImage} />
-        )}
+        <ReferenceUpload
+          references={references}
+          onChange={setReferences}
+          label={template.type === 'image' ? 'Reference Images (editable)' : 'References (editable)'}
+        />
 
         <div className="flex items-center justify-between pt-2">
-          <div className="flex gap-2 text-xs" style={{ color: 'var(--text3)' }}>
+          <div className="flex gap-2 text-xs flex-wrap" style={{ color: 'var(--text3)' }}>
             {Object.entries(template.params).filter(([k]) => !k.startsWith('template')).map(([k, v]) => (
               <span key={k} className="px-2 py-0.5 rounded" style={{ background: 'var(--bg-input)' }}>{k}: {String(v)}</span>
             ))}
@@ -432,7 +435,7 @@ function TemplateRunner({ template, onBack, projectId, userId, falKey }: {
           <button
             onClick={handleGenerate}
             disabled={generating || !prompt.trim()}
-            className="px-6 py-2.5 rounded-lg text-sm font-semibold text-white disabled:opacity-50"
+            className="px-6 py-2.5 rounded-lg text-sm font-semibold text-white disabled:opacity-50 flex-shrink-0"
             style={{ background: generating ? 'var(--text3)' : 'var(--accent)' }}
           >
             {generating ? (
