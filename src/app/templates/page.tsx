@@ -3,13 +3,15 @@
 import { useState, useEffect, useCallback } from 'react';
 import AppShell from '@/components/AppShell';
 import { useProject } from '@/lib/ProjectContext';
-import { Template, TemplateRef, Generation } from '@/lib/types';
+import { Template, TemplateRef, Generation, VideoModelTypeFilter } from '@/lib/types';
 import { getSessionUser } from '@/lib/auth';
 import {
   IMAGE_MODEL_OPTIONS, IMAGE_MODEL_GROUPS,
   VIDEO_MODEL_OPTIONS, VIDEO_MODEL_GROUPS,
+  VIDEO_MODEL_TYPE_FILTERS, filterVideoModelsByType, getVideoModelType,
   DEVICE_PRESETS, getImageModelFormat, imageSizeToAspectRatio,
 } from '@/lib/models';
+import ImagePicker from '@/components/ImagePicker';
 import VersionHistory from '@/components/VersionHistory';
 import ReferenceUpload from '@/components/ReferenceUpload';
 
@@ -139,30 +141,51 @@ function TemplateForm({ userId, onSave, onCancel }: {
   const [description, setDescription] = useState('');
   const [type, setType] = useState<'image' | 'video'>('video');
   const [device, setDevice] = useState<string>('any');
+  const [videoTypeFilter, setVideoTypeFilter] = useState<VideoModelTypeFilter>('all');
   const [modelId, setModelId] = useState(VIDEO_MODEL_OPTIONS[0].id);
   const [promptTemplate, setPromptTemplate] = useState('');
   const [size, setSize] = useState('portrait_16_9');
   const [duration, setDuration] = useState(5);
   const [count, setCount] = useState(1);
-  const [references, setReferences] = useState<TemplateRef[]>([]);
+  const [sourceImage, setSourceImage] = useState('');
+  const [endImage, setEndImage] = useState('');
+  const [sourceVideo, setSourceVideo] = useState<TemplateRef | null>(null);
+  const [audioRef, setAudioRef] = useState<TemplateRef | null>(null);
+  const [multiRefs, setMultiRefs] = useState<TemplateRef[]>([]);
+  const [imageRefs, setImageRefs] = useState<TemplateRef[]>([]);
   const [saving, setSaving] = useState(false);
 
-  const modelOptions = type === 'image' ? IMAGE_MODEL_OPTIONS : VIDEO_MODEL_OPTIONS;
+  const filteredVideoModels = filterVideoModelsByType(videoTypeFilter);
+  const modelOptions = type === 'image' ? IMAGE_MODEL_OPTIONS : filteredVideoModels;
   const modelGroups = type === 'image' ? IMAGE_MODEL_GROUPS : VIDEO_MODEL_GROUPS;
+  const selectedVideoModel = type === 'video' ? VIDEO_MODEL_OPTIONS.find(m => m.id === modelId) : null;
+  const videoModelType = selectedVideoModel ? getVideoModelType(selectedVideoModel) : 'image-to-video';
 
   useEffect(() => {
-    setModelId(modelOptions[0].id);
-  }, [type, modelOptions]);
-
-  const refAccept = type === 'image' ? 'image/*' : 'image/*,video/*,audio/*';
+    const opts = type === 'image' ? IMAGE_MODEL_OPTIONS : filterVideoModelsByType(videoTypeFilter);
+    if (opts.length > 0 && !opts.find(m => m.id === modelId)) {
+      setModelId(opts[0].id);
+    }
+  }, [type, videoTypeFilter, modelId]);
 
   async function handleSave() {
     if (!name.trim() || !promptTemplate.trim()) return;
     setSaving(true);
-    const modelOpt = modelOptions.find(m => m.id === modelId);
+    const modelOpt = (type === 'image' ? IMAGE_MODEL_OPTIONS : VIDEO_MODEL_OPTIONS).find(m => m.id === modelId);
     const params: Record<string, unknown> = type === 'image'
       ? { size, count, format: getImageModelFormat(modelId) }
-      : { duration };
+      : { duration, videoTypeFilter };
+
+    const refs: TemplateRef[] = [];
+    if (type === 'image') {
+      refs.push(...imageRefs);
+    } else {
+      if (sourceImage) refs.push({ url: sourceImage, type: 'image', name: 'Source image' });
+      if (endImage) refs.push({ url: endImage, type: 'image', name: 'End image' });
+      if (sourceVideo) refs.push(sourceVideo);
+      if (audioRef) refs.push(audioRef);
+      refs.push(...multiRefs);
+    }
 
     await fetch('/api/templates', {
       method: 'POST',
@@ -176,7 +199,7 @@ function TemplateForm({ userId, onSave, onCancel }: {
         modelLabel: modelOpt?.label || modelId,
         promptTemplate: promptTemplate.trim(),
         params,
-        references,
+        references: refs,
         createdBy: userId,
       }),
     });
@@ -221,19 +244,68 @@ function TemplateForm({ userId, onSave, onCancel }: {
               ))}
             </select>
           </div>
-          <div>
-            <label className="block text-sm mb-1.5" style={{ color: 'var(--text2)' }}>Model</label>
+          {type === 'video' && (
+            <div>
+              <label className="block text-sm mb-1.5" style={{ color: 'var(--text2)' }}>Video Type</label>
+              <select value={videoTypeFilter} onChange={e => setVideoTypeFilter(e.target.value as VideoModelTypeFilter)} className="w-full">
+                {VIDEO_MODEL_TYPE_FILTERS.map(f => (
+                  <option key={f.id} value={f.id}>{f.label}</option>
+                ))}
+              </select>
+            </div>
+          )}
+        </div>
+
+        <div>
+          <label className="block text-sm mb-1.5" style={{ color: 'var(--text2)' }}>
+            Model <span className="text-xs" style={{ color: 'var(--text3)' }}>({modelOptions.length})</span>
+          </label>
+          {type === 'image' ? (
             <select value={modelId} onChange={e => setModelId(e.target.value)} className="w-full">
               {modelGroups.map(group => (
                 <optgroup key={group.id} label={group.label}>
                   {group.modelIds.map(id => {
-                    const opt = modelOptions.find(o => o.id === id);
+                    const opt = IMAGE_MODEL_OPTIONS.find(o => o.id === id);
                     return opt ? <option key={id} value={id}>{opt.label}</option> : null;
                   })}
                 </optgroup>
               ))}
             </select>
-          </div>
+          ) : (
+            <select value={modelId} onChange={e => setModelId(e.target.value)} className="w-full">
+              {(() => {
+                const avatarModels = filteredVideoModels.filter(m => m.avatarAudio || m.avatarText || m.avatarVideoAudio);
+                const utilityModels = filteredVideoModels.filter(m => m.utilityVideo);
+                const generalModels = filteredVideoModels.filter(m => !m.avatarAudio && !m.avatarText && !m.avatarVideoAudio && !m.utilityVideo);
+                const generalByGroup: Record<string, typeof generalModels> = {};
+                for (const m of generalModels) {
+                  const group = VIDEO_MODEL_GROUPS.find(g => g.modelIds.includes(m.id));
+                  const key = group?.label ?? 'Other';
+                  if (!generalByGroup[key]) generalByGroup[key] = [];
+                  generalByGroup[key].push(m);
+                }
+                return (
+                  <>
+                    {Object.entries(generalByGroup).map(([groupLabel, models]) => (
+                      <optgroup key={groupLabel} label={groupLabel}>
+                        {models.map(m => <option key={m.id} value={m.id}>{m.label}</option>)}
+                      </optgroup>
+                    ))}
+                    {avatarModels.length > 0 && (
+                      <optgroup label="Avatar / Lip-sync">
+                        {avatarModels.map(m => <option key={m.id} value={m.id}>{m.label}</option>)}
+                      </optgroup>
+                    )}
+                    {utilityModels.length > 0 && (
+                      <optgroup label="Utility">
+                        {utilityModels.map(m => <option key={m.id} value={m.id}>{m.label}</option>)}
+                      </optgroup>
+                    )}
+                  </>
+                );
+              })()}
+            </select>
+          )}
         </div>
 
         {type === 'image' && (
@@ -276,12 +348,50 @@ function TemplateForm({ userId, onSave, onCancel }: {
           />
         </div>
 
-        <ReferenceUpload
-          references={references}
-          onChange={setReferences}
-          accept={refAccept}
-          label={type === 'image' ? 'Reference Images' : 'References (images, videos, audio)'}
-        />
+        {type === 'image' && (
+          <ReferenceUpload
+            references={imageRefs}
+            onChange={setImageRefs}
+            accept="image/*"
+            label="Reference Images"
+          />
+        )}
+
+        {type === 'video' && videoModelType !== 'text-to-video' && (
+          <div className="space-y-3 p-4 rounded-xl" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+            <p className="text-sm font-medium" style={{ color: 'var(--text1)' }}>References</p>
+
+            {(videoModelType === 'image-to-video' || videoModelType === 'avatar' || videoModelType === 'motion-control' || videoModelType === 'start-end-frame') && (
+              <ImagePicker value={sourceImage} onChange={setSourceImage} label="Source Image" />
+            )}
+
+            {videoModelType === 'start-end-frame' && (
+              <ImagePicker value={endImage} onChange={setEndImage} label="End Image (optional)" />
+            )}
+
+            {videoModelType === 'multi-reference' && (
+              <ReferenceUpload references={multiRefs} onChange={setMultiRefs} accept="image/*" label="Reference Images (2+)" />
+            )}
+
+            {(videoModelType === 'video-edit' || videoModelType === 'utility' || videoModelType === 'lip-sync' || videoModelType === 'motion-control') && (
+              <ReferenceUpload
+                references={sourceVideo ? [sourceVideo] : []}
+                onChange={refs => setSourceVideo(refs[0] || null)}
+                accept="video/*"
+                label={videoModelType === 'motion-control' ? 'Motion Reference Video' : 'Source Video'}
+              />
+            )}
+
+            {(videoModelType === 'avatar' || videoModelType === 'lip-sync') && (
+              <ReferenceUpload
+                references={audioRef ? [audioRef] : []}
+                onChange={refs => setAudioRef(refs[0] || null)}
+                accept="audio/*"
+                label="Audio File"
+              />
+            )}
+          </div>
+        )}
 
         <div className="flex gap-3 pt-2">
           <button onClick={onCancel} className="px-5 py-2.5 rounded-lg text-sm" style={{ color: 'var(--text2)', background: 'var(--bg-input)' }}>Cancel</button>
