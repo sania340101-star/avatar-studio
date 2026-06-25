@@ -94,8 +94,14 @@ async function generateVideo(
   const input: Record<string, unknown> = { prompt };
 
   if (body.sourceImage) input.image_url = body.sourceImage;
+  if (body.sourceVideo) input.video_url = body.sourceVideo;
+  if (body.audioUrl) input.audio_url = body.audioUrl;
+  if (body.endImage) input.end_image_url = body.endImage;
   if (body.duration) input.duration = body.duration;
   if (body.aspectRatio) input.aspect_ratio = body.aspectRatio;
+  if (Array.isArray(body.referenceImages) && body.referenceImages.length > 0) {
+    input.image_urls = body.referenceImages;
+  }
 
   const submitRes = await fetch(`${FAL_QUEUE_URL}/${model}`, {
     method: 'POST',

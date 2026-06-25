@@ -10,8 +10,9 @@ import {
 } from '@/lib/models';
 import { getSessionUser } from '@/lib/auth';
 import { useProject } from '@/lib/ProjectContext';
-import { VideoModelTypeFilter, Generation } from '@/lib/types';
+import { VideoModelTypeFilter, Generation, TemplateRef } from '@/lib/types';
 import ImagePicker from '@/components/ImagePicker';
+import ReferenceUpload from '@/components/ReferenceUpload';
 import VersionHistory from '@/components/VersionHistory';
 
 export default function GenerateVideoPage() {
@@ -22,6 +23,10 @@ export default function GenerateVideoPage() {
   const [prompt, setPrompt] = useState('');
   const [duration, setDuration] = useState(5);
   const [sourceImage, setSourceImage] = useState('');
+  const [sourceVideo, setSourceVideo] = useState<TemplateRef | null>(null);
+  const [audioRef, setAudioRef] = useState<TemplateRef | null>(null);
+  const [endImage, setEndImage] = useState('');
+  const [multiRefs, setMultiRefs] = useState<TemplateRef[]>([]);
   const [generating, setGenerating] = useState(false);
   const [results, setResults] = useState<{ url: string }[]>([]);
   const [error, setError] = useState('');
@@ -65,17 +70,23 @@ export default function GenerateVideoPage() {
     setGenerating(true);
     setError('');
     try {
+      const genBody: Record<string, unknown> = {
+        type: 'video',
+        model,
+        prompt: prompt.trim(),
+        duration,
+        falKey: user?.falKey,
+      };
+      if (sourceImage) genBody.sourceImage = sourceImage;
+      if (sourceVideo) genBody.sourceVideo = sourceVideo.url;
+      if (audioRef) genBody.audioUrl = audioRef.url;
+      if (endImage) genBody.endImage = endImage;
+      if (multiRefs.length > 0) genBody.referenceImages = multiRefs.map(r => r.url);
+
       const res = await fetch('/api/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          type: 'video',
-          model,
-          prompt: prompt.trim(),
-          duration,
-          sourceImage: sourceImage || undefined,
-          falKey: user?.falKey,
-        }),
+        body: JSON.stringify(genBody),
       });
       const data = await res.json();
       if (data.error) throw new Error(data.error);
@@ -83,6 +94,13 @@ export default function GenerateVideoPage() {
         setResults(prev => [data.video, ...prev]);
 
         const modelOpt = VIDEO_MODEL_OPTIONS.find(m => m.id === model);
+        const allRefUrls = [
+          ...(sourceImage ? [sourceImage] : []),
+          ...(sourceVideo ? [sourceVideo.url] : []),
+          ...(audioRef ? [audioRef.url] : []),
+          ...(endImage ? [endImage] : []),
+          ...multiRefs.map(r => r.url),
+        ];
         await fetch('/api/generations', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -93,8 +111,15 @@ export default function GenerateVideoPage() {
             modelId: model,
             modelLabel: modelOpt?.label || model,
             prompt: prompt.trim(),
-            params: { duration, typeFilter, sourceImage: sourceImage || undefined },
-            referenceUrls: sourceImage ? [sourceImage] : [],
+            params: {
+              duration, typeFilter,
+              sourceImage: sourceImage || undefined,
+              sourceVideo: sourceVideo?.url,
+              audioUrl: audioRef?.url,
+              endImage: endImage || undefined,
+              referenceImages: multiRefs.length > 0 ? multiRefs.map(r => r.url) : undefined,
+            },
+            referenceUrls: allRefUrls,
             resultUrls: [data.video.url],
             status: 'completed',
           }),
@@ -113,8 +138,12 @@ export default function GenerateVideoPage() {
     setPrompt(gen.prompt);
     if (gen.params.duration) setDuration(gen.params.duration as number);
     if (gen.params.typeFilter) setTypeFilter(gen.params.typeFilter as VideoModelTypeFilter);
-    if (gen.params.sourceImage) setSourceImage(gen.params.sourceImage as string);
-    else setSourceImage('');
+    setSourceImage((gen.params.sourceImage as string) || '');
+    setSourceVideo(gen.params.sourceVideo ? { url: gen.params.sourceVideo as string, type: 'video', name: 'Source video' } : null);
+    setAudioRef(gen.params.audioUrl ? { url: gen.params.audioUrl as string, type: 'audio', name: 'Audio' } : null);
+    setEndImage((gen.params.endImage as string) || '');
+    const refImgs = gen.params.referenceImages as string[] | undefined;
+    setMultiRefs(refImgs ? refImgs.map((url, i) => ({ url, type: 'image' as const, name: `Reference ${i + 1}` })) : []);
     setResults(gen.resultUrls.map(url => ({ url })));
   }
 
@@ -205,17 +234,55 @@ export default function GenerateVideoPage() {
           />
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm mb-1.5" style={{ color: 'var(--text2)' }}>Duration (seconds)</label>
-            <select value={duration} onChange={e => setDuration(Number(e.target.value))} className="w-full">
-              {[3, 4, 5, 6, 7, 8, 10, 12, 15, 20].map(d => (
-                <option key={d} value={d}>{d}s</option>
-              ))}
-            </select>
-          </div>
-          <ImagePicker value={sourceImage} onChange={setSourceImage} />
+        <div>
+          <label className="block text-sm mb-1.5" style={{ color: 'var(--text2)' }}>Duration (seconds)</label>
+          <select value={duration} onChange={e => setDuration(Number(e.target.value))} className="w-full" style={{ maxWidth: '200px' }}>
+            {[3, 4, 5, 6, 7, 8, 10, 12, 15, 20].map(d => (
+              <option key={d} value={d}>{d}s</option>
+            ))}
+          </select>
         </div>
+
+        {selectedType !== 'text-to-video' && (
+          <div className="space-y-3 p-4 rounded-xl" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+            <p className="text-sm font-medium" style={{ color: 'var(--text1)' }}>References</p>
+
+            {(selectedType === 'image-to-video' || selectedType === 'avatar' || selectedType === 'motion-control' || selectedType === 'start-end-frame') && (
+              <ImagePicker value={sourceImage} onChange={setSourceImage} label="Source Image" />
+            )}
+
+            {selectedType === 'start-end-frame' && (
+              <ImagePicker value={endImage} onChange={setEndImage} label="End Image (optional)" />
+            )}
+
+            {selectedType === 'multi-reference' && (
+              <ReferenceUpload
+                references={multiRefs}
+                onChange={setMultiRefs}
+                accept="image/*"
+                label="Reference Images (2+)"
+              />
+            )}
+
+            {(selectedType === 'video-edit' || selectedType === 'utility' || selectedType === 'lip-sync' || selectedType === 'motion-control') && (
+              <ReferenceUpload
+                references={sourceVideo ? [sourceVideo] : []}
+                onChange={refs => setSourceVideo(refs[0] || null)}
+                accept="video/*"
+                label={selectedType === 'motion-control' ? 'Motion Reference Video' : 'Source Video'}
+              />
+            )}
+
+            {(selectedType === 'avatar' || selectedType === 'lip-sync') && (
+              <ReferenceUpload
+                references={audioRef ? [audioRef] : []}
+                onChange={refs => setAudioRef(refs[0] || null)}
+                accept="audio/*"
+                label="Audio File"
+              />
+            )}
+          </div>
+        )}
 
         <div className="flex items-center justify-between pt-2">
           <span className="text-sm" style={{ color: 'var(--text3)' }}>
