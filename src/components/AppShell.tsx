@@ -2,9 +2,142 @@
 
 import { useEffect, useState } from 'react';
 import { AppUser } from '@/lib/types';
-import { tryAutoLogin } from '@/lib/auth';
+import { tryAutoLogin, setSessionUser } from '@/lib/auth';
 import { ProjectProvider } from '@/lib/ProjectContext';
 import Sidebar from './Sidebar';
+
+function OtpLogin({ onLogin }: { onLogin: (user: AppUser) => void }) {
+  const [email, setEmail] = useState('');
+  const [code, setCode] = useState('');
+  const [step, setStep] = useState<'email' | 'code'>('email');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  async function handleSendCode() {
+    if (!email.includes('@')) return;
+    setLoading(true);
+    setError('');
+    try {
+      const res = await fetch('/api/auth/send-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      setStep('code');
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Failed to send code');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleVerify() {
+    if (code.length !== 6) return;
+    setLoading(true);
+    setError('');
+    try {
+      const res = await fetch('/api/auth/verify-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, code }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      const user: AppUser = {
+        userId: data.userId,
+        userName: data.userName,
+        role: data.role,
+        authMethod: 'otp',
+        falKey: data.falKey,
+      };
+      setSessionUser(user);
+      onLogin(user);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Invalid code');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="h-full flex items-center justify-center" style={{ background: 'var(--bg)' }}>
+      <div className="w-full max-w-sm p-8 rounded-2xl" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+        <h1 className="text-xl font-semibold mb-1" style={{ color: 'var(--accent)' }}>Avatar Studio</h1>
+        <p className="text-sm mb-6" style={{ color: 'var(--text3)' }}>HYPERVSN</p>
+
+        {step === 'email' ? (
+          <>
+            <label className="block text-sm mb-1.5" style={{ color: 'var(--text2)' }}>Email</label>
+            <input
+              type="email"
+              value={email}
+              onChange={e => setEmail(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && handleSendCode()}
+              placeholder="you@company.com"
+              className="w-full mb-4"
+              autoFocus
+            />
+            <button
+              onClick={handleSendCode}
+              disabled={loading || !email.includes('@')}
+              className="w-full py-2.5 rounded-lg text-sm font-semibold text-white disabled:opacity-50"
+              style={{ background: 'var(--accent)' }}
+            >
+              {loading ? 'Sending...' : 'Send Login Code'}
+            </button>
+          </>
+        ) : (
+          <>
+            <p className="text-sm mb-4" style={{ color: 'var(--text2)' }}>
+              Code sent to <strong style={{ color: 'var(--text1)' }}>{email}</strong>
+            </p>
+            <label className="block text-sm mb-1.5" style={{ color: 'var(--text2)' }}>6-digit code</label>
+            <input
+              type="text"
+              inputMode="numeric"
+              maxLength={6}
+              value={code}
+              onChange={e => setCode(e.target.value.replace(/\D/g, ''))}
+              onKeyDown={e => e.key === 'Enter' && handleVerify()}
+              placeholder="000000"
+              className="w-full mb-4 text-center text-2xl tracking-[0.3em]"
+              autoFocus
+            />
+            <button
+              onClick={handleVerify}
+              disabled={loading || code.length !== 6}
+              className="w-full py-2.5 rounded-lg text-sm font-semibold text-white disabled:opacity-50"
+              style={{ background: 'var(--accent)' }}
+            >
+              {loading ? 'Verifying...' : 'Sign In'}
+            </button>
+            <button
+              onClick={() => { setStep('email'); setCode(''); setError(''); }}
+              className="w-full mt-2 py-2 text-sm"
+              style={{ color: 'var(--text3)' }}
+            >
+              Use different email
+            </button>
+          </>
+        )}
+
+        {error && (
+          <div className="mt-4 p-3 rounded-lg text-sm" style={{ background: 'rgba(239,68,68,0.1)', color: 'var(--red)' }}>
+            {error}
+          </div>
+        )}
+
+        <div className="mt-6 pt-4 border-t text-center" style={{ borderColor: 'var(--border)' }}>
+          <p className="text-xs" style={{ color: 'var(--text3)' }}>
+            Or launch from <strong style={{ color: 'var(--accent)' }}>Agent Factory</strong> for auto sign-in
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AppUser | null>(null);
@@ -28,19 +161,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   }
 
   if (!user) {
-    return (
-      <div className="h-full flex items-center justify-center" style={{ background: 'var(--bg)' }}>
-        <div className="text-center p-8 rounded-2xl max-w-sm" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
-          <h1 className="text-xl font-semibold mb-2" style={{ color: 'var(--accent)' }}>Avatar Studio</h1>
-          <p className="text-sm mb-6" style={{ color: 'var(--text2)' }}>
-            Launch this app from Agent Factory to sign in automatically.
-          </p>
-          <div className="p-4 rounded-lg text-sm" style={{ background: 'var(--accent-subtle)', color: 'var(--text2)' }}>
-            Go to <strong style={{ color: 'var(--accent)' }}>Apps</strong> tab in Agent Factory → click <strong style={{ color: 'var(--accent)' }}>Launch</strong>
-          </div>
-        </div>
-      </div>
-    );
+    return <OtpLogin onLogin={setUser} />;
   }
 
   return (
