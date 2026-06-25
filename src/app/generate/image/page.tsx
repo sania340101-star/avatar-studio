@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef } from 'react';
-import { IMAGE_MODELS, MODEL_GROUPS } from '@/lib/models';
+import { IMAGE_MODEL_OPTIONS, IMAGE_MODEL_GROUPS, getImageModelFormat, imageSizeToAspectRatio } from '@/lib/models';
 import { getSessionUser } from '@/lib/auth';
 
 interface GeneratedImage {
@@ -11,7 +11,7 @@ interface GeneratedImage {
 
 export default function GenerateImagePage() {
   const user = getSessionUser();
-  const [model, setModel] = useState(IMAGE_MODELS[0].id);
+  const [model, setModel] = useState(IMAGE_MODEL_OPTIONS[0].id);
   const [prompt, setPrompt] = useState('');
   const [size, setSize] = useState('portrait_16_9');
   const [count, setCount] = useState(4);
@@ -21,13 +21,12 @@ export default function GenerateImagePage() {
   const [error, setError] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
 
-  const selectedModel = IMAGE_MODELS.find(m => m.id === model);
-
   async function handleGenerate() {
     if (!prompt.trim()) return;
     setGenerating(true);
     setError('');
     try {
+      const format = getImageModelFormat(model);
       const res = await fetch('/api/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -36,6 +35,8 @@ export default function GenerateImagePage() {
           model,
           prompt: prompt.trim(),
           size,
+          format,
+          aspectRatio: format === 'aspect_ratio' ? imageSizeToAspectRatio(size) : undefined,
           count,
           references,
           falKey: user?.falKey,
@@ -71,25 +72,20 @@ export default function GenerateImagePage() {
       <h2 className="text-xl font-semibold mb-6">Generate Image</h2>
 
       <div className="space-y-5">
-        {/* Model Selector */}
         <div>
           <label className="block text-sm mb-1.5" style={{ color: 'var(--text2)' }}>Model</label>
-          <select
-            value={model}
-            onChange={e => setModel(e.target.value)}
-            className="w-full"
-          >
-            {MODEL_GROUPS.image.map(group => (
-              <optgroup key={group} label={group}>
-                {IMAGE_MODELS.filter(m => m.group === group).map(m => (
-                  <option key={m.id} value={m.id}>{m.name}</option>
-                ))}
+          <select value={model} onChange={e => setModel(e.target.value)} className="w-full">
+            {IMAGE_MODEL_GROUPS.map(group => (
+              <optgroup key={group.id} label={group.label}>
+                {group.modelIds.map(id => {
+                  const opt = IMAGE_MODEL_OPTIONS.find(o => o.id === id);
+                  return opt ? <option key={id} value={id}>{opt.label}</option> : null;
+                })}
               </optgroup>
             ))}
           </select>
         </div>
 
-        {/* Prompt */}
         <div>
           <label className="block text-sm mb-1.5" style={{ color: 'var(--text2)' }}>Prompt</label>
           <textarea
@@ -103,7 +99,6 @@ export default function GenerateImagePage() {
           </div>
         </div>
 
-        {/* Parameters */}
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className="block text-sm mb-1.5" style={{ color: 'var(--text2)' }}>Size</label>
@@ -125,36 +120,32 @@ export default function GenerateImagePage() {
           </div>
         </div>
 
-        {/* References */}
-        {selectedModel?.supportsReferences && (
-          <div>
-            <label className="block text-sm mb-1.5" style={{ color: 'var(--text2)' }}>Reference Images</label>
-            <div className="flex flex-wrap gap-2">
-              {references.map((ref, i) => (
-                <div key={i} className="relative w-16 h-16 rounded-lg overflow-hidden border" style={{ borderColor: 'var(--border)' }}>
-                  <img src={ref} alt="" className="w-full h-full object-cover" />
-                  <button
-                    onClick={() => setReferences(prev => prev.filter((_, j) => j !== i))}
-                    className="absolute top-0 right-0 w-5 h-5 flex items-center justify-center text-xs rounded-bl-lg"
-                    style={{ background: 'var(--red)', color: 'white' }}
-                  >
-                    ×
-                  </button>
-                </div>
-              ))}
-              <button
-                onClick={() => fileRef.current?.click()}
-                className="w-16 h-16 rounded-lg border-2 border-dashed flex items-center justify-center text-2xl"
-                style={{ borderColor: 'var(--border)', color: 'var(--text3)' }}
-              >
-                +
-              </button>
-              <input ref={fileRef} type="file" accept="image/*" multiple className="hidden" onChange={handleFileUpload} />
-            </div>
+        <div>
+          <label className="block text-sm mb-1.5" style={{ color: 'var(--text2)' }}>Reference Images</label>
+          <div className="flex flex-wrap gap-2">
+            {references.map((ref, i) => (
+              <div key={i} className="relative w-16 h-16 rounded-lg overflow-hidden border" style={{ borderColor: 'var(--border)' }}>
+                <img src={ref} alt="" className="w-full h-full object-cover" />
+                <button
+                  onClick={() => setReferences(prev => prev.filter((_, j) => j !== i))}
+                  className="absolute top-0 right-0 w-5 h-5 flex items-center justify-center text-xs rounded-bl-lg"
+                  style={{ background: 'var(--red)', color: 'white' }}
+                >
+                  x
+                </button>
+              </div>
+            ))}
+            <button
+              onClick={() => fileRef.current?.click()}
+              className="w-16 h-16 rounded-lg border-2 border-dashed flex items-center justify-center text-2xl"
+              style={{ borderColor: 'var(--border)', color: 'var(--text3)' }}
+            >
+              +
+            </button>
+            <input ref={fileRef} type="file" accept="image/*" multiple className="hidden" onChange={handleFileUpload} />
           </div>
-        )}
+        </div>
 
-        {/* Generate Button */}
         <div className="flex items-center justify-between pt-2">
           <span className="text-sm" style={{ color: 'var(--text3)' }}>
             ~${(0.03 * count).toFixed(2)} estimated
@@ -183,7 +174,6 @@ export default function GenerateImagePage() {
         )}
       </div>
 
-      {/* Results */}
       {results.length > 0 && (
         <div className="mt-8">
           <h3 className="text-lg font-semibold mb-4">Results ({results.length})</h3>

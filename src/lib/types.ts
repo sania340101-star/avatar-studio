@@ -1,21 +1,36 @@
-export interface ImageModel {
+export type ImageModelRequestFormat = 'flux' | 'aspect_ratio';
+
+export interface ImageModelOption {
   id: string;
-  name: string;
-  group: string;
-  supportsReferences: boolean;
-  defaultSize: string;
-  sizes: string[];
+  label: string;
+  format: ImageModelRequestFormat;
 }
 
-export interface VideoModel {
+export interface VideoModelOption {
   id: string;
-  name: string;
-  group: string;
-  durations: number[];
-  defaultDuration: number;
-  supportsImageRef: boolean;
-  supportsVideoRef: boolean;
+  label: string;
+  textToVideoOnly?: boolean;
+  avatarAudio?: boolean;
+  avatarText?: boolean;
+  avatarVideoAudio?: boolean;
+  utilityVideo?: boolean;
+  multiRef?: boolean;
+  motionControl?: boolean;
+  startEndFrame?: boolean;
+  videoEdit?: boolean;
 }
+
+export type VideoModelTypeFilter =
+  | 'all'
+  | 'text-to-video'
+  | 'image-to-video'
+  | 'video-edit'
+  | 'motion-control'
+  | 'start-end-frame'
+  | 'multi-reference'
+  | 'lip-sync'
+  | 'avatar'
+  | 'utility';
 
 export interface GenerationResult {
   id: string;

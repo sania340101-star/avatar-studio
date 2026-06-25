@@ -1,12 +1,20 @@
 'use client';
 
 import { useState } from 'react';
-import { VIDEO_MODELS, MODEL_GROUPS } from '@/lib/models';
+import {
+  VIDEO_MODEL_OPTIONS,
+  VIDEO_MODEL_GROUPS,
+  VIDEO_MODEL_TYPE_FILTERS,
+  filterVideoModelsByType,
+  getVideoModelType,
+} from '@/lib/models';
 import { getSessionUser } from '@/lib/auth';
+import { VideoModelTypeFilter } from '@/lib/types';
 
 export default function GenerateVideoPage() {
   const user = getSessionUser();
-  const [model, setModel] = useState(VIDEO_MODELS[0].id);
+  const [typeFilter, setTypeFilter] = useState<VideoModelTypeFilter>('all');
+  const [model, setModel] = useState(VIDEO_MODEL_OPTIONS[0].id);
   const [prompt, setPrompt] = useState('');
   const [duration, setDuration] = useState(5);
   const [sourceImage, setSourceImage] = useState('');
@@ -14,7 +22,29 @@ export default function GenerateVideoPage() {
   const [results, setResults] = useState<{ url: string }[]>([]);
   const [error, setError] = useState('');
 
-  const selectedModel = VIDEO_MODELS.find(m => m.id === model);
+  const filteredModels = filterVideoModelsByType(typeFilter);
+  const selectedModel = VIDEO_MODEL_OPTIONS.find(m => m.id === model);
+  const selectedType = selectedModel ? getVideoModelType(selectedModel) : 'image-to-video';
+
+  const avatarModels = filteredModels.filter(m => m.avatarAudio || m.avatarText || m.avatarVideoAudio);
+  const utilityModels = filteredModels.filter(m => m.utilityVideo);
+  const generalModels = filteredModels.filter(m => !m.avatarAudio && !m.avatarText && !m.avatarVideoAudio && !m.utilityVideo);
+
+  const generalByGroup: Record<string, typeof generalModels> = {};
+  for (const m of generalModels) {
+    const group = VIDEO_MODEL_GROUPS.find(g => g.modelIds.includes(m.id));
+    const key = group?.label ?? 'Other';
+    if (!generalByGroup[key]) generalByGroup[key] = [];
+    generalByGroup[key].push(m);
+  }
+
+  function handleTypeFilterChange(newFilter: VideoModelTypeFilter) {
+    setTypeFilter(newFilter);
+    const available = filterVideoModelsByType(newFilter);
+    if (available.length > 0 && !available.find(m => m.id === model)) {
+      setModel(available[0].id);
+    }
+  }
 
   async function handleGenerate() {
     if (!prompt.trim()) return;
@@ -48,18 +78,61 @@ export default function GenerateVideoPage() {
       <h2 className="text-xl font-semibold mb-6">Generate Video</h2>
 
       <div className="space-y-5">
-        <div>
-          <label className="block text-sm mb-1.5" style={{ color: 'var(--text2)' }}>Model</label>
-          <select value={model} onChange={e => { setModel(e.target.value); const m = VIDEO_MODELS.find(v => v.id === e.target.value); if (m) setDuration(m.defaultDuration); }} className="w-full">
-            {MODEL_GROUPS.video.map(group => (
-              <optgroup key={group} label={group}>
-                {VIDEO_MODELS.filter(m => m.group === group).map(m => (
-                  <option key={m.id} value={m.id}>{m.name}</option>
-                ))}
-              </optgroup>
-            ))}
-          </select>
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm mb-1.5" style={{ color: 'var(--text2)' }}>Type Filter</label>
+            <select
+              value={typeFilter}
+              onChange={e => handleTypeFilterChange(e.target.value as VideoModelTypeFilter)}
+              className="w-full"
+            >
+              {VIDEO_MODEL_TYPE_FILTERS.map(f => (
+                <option key={f.id} value={f.id}>{f.label}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm mb-1.5" style={{ color: 'var(--text2)' }}>
+              Model <span className="text-xs" style={{ color: 'var(--text3)' }}>({filteredModels.length})</span>
+            </label>
+            <select value={model} onChange={e => setModel(e.target.value)} className="w-full">
+              {Object.entries(generalByGroup).map(([groupLabel, models]) => (
+                <optgroup key={groupLabel} label={groupLabel}>
+                  {models.map(m => (
+                    <option key={m.id} value={m.id}>{m.label}</option>
+                  ))}
+                </optgroup>
+              ))}
+              {avatarModels.length > 0 && (
+                <optgroup label="Avatar / Lip-sync">
+                  {avatarModels.map(m => (
+                    <option key={m.id} value={m.id}>{m.label}</option>
+                  ))}
+                </optgroup>
+              )}
+              {utilityModels.length > 0 && (
+                <optgroup label="Utility">
+                  {utilityModels.map(m => (
+                    <option key={m.id} value={m.id}>{m.label}</option>
+                  ))}
+                </optgroup>
+              )}
+            </select>
+          </div>
         </div>
+
+        {selectedType !== 'text-to-video' && (
+          <div className="p-2 rounded-lg text-xs" style={{ background: 'var(--accent-subtle)', color: 'var(--text2)' }}>
+            {selectedType === 'avatar' && 'Talking avatar: provide image + audio file'}
+            {selectedType === 'lip-sync' && 'Lip-sync: provide video + audio file'}
+            {selectedType === 'motion-control' && 'Motion control: image + reference video for motion transfer'}
+            {selectedType === 'start-end-frame' && 'Start/end frame: provide start image + optional end image'}
+            {selectedType === 'multi-reference' && 'Multi-reference: provide 2+ reference images'}
+            {selectedType === 'video-edit' && 'Video edit: provide source video + describe changes'}
+            {selectedType === 'utility' && 'Utility: provide source video for processing'}
+            {selectedType === 'image-to-video' && 'Image to video: provide source image + prompt'}
+          </div>
+        )}
 
         <div>
           <label className="block text-sm mb-1.5" style={{ color: 'var(--text2)' }}>Prompt</label>
@@ -73,9 +146,9 @@ export default function GenerateVideoPage() {
 
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm mb-1.5" style={{ color: 'var(--text2)' }}>Duration</label>
+            <label className="block text-sm mb-1.5" style={{ color: 'var(--text2)' }}>Duration (seconds)</label>
             <select value={duration} onChange={e => setDuration(Number(e.target.value))} className="w-full">
-              {(selectedModel?.durations || [5]).map(d => (
+              {[3, 4, 5, 6, 7, 8, 10, 12, 15, 20].map(d => (
                 <option key={d} value={d}>{d}s</option>
               ))}
             </select>

@@ -16,7 +16,7 @@ export async function POST(req: NextRequest) {
     }
 
     if (type === 'image') {
-      return await generateImages(model, prompt, size, count, references, falKey);
+      return await generateImages(model, prompt, size, count, references, falKey, body.format, body.aspectRatio);
     } else if (type === 'video') {
       return await generateVideo(model, prompt, body, falKey);
     }
@@ -34,21 +34,27 @@ async function generateImages(
   size: string,
   count: number,
   references: string[] | undefined,
-  falKey: string
+  falKey: string,
+  format?: string,
+  aspectRatio?: string,
 ) {
   const input: Record<string, unknown> = {
     prompt,
     num_images: count,
   };
 
-  if (model.includes('recraft')) {
+  if (format === 'aspect_ratio' && aspectRatio) {
+    input.aspect_ratio = aspectRatio;
+  } else if (model.includes('recraft')) {
     input.size = size === 'portrait_16_9' ? '1024x1820' : size === 'square' ? '1024x1024' : '1820x1024';
   } else {
     input.image_size = size;
   }
 
-  if (references?.length && model.includes('kontext')) {
-    input.image_url = references[0];
+  if (references?.length) {
+    if (model.includes('kontext') || model.includes('edit') || model.includes('image-to-image')) {
+      input.image_url = references[0];
+    }
   }
 
   const submitRes = await fetch(`${FAL_QUEUE_URL}/${model}`, {
