@@ -1,19 +1,18 @@
 services:
   avatar-studio:
     build: .
-    container_name: avatar-studio
+    container_name: ${ENV}-${PROJECT_NAME}
     restart: unless-stopped
     ports:
-      - "3007:3000"
+      - "3000"
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.avatar-studio.rule=Host(`avatar-studio.hypervsn.com`)"
-      - "traefik.http.routers.avatar-studio.entrypoints=websecure"
-      - "traefik.http.routers.avatar-studio.tls.certresolver=letsencrypt"
-      - "traefik.http.services.avatar-studio.loadbalancer.server.port=3000"
+      - "traefik.http.routers.${ENV}-${PROJECT_NAME}.rule=Host(`${SITE_BASENAME}`)"
+      - "traefik.http.routers.${ENV}-${PROJECT_NAME}.entrypoints=web"
+      - "traefik.http.services.${ENV}-${PROJECT_NAME}.loadbalancer.server.port=3000"
     networks:
-      - traefik
+      - traefik-network
 
 networks:
-  traefik:
+  traefik-network:
     external: true
