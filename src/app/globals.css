@@ -1,0 +1,68 @@
+@import "tailwindcss";
+
+@theme inline {
+  --color-background: var(--bg);
+  --color-foreground: var(--text1);
+  --color-primary: var(--accent);
+  --font-sans: "Encode Sans", system-ui, sans-serif;
+}
+
+:root {
+  --bg: #0d0b1a;
+  --bg-card: #1a1730;
+  --bg-input: #13112a;
+  --border: #2a2745;
+  --accent: #6c3ce0;
+  --accent-hover: #7c4cf0;
+  --accent-subtle: rgba(108, 60, 224, 0.15);
+  --text1: #f0eef5;
+  --text2: #a8a3b8;
+  --text3: #6b6580;
+  --green: #4caf50;
+  --red: #ef4444;
+  --warn: #f59e0b;
+  --radius: 12px;
+}
+
+[data-theme="light"] {
+  --bg: #f5f3fa;
+  --bg-card: #ffffff;
+  --bg-input: #f0eef5;
+  --border: #e0dce8;
+  --accent: #6c3ce0;
+  --accent-hover: #5a2cc0;
+  --accent-subtle: rgba(108, 60, 224, 0.08);
+  --text1: #1a1730;
+  --text2: #5a5470;
+  --text3: #8a8498;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text1);
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+
+input, textarea, select {
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text1);
+  padding: 8px 12px;
+  font-size: 14px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+input:focus, textarea:focus, select:focus {
+  border-color: var(--accent);
+}
+
+button {
+  cursor: pointer;
+  transition: all 0.15s;
+}
