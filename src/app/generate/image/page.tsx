@@ -19,7 +19,7 @@ interface AgentResult {
   prompt: string;
   selectedModel: string;
   selectedModelLabel: string;
-  params: { size: string; resolution: string; count: number };
+  params: { size: string; resolution: string };
   reasoning: string;
   paramNotes?: string[];
 }
@@ -36,14 +36,12 @@ export default function GenerateImagePage() {
   const [instruction, setInstruction] = useState('');
   const [desiredSize, setDesiredSize] = useState('portrait_16_9');
   const [desiredResolution, setDesiredResolution] = useState('1k');
-  const [desiredCount, setDesiredCount] = useState(4);
 
   // Step 2: Agent result (editable)
   const [agentResult, setAgentResult] = useState<AgentResult | null>(null);
   const [editPrompt, setEditPrompt] = useState('');
   const [editModel, setEditModel] = useState('');
   const [editSize, setEditSize] = useState('');
-  const [editCount, setEditCount] = useState(4);
 
   // State
   const [step, setStep] = useState<Step>('input');
@@ -99,7 +97,7 @@ export default function GenerateImagePage() {
           instruction: instruction.trim(),
           referenceDescriptions: references.map((r, i) => `Image ${i + 1}: "${r.name}"`),
           modelPreference: modelPref,
-          desiredParams: { size: desiredSize, resolution: desiredResolution, count: desiredCount },
+          desiredParams: { size: desiredSize, resolution: desiredResolution },
           availableModels: getAvailableModels(),
           anthropicKey: user?.anthropicKey,
         }),
@@ -110,7 +108,6 @@ export default function GenerateImagePage() {
       setEditPrompt(data.prompt);
       setEditModel(data.selectedModel);
       setEditSize(data.params?.size || desiredSize);
-      setEditCount(data.params?.count || desiredCount);
       setStep('review');
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Failed to prepare generation');
@@ -136,7 +133,7 @@ export default function GenerateImagePage() {
           size: editSize,
           format,
           aspectRatio: format === 'aspect_ratio' ? imageSizeToAspectRatio(editSize) : undefined,
-          count: editCount,
+          count: 1,
           references: references.map(r => r.url),
           falKey: user?.falKey,
         }),
@@ -158,7 +155,7 @@ export default function GenerateImagePage() {
           modelLabel: modelOpt?.label || editModel,
           prompt: editPrompt.trim(),
           params: {
-            size: editSize, count: editCount, format,
+            size: editSize, count: 1, format,
             instruction: instruction.trim(),
             agentReasoning: agentResult?.reasoning,
           },
@@ -189,10 +186,6 @@ export default function GenerateImagePage() {
     if (gen.params.size) {
       setDesiredSize(gen.params.size as string);
       setEditSize(gen.params.size as string);
-    }
-    if (gen.params.count) {
-      setDesiredCount(gen.params.count as number);
-      setEditCount(gen.params.count as number);
     }
     setModelPref(gen.modelId);
     setReferences((gen.referenceUrls || []).map((url, i) => ({ url, name: `Reference ${i + 1}` })));
@@ -284,23 +277,13 @@ export default function GenerateImagePage() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm mb-1.5" style={{ color: 'var(--text2)' }}>Resolution</label>
-              <select value={desiredResolution} onChange={e => setDesiredResolution(e.target.value)} className="w-full">
-                {IMAGE_RESOLUTION_OPTIONS.map(o => (
-                  <option key={o.id} value={o.id}>{o.label}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm mb-1.5" style={{ color: 'var(--text2)' }}>Count</label>
-              <select value={desiredCount} onChange={e => setDesiredCount(Number(e.target.value))} className="w-full">
-                {[1, 2, 4, 6, 8, 10].map(n => (
-                  <option key={n} value={n}>{n} images</option>
-                ))}
-              </select>
-            </div>
+          <div>
+            <label className="block text-sm mb-1.5" style={{ color: 'var(--text2)' }}>Resolution</label>
+            <select value={desiredResolution} onChange={e => setDesiredResolution(e.target.value)} className="w-full">
+              {IMAGE_RESOLUTION_OPTIONS.map(o => (
+                <option key={o.id} value={o.id}>{o.label}</option>
+              ))}
+            </select>
           </div>
 
           {/* Instruction */}
@@ -378,7 +361,7 @@ export default function GenerateImagePage() {
           </div>
 
           {/* Editable model + params */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm mb-1.5" style={{ color: 'var(--text2)' }}>
                 Model
@@ -408,17 +391,6 @@ export default function GenerateImagePage() {
                 ))}
               </select>
             </div>
-            <div>
-              <label className="block text-sm mb-1.5" style={{ color: 'var(--text2)' }}>
-                Count
-                {editCount !== desiredCount && <span className="text-xs ml-1" style={{ color: '#ffc107' }}>(adjusted)</span>}
-              </label>
-              <select value={editCount} onChange={e => setEditCount(Number(e.target.value))} className="w-full">
-                {[1, 2, 4, 6, 8, 10].map(n => (
-                  <option key={n} value={n}>{n}</option>
-                ))}
-              </select>
-            </div>
           </div>
 
           {/* References preview */}
@@ -436,7 +408,7 @@ export default function GenerateImagePage() {
           {/* Generate button */}
           <div className="flex flex-col-reverse sm:flex-row items-start sm:items-center justify-between gap-3 pt-2">
             <span className="text-sm" style={{ color: 'var(--text3)' }}>
-              ~${(0.03 * editCount).toFixed(2)} estimated
+              ~$0.03 estimated
             </span>
             <button
               onClick={handleGenerate}
@@ -450,7 +422,7 @@ export default function GenerateImagePage() {
                   Generating...
                 </span>
               ) : (
-                `Generate ${editCount} image${editCount > 1 ? 's' : ''}`
+                'Generate Image'
               )}
             </button>
           </div>
@@ -460,7 +432,7 @@ export default function GenerateImagePage() {
       {step === 'generating' && (
         <div className="text-center py-16">
           <div className="w-10 h-10 border-2 rounded-full animate-spin mx-auto mb-4" style={{ borderColor: 'var(--border)', borderTopColor: 'var(--accent)' }} />
-          <p style={{ color: 'var(--text2)' }}>Generating {editCount} image{editCount > 1 ? 's' : ''}...</p>
+          <p style={{ color: 'var(--text2)' }}>Generating image...</p>
           <p className="text-sm mt-1" style={{ color: 'var(--text3)' }}>{IMAGE_MODEL_OPTIONS.find(m => m.id === editModel)?.label}</p>
         </div>
       )}

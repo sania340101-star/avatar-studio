@@ -5,7 +5,8 @@ const FAL_QUEUE_URL = 'https://queue.fal.run';
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { type, model, prompt, size, count = 1, references, falKey } = body;
+    const { type, model, prompt, size, references, falKey } = body;
+    const count = 1;
 
     if (!falKey) {
       return NextResponse.json({ error: 'fal.ai API key not configured. Launch from Agent Factory or add key in Settings.' }, { status: 400 });

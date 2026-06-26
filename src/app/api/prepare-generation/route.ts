@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-
-const ANTHROPIC_API_URL = 'https://api.anthropic.com/v1/messages';
+import Anthropic from '@anthropic-ai/sdk';
 
 interface PrepareRequest {
   type?: 'image' | 'video';
@@ -11,7 +10,6 @@ interface PrepareRequest {
     // Image params
     size?: string;
     resolution?: string;
-    count?: number;
     // Video params
     duration?: number;
     typeFilter?: string;
@@ -28,7 +26,7 @@ You receive:
 - User instruction (what they want, in natural language)
 - References (numbered list of uploaded images/files)
 - Model preference (auto, a group, or a specific model)
-- Desired parameters (size, resolution, count)
+- Desired parameters (size, resolution)
 - Available models with their capabilities
 
 You must output valid JSON with these fields:
@@ -38,8 +36,7 @@ You must output valid JSON with these fields:
   "selectedModelLabel": "Model Name",
   "params": {
     "size": "portrait_16_9",
-    "resolution": "1k",
-    "count": 4
+    "resolution": "1k"
   },
   "reasoning": "brief explanation of your choices",
   "paramNotes": ["size: changed from 4k to 2k because model X doesn't support 4k"]
@@ -120,8 +117,7 @@ export async function POST(req: NextRequest) {
 - Type filter: ${desiredParams.typeFilter || 'all'}`;
     } else {
       paramsText = `- Size: ${desiredParams.size}
-- Resolution: ${desiredParams.resolution}
-- Count: ${desiredParams.count}`;
+- Resolution: ${desiredParams.resolution}`;
     }
 
     const userMessage = `${refsText}
@@ -137,33 +133,23 @@ ${modelsText}
 User instruction:
 ${instruction}`;
 
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-      'anthropic-version': '2023-06-01',
-    };
+    const clientOptions: ConstructorParameters<typeof Anthropic>[0] = {};
     if (anthropicKey.startsWith('sk-ant-oat')) {
-      headers['Authorization'] = `Bearer ${anthropicKey}`;
+      clientOptions.authToken = anthropicKey;
     } else {
-      headers['x-api-key'] = anthropicKey;
+      clientOptions.apiKey = anthropicKey;
     }
-    const response = await fetch(ANTHROPIC_API_URL, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 1024,
-        system: isVideo ? VIDEO_SYSTEM_PROMPT : IMAGE_SYSTEM_PROMPT,
-        messages: [{ role: 'user', content: userMessage }],
-      }),
+    const client = new Anthropic(clientOptions);
+
+    const message = await client.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 1024,
+      system: isVideo ? VIDEO_SYSTEM_PROMPT : IMAGE_SYSTEM_PROMPT,
+      messages: [{ role: 'user', content: userMessage }],
     });
 
-    if (!response.ok) {
-      const err = await response.text();
-      throw new Error(`Anthropic API error: ${err}`);
-    }
-
-    const data = await response.json();
-    const text = data.content?.[0]?.text;
+    const textBlock = message.content.find(b => b.type === 'text');
+    const text = textBlock && 'text' in textBlock ? textBlock.text : '';
     if (!text) throw new Error('Empty response from agent');
 
     const jsonMatch = text.match(/\{[\s\S]*\}/);
