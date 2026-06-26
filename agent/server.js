@@ -14,7 +14,7 @@ if (existsSync(envPath)) {
 
 const PORT = parseInt(process.env.AGENT_PORT || '3391', 10);
 const AF_URL = process.env.AF_INTERNAL_URL || 'http://172.18.32.73:3380';
-const APP_URL = process.env.APP_URL || 'http://avatar-studio.app.local';
+const APP_HOSTNAME = process.env.APP_HOSTNAME || 'avatar-studio.app.local';
 const SERVICE_KEY = process.env.INTERNAL_SERVICE_KEY || '';
 const TMP_DIR = path.join(__dirname, 'tmp');
 
@@ -142,12 +142,28 @@ Return ONLY a JSON object:
 }`;
 
 function downloadFile(url) {
-  const fullUrl = url.startsWith('/') ? `${APP_URL}${url}` : url;
   return new Promise((resolve, reject) => {
-    const ext = path.extname(new URL(fullUrl).pathname) || '.jpg';
+    let reqUrl, headers = {};
+    if (url.startsWith('/')) {
+      reqUrl = `http://localhost:80${url}`;
+      headers['Host'] = APP_HOSTNAME;
+    } else {
+      reqUrl = url;
+    }
+    const ext = path.extname(new URL(reqUrl).pathname) || '.jpg';
     const tmpFile = path.join(TMP_DIR, `ref-${randomUUID()}${ext}`);
-    const proto = fullUrl.startsWith('https') ? require('https') : require('http');
-    proto.get(fullUrl, (res) => {
+    const proto = reqUrl.startsWith('https') ? require('https') : require('http');
+    const parsedUrl = new URL(reqUrl);
+    const opts = {
+      hostname: parsedUrl.hostname,
+      port: parsedUrl.port || (reqUrl.startsWith('https') ? 443 : 80),
+      path: parsedUrl.pathname + parsedUrl.search,
+      headers,
+    };
+    proto.get(opts, (res) => {
+      if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+        return downloadFile(res.headers.location).then(resolve).catch(reject);
+      }
       if (res.statusCode !== 200) return reject(new Error(`Download failed: ${res.statusCode}`));
       const chunks = [];
       res.on('data', c => chunks.push(c));
