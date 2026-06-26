@@ -137,16 +137,18 @@ ${modelsText}
 User instruction:
 ${instruction}`;
 
-    const authHeader = anthropicKey.startsWith('sk-ant-oat')
-      ? { 'Authorization': `Bearer ${anthropicKey}` }
-      : { 'x-api-key': anthropicKey };
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'anthropic-version': '2023-06-01',
+    };
+    if (anthropicKey.startsWith('sk-ant-oat')) {
+      headers['Authorization'] = `Bearer ${anthropicKey}`;
+    } else {
+      headers['x-api-key'] = anthropicKey;
+    }
     const response = await fetch(ANTHROPIC_API_URL, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...authHeader,
-        'anthropic-version': '2023-06-01',
-      },
+      headers,
       body: JSON.stringify({
         model: 'claude-sonnet-4-20250514',
         max_tokens: 1024,
