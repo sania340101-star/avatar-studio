@@ -3,19 +3,24 @@ import { NextRequest, NextResponse } from 'next/server';
 const ANTHROPIC_API_URL = 'https://api.anthropic.com/v1/messages';
 
 interface PrepareRequest {
+  type?: 'image' | 'video';
   instruction: string;
   referenceDescriptions: string[];
   modelPreference: string; // 'auto' | 'group:flux' | specific model id
   desiredParams: {
-    size: string;
-    resolution: string;
-    count: number;
+    // Image params
+    size?: string;
+    resolution?: string;
+    count?: number;
+    // Video params
+    duration?: number;
+    typeFilter?: string;
   };
-  availableModels: { id: string; label: string; format: string; group: string }[];
+  availableModels: { id: string; label: string; [key: string]: unknown }[];
   anthropicKey: string;
 }
 
-const SYSTEM_PROMPT = `You are an image generation assistant for Avatar Studio (HYPERVSN).
+const IMAGE_SYSTEM_PROMPT = `You are an image generation assistant for Avatar Studio (HYPERVSN).
 
 Your job: take the user's instruction and references, then produce the optimal prompt and parameters for fal.ai image generation.
 
@@ -43,7 +48,7 @@ You must output valid JSON with these fields:
 Rules:
 1. Write the prompt in English, optimized for the selected model
 2. The prompt should be detailed and specific — describe exactly what the image should look like
-3. If user references images by number ("image 1", "first image", "картинка 1"), use "the first reference image", "the second reference image" etc. in the prompt
+3. If user references images by number ("image 1", "first image", "kartinka 1"), use "the first reference image", "the second reference image" etc. in the prompt
 4. If model preference is "auto" — pick the best model for the task from available models
 5. If model preference is a group (e.g. "group:flux") — pick the best model from that group
 6. If model preference is a specific model — use it, but note if it's not ideal
@@ -51,10 +56,41 @@ Rules:
 8. For HYPERVSN content: prefer black backgrounds, 3D look, clean studio lighting
 9. Output ONLY valid JSON, no markdown, no explanation outside the JSON`;
 
+const VIDEO_SYSTEM_PROMPT = `You are a video generation assistant for Avatar Studio (HYPERVSN).
+Your job: take the user's instruction and references, then produce the optimal prompt and parameters for fal.ai video generation.
+
+You receive:
+- User instruction (what they want, in natural language)
+- References (images, videos, audio files uploaded by the user)
+- Model preference (auto, a group, or a specific model)
+- Desired parameters (duration, video type filter)
+- Available models with their capabilities (avatar, lip-sync, motion-control, etc.)
+
+You must output valid JSON with these fields:
+{
+  "prompt": "detailed prompt for video generation",
+  "selectedModel": "fal-ai/model-id",
+  "selectedModelLabel": "Model Name",
+  "params": { "duration": 5 },
+  "reasoning": "explanation of choices",
+  "paramNotes": ["duration: adjusted from 10s to 5s because model supports max 6s"]
+}
+
+Rules:
+1. Write clear, specific prompts describing the desired motion/animation
+2. Match model to task: avatar models for talking heads, motion-control for motion transfer, lip-sync for audio-driven, etc.
+3. Consider reference types: if audio provided, pick an avatar/lip-sync model. If source video provided, pick video-edit or lip-sync model.
+4. Adjust duration to model capabilities (most models support 5-10s, some up to 20s)
+5. For HYPERVSN avatars: clean motion, professional look, no artifacts
+6. If model preference is "auto" — pick the best model for the task from available models
+7. If model preference is a group — pick the best model from that group
+8. If model preference is a specific model — use it, but note if it's not ideal
+9. Output ONLY valid JSON, no markdown, no explanation outside the JSON`;
+
 export async function POST(req: NextRequest) {
   try {
     const body: PrepareRequest = await req.json();
-    const { instruction, referenceDescriptions, modelPreference, desiredParams, availableModels, anthropicKey } = body;
+    const { type = 'image', instruction, referenceDescriptions, modelPreference, desiredParams, availableModels, anthropicKey } = body;
 
     if (!anthropicKey) {
       return NextResponse.json({ error: 'Anthropic API key required. Add it in Settings.' }, { status: 400 });
@@ -68,16 +104,32 @@ export async function POST(req: NextRequest) {
       ? `References:\n${referenceDescriptions.map((d, i) => `${i + 1}. ${d}`).join('\n')}`
       : 'No references uploaded.';
 
-    const modelsText = availableModels.map(m => `- ${m.id} (${m.label}, format: ${m.format}, group: ${m.group})`).join('\n');
+    const isVideo = type === 'video';
+
+    const modelsText = availableModels.map(m => {
+      if (isVideo) {
+        const caps = (m.capabilities as string[]) || [];
+        return `- ${m.id} (${m.label}, type: ${m.type || 'unknown'}, group: ${m.group || 'other'}, capabilities: ${caps.join(', ') || 'image-to-video'})`;
+      }
+      return `- ${m.id} (${m.label}, format: ${m.format || 'unknown'}, group: ${m.group || 'other'})`;
+    }).join('\n');
+
+    let paramsText: string;
+    if (isVideo) {
+      paramsText = `- Duration: ${desiredParams.duration || 5} seconds
+- Type filter: ${desiredParams.typeFilter || 'all'}`;
+    } else {
+      paramsText = `- Size: ${desiredParams.size}
+- Resolution: ${desiredParams.resolution}
+- Count: ${desiredParams.count}`;
+    }
 
     const userMessage = `${refsText}
 
 Model preference: ${modelPreference === 'auto' ? 'Auto — pick the best model' : modelPreference.startsWith('group:') ? `Group: ${modelPreference.replace('group:', '')} — pick best from this group` : `Specific: ${modelPreference}`}
 
 Desired parameters:
-- Size: ${desiredParams.size}
-- Resolution: ${desiredParams.resolution}
-- Count: ${desiredParams.count}
+${paramsText}
 
 Available models:
 ${modelsText}
@@ -95,7 +147,7 @@ ${instruction}`;
       body: JSON.stringify({
         model: 'claude-sonnet-4-20250514',
         max_tokens: 1024,
-        system: SYSTEM_PROMPT,
+        system: isVideo ? VIDEO_SYSTEM_PROMPT : IMAGE_SYSTEM_PROMPT,
         messages: [{ role: 'user', content: userMessage }],
       }),
     });

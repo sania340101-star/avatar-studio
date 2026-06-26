@@ -427,6 +427,17 @@ export function getImageModelIdsInGroup(groupId: string): string[] {
   return group ? group.modelIds : [];
 }
 
+export function isVideoModelGroupId(id: string): boolean {
+  return id === 'auto' || id.startsWith('group:');
+}
+
+export function getVideoModelIdsInGroup(groupId: string): string[] {
+  if (groupId === 'auto') return VIDEO_MODEL_OPTIONS.map(o => o.id);
+  const g = groupId.replace('group:', '');
+  const group = VIDEO_MODEL_GROUPS.find(gr => gr.id === g);
+  return group ? group.modelIds : [];
+}
+
 export function getImageModelLabel(modelId: string): string {
   return IMAGE_MODEL_OPTIONS.find(o => o.id === modelId)?.label ?? modelId;
 }
