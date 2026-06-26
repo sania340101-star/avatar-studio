@@ -59,6 +59,12 @@ export default function Sidebar() {
   const { projects, activeProject, setActiveProjectId, createProject, deleteProject } = useProject();
   const [creating, setCreating] = useState(false);
   const [newTitle, setNewTitle] = useState('');
+  const [projectSearch, setProjectSearch] = useState('');
+  const [projectDropdownOpen, setProjectDropdownOpen] = useState(false);
+
+  const filteredProjects = projectSearch
+    ? projects.filter(p => p.title.toLowerCase().includes(projectSearch.toLowerCase()))
+    : projects;
 
   async function handleCreate() {
     if (!newTitle.trim()) return;
@@ -77,15 +83,51 @@ export default function Sidebar() {
       <div className="p-3 border-b" style={{ borderColor: 'var(--border)' }}>
         <label className="block text-xs mb-1 font-medium" style={{ color: 'var(--text3)' }}>PROJECT</label>
         {projects.length > 0 ? (
-          <select
-            value={activeProject?.id || ''}
-            onChange={e => setActiveProjectId(e.target.value)}
-            className="w-full text-sm !py-1.5 !px-2"
-          >
-            {projects.map(p => (
-              <option key={p.id} value={p.id}>{p.title}</option>
-            ))}
-          </select>
+          <div className="relative">
+            <button
+              onClick={() => setProjectDropdownOpen(!projectDropdownOpen)}
+              className="w-full text-sm text-left px-2 py-1.5 rounded border flex items-center justify-between"
+              style={{ borderColor: 'var(--border)', background: 'var(--bg-input)', color: 'var(--text1)' }}
+            >
+              <span className="truncate">{activeProject?.title || 'Select...'}</span>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5 flex-shrink-0" style={{ color: 'var(--text3)' }}>
+                <path d="m6 9 6 6 6-6" />
+              </svg>
+            </button>
+            {projectDropdownOpen && (
+              <div className="absolute left-0 right-0 top-full mt-1 z-20 rounded-lg border shadow-lg overflow-hidden" style={{ borderColor: 'var(--border)', background: 'var(--bg-card)' }}>
+                {projects.length > 5 && (
+                  <div className="p-1.5">
+                    <input
+                      autoFocus
+                      value={projectSearch}
+                      onChange={e => setProjectSearch(e.target.value)}
+                      placeholder="Search projects..."
+                      className="w-full text-xs !py-1 !px-2"
+                    />
+                  </div>
+                )}
+                <div className="max-h-48 overflow-auto">
+                  {filteredProjects.map(p => (
+                    <button
+                      key={p.id}
+                      onClick={() => { setActiveProjectId(p.id); setProjectDropdownOpen(false); setProjectSearch(''); }}
+                      className="w-full text-left text-xs px-3 py-2 hover:opacity-80 transition-opacity"
+                      style={{
+                        background: p.id === activeProject?.id ? 'var(--accent-subtle)' : 'transparent',
+                        color: p.id === activeProject?.id ? 'var(--accent)' : 'var(--text2)',
+                      }}
+                    >
+                      {p.title}
+                    </button>
+                  ))}
+                  {filteredProjects.length === 0 && (
+                    <p className="text-xs px-3 py-2" style={{ color: 'var(--text3)' }}>No projects found</p>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
         ) : (
           <p className="text-xs" style={{ color: 'var(--text3)' }}>No projects yet</p>
         )}
@@ -155,7 +197,7 @@ export default function Sidebar() {
       )}
 
       <div className="p-3 border-t text-xs" style={{ borderColor: 'var(--border)', color: 'var(--text3)' }}>
-        v1.1.0
+        v1.2.0
       </div>
     </aside>
   );
