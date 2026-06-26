@@ -82,7 +82,7 @@ export default function ImagePicker({ value, onChange, label = 'Source Image' }:
 
       {showPicker && (
         <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.7)' }}>
-          <div className="w-full max-w-lg max-h-[80vh] overflow-auto rounded-2xl p-5" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+          <div className="w-full max-w-lg max-h-[80vh] overflow-auto rounded-2xl p-4 sm:p-5 mx-3 sm:mx-0" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold">Select Image</h3>
               <button onClick={() => setShowPicker(false)} className="text-xl" style={{ color: 'var(--text3)' }}>x</button>
@@ -103,7 +103,7 @@ export default function ImagePicker({ value, onChange, label = 'Source Image' }:
             {allImages.length > 0 && (
               <>
                 <p className="text-sm mb-2" style={{ color: 'var(--text2)' }}>From this project ({allImages.length})</p>
-                <div className="grid grid-cols-4 gap-2">
+                <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
                   {allImages.map((url, i) => (
                     <button
                       key={i}

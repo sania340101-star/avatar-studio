@@ -571,7 +571,7 @@ function TemplateRunner({ template, onBack, projectId, userId, falKey }: {
             {results.map((item, i) => (
               <div key={i} className="rounded-xl overflow-hidden border group relative" style={{ borderColor: 'var(--border)', background: 'var(--bg-card)' }}>
                 {template.type === 'image' ? (
-                  <img src={item.url} alt="" className="w-full aspect-[9/16] object-cover" />
+                  <img src={item.url} alt="" className="w-full aspect-square object-contain" style={{ background: 'var(--bg-input)' }} />
                 ) : (
                   <video src={item.url} controls className="w-full" />
                 )}

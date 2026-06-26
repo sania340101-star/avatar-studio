@@ -476,7 +476,7 @@ export default function GenerateImagePage() {
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
             {results.map((img, i) => (
               <div key={i} className="rounded-xl overflow-hidden border group relative" style={{ borderColor: 'var(--border)', background: 'var(--bg-card)' }}>
-                <img src={img.url} alt="" className="w-full aspect-[9/16] object-cover" />
+                <img src={img.url} alt="" className="w-full aspect-square object-contain" style={{ background: 'var(--bg-input)' }} />
                 <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-2 gap-1">
                   <a
                     href={img.url}

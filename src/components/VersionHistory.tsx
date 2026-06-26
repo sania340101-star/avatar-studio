@@ -60,14 +60,14 @@ export default function VersionHistory({ generations, onSelect, onDelete }: Prop
 
                   {/* Info */}
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
+                    <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 mb-1">
                       <span className="text-xs font-medium px-2 py-0.5 rounded" style={{ background: 'var(--accent-subtle)', color: 'var(--accent)' }}>
                         v{generations.length - i}
                       </span>
-                      <span className="text-xs" style={{ color: 'var(--text3)' }}>
+                      <span className="text-xs truncate max-w-[120px] sm:max-w-none" style={{ color: 'var(--text3)' }}>
                         {gen.modelLabel}
                       </span>
-                      <span className="text-xs" style={{ color: 'var(--text3)' }}>
+                      <span className="text-xs hidden sm:inline" style={{ color: 'var(--text3)' }}>
                         {new Date(gen.createdAt).toLocaleString()}
                       </span>
                     </div>

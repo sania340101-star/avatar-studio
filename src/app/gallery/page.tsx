@@ -95,7 +95,7 @@ function GalleryContent() {
                 </button>
               </div>
 
-              <p className="text-sm mb-3" style={{ color: 'var(--text2)' }}>{gen.prompt}</p>
+              <p className="text-sm mb-3 line-clamp-3" style={{ color: 'var(--text2)' }}>{gen.prompt}</p>
 
               {gen.type === 'image' ? (
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">

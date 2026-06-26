@@ -262,7 +262,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           <span className="text-lg font-semibold" style={{ color: 'var(--accent)' }}>Avatar Studio</span>
         </div>
         <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
-        <main className="flex-1 overflow-auto p-4 md:p-6">
+        <main className="flex-1 overflow-auto p-4 md:p-6 pb-[env(safe-area-inset-bottom,0px)]">
           <div className="max-w-5xl mx-auto">
             {children}
           </div>
