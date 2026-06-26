@@ -8,6 +8,7 @@ import { getSessionUser } from '@/lib/auth';
 import { useProject } from '@/lib/ProjectContext';
 import { Generation } from '@/lib/types';
 import { useProjectCache } from '@/lib/useProjectCache';
+import { DEFAULT_SYSTEM_PROMPT } from '@/lib/constants';
 import VersionHistory from '@/components/VersionHistory';
 
 interface GeneratedImage {
@@ -126,7 +127,7 @@ export default function GenerateImagePage() {
           size: desiredSize,
           references: references.map(r => r.url),
           falKey: user?.falKey,
-          systemPrompt: user?.systemPrompt,
+          systemPrompt: user?.systemPrompt || DEFAULT_SYSTEM_PROMPT,
         }),
       });
       const data = await res.json();
@@ -168,7 +169,7 @@ export default function GenerateImagePage() {
           size: desiredSize,
           references: references.map(r => r.url),
           falKey: user?.falKey,
-          systemPrompt: user?.systemPrompt,
+          systemPrompt: user?.systemPrompt || DEFAULT_SYSTEM_PROMPT,
         }),
       });
       const data = await res.json();

@@ -31,6 +31,7 @@ const GENERATE_TOOLS = [
   'mcp__fal-ai__submit_job',
   'mcp__fal-ai__check_job',
   'mcp__fal-ai__get_job_result',
+  'mcp__fal-ai__get_model_schema',
   'mcp__fal-ai__upload_file',
 ].join(',');
 
@@ -39,13 +40,24 @@ const IMAGE_PREPARE_SYSTEM = `You are an image generation agent for Avatar Studi
 Your job: analyze the user's instruction and recommend the best model + craft an optimal prompt. Do NOT generate yet.
 
 Steps:
-1. Understand the user's request
+1. Understand the user's request — put the user's intent FIRST
 2. If model is "auto" or not specified, use recommend_model to find the best model
-3. Optionally use get_model_schema to check supported parameters
-4. Craft an optimal prompt in English for the selected model
-5. Return your recommendation
+3. If the user has reference images, pick a model that supports image references (image-to-image, edit, or reference-based models). Do NOT pick a text-only model when references are provided.
+4. Optionally use get_model_schema to check supported parameters
+5. Craft an optimal prompt in English for the selected model
 
-For HYPERVSN content: prefer black backgrounds, 3D look, clean studio lighting.
+# Reference images
+The user may upload reference images. These will be sent to the fal.ai model as ordered inputs.
+- In your prompt, refer to them as "the first reference image", "the second reference image", etc.
+- Your prompt MUST describe what to do with each reference: e.g. "Create a photorealistic version of the person in the first reference image"
+- The order in your prompt must match the order of the reference URLs provided
+- If the user says "like the reference" or "similar to image 1", your prompt must explicitly reference that image
+
+# Prompt rules
+- Put the user's instruction first. Your prompt must explicitly fulfill what the user asked.
+- Write detailed, specific prompts: lighting, materials, composition, depth, quality
+- Translate the user's instruction to English but preserve all their requirements
+- Apply the User Style Instructions (HYPERVSN requirements) to every prompt
 
 Return ONLY a JSON object:
 {
@@ -61,7 +73,8 @@ Your job: generate an image using the given prompt and model via fal-ai MCP tool
 
 Steps:
 1. Use run_model with the specified model and prompt
-2. Return the result
+2. If reference images are provided, pass them to the model as image_url or reference inputs (check model schema for the correct parameter name)
+3. Return the result
 
 Return ONLY a JSON object:
 {
@@ -76,11 +89,27 @@ const VIDEO_PREPARE_SYSTEM = `You are a video generation agent for Avatar Studio
 Your job: analyze the user's instruction and recommend the best model + craft an optimal prompt. Do NOT generate yet.
 
 Steps:
-1. Understand the user's request
+1. Understand the user's request — put the user's intent FIRST
 2. If model is "auto" or not specified, use recommend_model to find the best model
-3. Optionally use get_model_schema to check supported parameters
-4. Craft an optimal prompt for the selected model
-5. Return your recommendation
+3. If the user has source images/videos, pick a model that supports them (image-to-video, video-edit, etc.)
+4. Optionally use get_model_schema to check supported parameters
+5. Craft an optimal prompt in English for the selected model
+
+# Reference handling
+- Source images/videos will be sent to the fal.ai model as inputs
+- In your prompt, refer to them explicitly: "the source image", "the reference video"
+- Describe what to do with each reference in the prompt
+- For motion-control models: describe only environment/lighting/style, NOT motion (motion comes from the reference video)
+- For talking avatars with audio: prompt is optional (style/lighting hint only)
+
+# Prompt rules
+- Put the user's instruction first. Fulfill what the user asked.
+- Write detailed prompts: lighting, camera, motion, atmosphere, quality
+- Break video into time segments when appropriate: "0-3s: ... 3-6s: ..."
+- Use cinematic language: "rack focus", "dolly in", "rim lighting"
+- Translate the user's instruction to English but preserve all requirements
+- Apply the User Style Instructions to every prompt
+- Do NOT put resolution or FPS in the prompt text (separate API parameters)
 
 Return ONLY a JSON object:
 {
@@ -96,9 +125,10 @@ Your job: generate a video using the given prompt and model via fal-ai MCP tools
 
 Steps:
 1. Use submit_job with the specified model and prompt
-2. Use check_job to poll until complete
-3. Use get_job_result to get the result
-4. Return the result
+2. If source images/videos are provided, pass them to the model as the appropriate input parameters
+3. Use check_job to poll until complete
+4. Use get_job_result to get the result
+5. Return the result
 
 Return ONLY a JSON object:
 {
@@ -123,7 +153,8 @@ function buildPrompt(body) {
   const parts = [];
 
   if (references?.length) {
-    parts.push(`Reference images: ${references.join(', ')}`);
+    const refList = references.map((url, i) => `  ${i + 1}. ${url}`).join('\n');
+    parts.push(`Reference images (${references.length} total, ordered):\n${refList}\nThe model will receive these images in this exact order. Use "the first reference image", "the second reference image" etc. in your prompt.`);
   }
 
   if (model && model !== 'auto') {

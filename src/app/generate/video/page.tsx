@@ -15,6 +15,7 @@ import { VideoModelTypeFilter, Generation, TemplateRef } from '@/lib/types';
 import { useProjectCache } from '@/lib/useProjectCache';
 import ImagePicker from '@/components/ImagePicker';
 import ReferenceUpload from '@/components/ReferenceUpload';
+import { DEFAULT_SYSTEM_PROMPT } from '@/lib/constants';
 import VersionHistory from '@/components/VersionHistory';
 
 interface AgentResult {
@@ -141,7 +142,7 @@ export default function GenerateVideoPage() {
       model: modelPref === 'auto' ? undefined : modelPref,
       duration: desiredDuration,
       falKey: user?.falKey,
-      systemPrompt: user?.systemPrompt,
+      systemPrompt: user?.systemPrompt || DEFAULT_SYSTEM_PROMPT,
     };
     if (sourceImage) body.sourceImage = sourceImage;
     if (sourceVideo) body.sourceVideo = sourceVideo.url;
