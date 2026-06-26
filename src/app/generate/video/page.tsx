@@ -8,7 +8,6 @@ import {
   filterVideoModelsByType,
   getVideoModelType,
   isVideoModelGroupId,
-  getVideoModelIdsInGroup,
 } from '@/lib/models';
 import { getSessionUser } from '@/lib/auth';
 import { useProject } from '@/lib/ProjectContext';
@@ -27,7 +26,7 @@ interface AgentResult {
   paramNotes?: string[];
 }
 
-type Step = 'input' | 'review' | 'generating';
+type Step = 'input' | 'generating';
 
 export default function GenerateVideoPage() {
   const user = getSessionUser();
@@ -44,15 +43,11 @@ export default function GenerateVideoPage() {
   const [endImage, setEndImage] = useState('');
   const [multiRefs, setMultiRefs] = useState<TemplateRef[]>([]);
 
-  // Step 2: Agent result (editable)
+  // Agent result (shown after generation)
   const [agentResult, setAgentResult] = useState<AgentResult | null>(null);
-  const [editPrompt, setEditPrompt] = useState('');
-  const [editModel, setEditModel] = useState('');
-  const [editDuration, setEditDuration] = useState(5);
 
   // State
   const [step, setStep] = useState<Step>('input');
-  const [preparing, setPreparing] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [results, setResults] = useState<{ url: string }[]>([]);
   const [error, setError] = useState('');
@@ -114,18 +109,6 @@ export default function GenerateVideoPage() {
     ? getVideoModelType(selectedModelForRefs)
     : typeFilter !== 'all' ? typeFilter : 'image-to-video';
 
-  const avatarModels = filteredModels.filter(m => m.avatarAudio || m.avatarText || m.avatarVideoAudio);
-  const utilityModels = filteredModels.filter(m => m.utilityVideo);
-  const generalModels = filteredModels.filter(m => !m.avatarAudio && !m.avatarText && !m.avatarVideoAudio && !m.utilityVideo);
-
-  const generalByGroup: Record<string, typeof generalModels> = {};
-  for (const m of generalModels) {
-    const group = VIDEO_MODEL_GROUPS.find(g => g.modelIds.includes(m.id));
-    const key = group?.label ?? 'Other';
-    if (!generalByGroup[key]) generalByGroup[key] = [];
-    generalByGroup[key].push(m);
-  }
-
   const loadHistory = useCallback(async () => {
     if (!activeProject) return;
     const res = await fetch(`/api/generations?projectId=${activeProject.id}&type=video`);
@@ -146,91 +129,18 @@ export default function GenerateVideoPage() {
     }
   }
 
-  function getAvailableModels() {
-    // Start from filtered models by type, then narrow by model preference
-    let models = filterVideoModelsByType(typeFilter);
-
-    if (!isVideoModelGroupId(modelPref)) {
-      // Specific model selected
-      const specific = VIDEO_MODEL_OPTIONS.find(o => o.id === modelPref);
-      if (specific) models = [specific];
-    } else if (modelPref !== 'auto') {
-      // Group selected — intersect with type-filtered
-      const groupIds = getVideoModelIdsInGroup(modelPref);
-      models = models.filter(m => groupIds.includes(m.id));
-    }
-
-    return models.map(m => {
-      const groupId = VIDEO_MODEL_GROUPS.find(g => g.modelIds.includes(m.id))?.id ?? 'other';
-      const type = getVideoModelType(m);
-      const caps: string[] = [];
-      if (m.avatarAudio) caps.push('avatar-audio');
-      if (m.avatarText) caps.push('avatar-text');
-      if (m.avatarVideoAudio) caps.push('lip-sync');
-      if (m.motionControl) caps.push('motion-control');
-      if (m.startEndFrame) caps.push('start-end-frame');
-      if (m.multiRef) caps.push('multi-reference');
-      if (m.videoEdit) caps.push('video-edit');
-      if (m.utilityVideo) caps.push('utility');
-      if (m.textToVideoOnly) caps.push('text-to-video');
-      if (caps.length === 0) caps.push('image-to-video');
-      return { id: m.id, label: m.label, type, group: groupId, capabilities: caps };
-    });
-  }
-
-  function getReferenceDescriptions(): string[] {
-    const descs: string[] = [];
-    if (sourceImage) descs.push('Source image uploaded');
-    if (endImage) descs.push('End image uploaded');
-    if (sourceVideo) descs.push(`Source video: "${sourceVideo.name}"`);
-    if (audioRef) descs.push(`Audio file: "${audioRef.name}"`);
-    if (multiRefs.length > 0) descs.push(`${multiRefs.length} reference image(s) uploaded`);
-    return descs;
-  }
-
-  async function handlePrepare() {
-    if (!instruction.trim()) return;
-    setPreparing(true);
-    setError('');
-    try {
-      const res = await fetch('/api/prepare-generation', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          type: 'video',
-          instruction: instruction.trim(),
-          referenceDescriptions: getReferenceDescriptions(),
-          modelPreference: modelPref,
-          desiredParams: { duration: desiredDuration, typeFilter },
-          availableModels: getAvailableModels(),
-          anthropicKey: user?.anthropicKey,
-        }),
-      });
-      const data = await res.json();
-      if (data.error) throw new Error(data.error);
-      setAgentResult(data);
-      setEditPrompt(data.prompt);
-      setEditModel(data.selectedModel);
-      setEditDuration(data.params?.duration || desiredDuration);
-      setStep('review');
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Failed to prepare generation');
-    } finally {
-      setPreparing(false);
-    }
-  }
-
   async function handleGenerate() {
-    if (!editPrompt.trim() || !activeProject) return;
+    if (!instruction.trim() || !activeProject) return;
     setGenerating(true);
     setStep('generating');
     setError('');
+    setAgentResult(null);
     try {
       const genBody: Record<string, unknown> = {
         type: 'video',
-        model: editModel,
-        prompt: editPrompt.trim(),
-        duration: editDuration,
+        instruction: instruction.trim(),
+        model: modelPref === 'auto' ? undefined : modelPref,
+        duration: desiredDuration,
         falKey: user?.falKey,
       };
       if (sourceImage) genBody.sourceImage = sourceImage;
@@ -249,7 +159,16 @@ export default function GenerateVideoPage() {
       if (data.video) {
         setResults(prev => [data.video, ...prev]);
 
-        const modelOpt = VIDEO_MODEL_OPTIONS.find(m => m.id === editModel);
+        if (data.reasoning || data.prompt) {
+          setAgentResult({
+            prompt: data.prompt || '',
+            selectedModel: data.model || '',
+            selectedModelLabel: data.modelLabel || '',
+            params: { duration: desiredDuration },
+            reasoning: data.reasoning || '',
+          });
+        }
+
         const allRefUrls = [
           ...(sourceImage ? [sourceImage] : []),
           ...(sourceVideo ? [sourceVideo.url] : []),
@@ -264,13 +183,13 @@ export default function GenerateVideoPage() {
             projectId: activeProject.id,
             userId: user?.userId,
             type: 'video',
-            modelId: editModel,
-            modelLabel: modelOpt?.label || editModel,
-            prompt: editPrompt.trim(),
+            modelId: data.model || modelPref,
+            modelLabel: data.modelLabel || modelPref,
+            prompt: data.prompt || instruction.trim(),
             params: {
-              duration: editDuration, typeFilter,
+              duration: desiredDuration, typeFilter,
               instruction: instruction.trim(),
-              agentReasoning: agentResult?.reasoning,
+              agentReasoning: data.reasoning,
               sourceImage: sourceImage || undefined,
               sourceVideo: sourceVideo?.url,
               audioUrl: audioRef?.url,
@@ -287,25 +206,15 @@ export default function GenerateVideoPage() {
       }
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Generation failed');
-      setStep('review');
+      setStep('input');
     } finally {
       setGenerating(false);
     }
   }
 
-  function handleBack() {
-    setStep('input');
-    setAgentResult(null);
-  }
-
   function handleSelectVersion(gen: Generation) {
-    setEditModel(gen.modelId);
-    setEditPrompt(gen.prompt);
     if (gen.params.instruction) setInstruction(gen.params.instruction as string);
-    if (gen.params.duration) {
-      setDesiredDuration(gen.params.duration as number);
-      setEditDuration(gen.params.duration as number);
-    }
+    if (gen.params.duration) setDesiredDuration(gen.params.duration as number);
     if (gen.params.typeFilter) setTypeFilter(gen.params.typeFilter as VideoModelTypeFilter);
     setModelPref(gen.modelId);
     setSourceImage((gen.params.sourceImage as string) || '');
@@ -448,160 +357,14 @@ export default function GenerateVideoPage() {
             </div>
           </div>
 
-          {/* Prepare button */}
-          <div className="flex flex-col-reverse sm:flex-row items-start sm:items-center justify-between gap-3 pt-2">
-            <p className="text-xs" style={{ color: 'var(--text3)' }}>
-              Agent will generate prompt and select optimal parameters
-            </p>
-            <button
-              onClick={handlePrepare}
-              disabled={preparing || !instruction.trim() || !user?.anthropicKey}
-              className="w-full sm:w-auto px-6 py-2.5 rounded-lg text-sm font-semibold text-white disabled:opacity-50"
-              style={{ background: preparing ? 'var(--text3)' : 'var(--accent)' }}
-            >
-              {preparing ? (
-                <span className="flex items-center gap-2">
-                  <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  Preparing...
-                </span>
-              ) : 'Prepare Generation'}
-            </button>
-          </div>
-
-          {!user?.anthropicKey && (
-            <div className="p-3 rounded-lg text-sm" style={{ background: 'var(--accent-subtle)', color: 'var(--accent)' }}>
-              Add your Anthropic API key in Settings to enable the AI agent.
-            </div>
-          )}
-        </div>
-      )}
-
-      {step === 'review' && agentResult && (
-        <div className="space-y-5">
-          <button onClick={handleBack} className="text-sm" style={{ color: 'var(--text3)' }}>
-            &larr; Back to instruction
-          </button>
-
-          {/* Agent reasoning */}
-          <div className="p-4 rounded-xl" style={{ background: 'rgba(76,175,80,0.08)', border: '1px solid rgba(76,175,80,0.2)' }}>
-            <p className="text-xs font-medium mb-1" style={{ color: 'var(--green)' }}>Agent Reasoning</p>
-            <p className="text-sm" style={{ color: 'var(--text2)' }}>{agentResult.reasoning}</p>
-          </div>
-
-          {/* Param notes (differences) */}
-          {agentResult.paramNotes && agentResult.paramNotes.length > 0 && (
-            <div className="p-3 rounded-lg" style={{ background: 'rgba(255,193,7,0.08)', border: '1px solid rgba(255,193,7,0.2)' }}>
-              <p className="text-xs font-medium mb-1" style={{ color: '#ffc107' }}>Parameter Adjustments</p>
-              {agentResult.paramNotes.map((note, i) => (
-                <p key={i} className="text-sm" style={{ color: 'var(--text2)' }}>{note}</p>
-              ))}
-            </div>
-          )}
-
-          {/* Editable prompt */}
-          <div>
-            <label className="block text-sm mb-1.5" style={{ color: 'var(--text2)' }}>Generated Prompt <span className="text-xs" style={{ color: 'var(--text3)' }}>(editable)</span></label>
-            <textarea
-              value={editPrompt}
-              onChange={e => setEditPrompt(e.target.value)}
-              className="w-full h-36 resize-none"
-            />
-          </div>
-
-          {/* Editable model + duration */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm mb-1.5" style={{ color: 'var(--text2)' }}>
-                Model
-                {isVideoModelGroupId(modelPref) && (
-                  <span className="text-xs ml-1" style={{ color: 'var(--green)' }}>(agent selected)</span>
-                )}
-              </label>
-              <select value={editModel} onChange={e => setEditModel(e.target.value)} className="w-full">
-                {Object.entries(generalByGroup).map(([groupLabel, models]) => (
-                  <optgroup key={groupLabel} label={groupLabel}>
-                    {models.map(m => (
-                      <option key={m.id} value={m.id}>{m.label}</option>
-                    ))}
-                  </optgroup>
-                ))}
-                {avatarModels.length > 0 && (
-                  <optgroup label="Avatar / Lip-sync">
-                    {avatarModels.map(m => (
-                      <option key={m.id} value={m.id}>{m.label}</option>
-                    ))}
-                  </optgroup>
-                )}
-                {utilityModels.length > 0 && (
-                  <optgroup label="Utility">
-                    {utilityModels.map(m => (
-                      <option key={m.id} value={m.id}>{m.label}</option>
-                    ))}
-                  </optgroup>
-                )}
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm mb-1.5" style={{ color: 'var(--text2)' }}>
-                Duration
-                {editDuration !== desiredDuration && <span className="text-xs ml-1" style={{ color: '#ffc107' }}>(adjusted)</span>}
-              </label>
-              <select value={editDuration} onChange={e => setEditDuration(Number(e.target.value))} className="w-full">
-                {[3, 4, 5, 6, 7, 8, 10, 12, 15, 20].map(d => (
-                  <option key={d} value={d}>{d}s</option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          {/* References preview */}
-          {(sourceImage || endImage || sourceVideo || audioRef || multiRefs.length > 0) && (
-            <div className="flex gap-2 flex-wrap items-center">
-              {sourceImage && (
-                <div className="relative w-12 h-12 rounded overflow-hidden border" style={{ borderColor: 'var(--border)' }}>
-                  <span className="absolute top-0 left-0 z-10 w-full bg-black/60 text-[8px] text-white px-0.5 truncate">src</span>
-                  <img src={sourceImage} alt="" className="w-full h-full object-cover" />
-                </div>
-              )}
-              {endImage && (
-                <div className="relative w-12 h-12 rounded overflow-hidden border" style={{ borderColor: 'var(--border)' }}>
-                  <span className="absolute top-0 left-0 z-10 w-full bg-black/60 text-[8px] text-white px-0.5 truncate">end</span>
-                  <img src={endImage} alt="" className="w-full h-full object-cover" />
-                </div>
-              )}
-              {multiRefs.map((ref, i) => (
-                <div key={i} className="relative w-12 h-12 rounded overflow-hidden border" style={{ borderColor: 'var(--border)' }}>
-                  <span className="absolute top-0 left-0 z-10 w-4 h-4 flex items-center justify-center text-[10px] font-bold" style={{ background: 'var(--accent)', color: 'white' }}>{i + 1}</span>
-                  <img src={ref.url} alt="" className="w-full h-full object-cover" />
-                </div>
-              ))}
-              {sourceVideo && (
-                <div className="flex items-center gap-1 px-2 py-1 rounded text-xs" style={{ background: 'var(--bg-input)', border: '1px solid var(--border)', color: 'var(--text2)' }}>
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3 h-3" style={{ color: 'var(--accent)' }}>
-                    <polygon points="5 3 19 12 5 21 5 3" />
-                  </svg>
-                  {sourceVideo.name}
-                </div>
-              )}
-              {audioRef && (
-                <div className="flex items-center gap-1 px-2 py-1 rounded text-xs" style={{ background: 'var(--bg-input)', border: '1px solid var(--border)', color: 'var(--text2)' }}>
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3 h-3" style={{ color: 'var(--green)' }}>
-                    <path d="M9 18V5l12-2v13" /><circle cx="6" cy="18" r="3" /><circle cx="18" cy="16" r="3" />
-                  </svg>
-                  {audioRef.name}
-                </div>
-              )}
-            </div>
-          )}
-
           {/* Generate button */}
           <div className="flex flex-col-reverse sm:flex-row items-start sm:items-center justify-between gap-3 pt-2">
-            <span className="text-sm" style={{ color: 'var(--text3)' }}>
-              ~$0.10 estimated
-            </span>
+            <p className="text-xs" style={{ color: 'var(--text3)' }}>
+              AI agent will craft the prompt, select model, and generate
+            </p>
             <button
               onClick={handleGenerate}
-              disabled={generating || !editPrompt.trim()}
+              disabled={generating || !instruction.trim() || !user?.falKey}
               className="w-full sm:w-auto px-6 py-2.5 rounded-lg text-sm font-semibold text-white disabled:opacity-50"
               style={{ background: generating ? 'var(--text3)' : 'var(--accent)' }}
             >
@@ -613,20 +376,41 @@ export default function GenerateVideoPage() {
               ) : 'Generate Video'}
             </button>
           </div>
+
+          {!user?.falKey && (
+            <div className="p-3 rounded-lg text-sm" style={{ background: 'var(--accent-subtle)', color: 'var(--accent)' }}>
+              Add your fal.ai API key in Settings to enable generation.
+            </div>
+          )}
         </div>
       )}
 
       {step === 'generating' && (
         <div className="text-center py-16">
           <div className="w-10 h-10 border-2 rounded-full animate-spin mx-auto mb-4" style={{ borderColor: 'var(--border)', borderTopColor: 'var(--accent)' }} />
-          <p style={{ color: 'var(--text2)' }}>Generating video...</p>
-          <p className="text-sm mt-1" style={{ color: 'var(--text3)' }}>{VIDEO_MODEL_OPTIONS.find(m => m.id === editModel)?.label}</p>
+          <p style={{ color: 'var(--text2)' }}>AI agent is generating...</p>
+          <p className="text-sm mt-1" style={{ color: 'var(--text3)' }}>Crafting prompt, selecting model, and generating video</p>
         </div>
       )}
 
       {error && (
         <div className="mt-4 p-3 rounded-lg text-sm" style={{ background: 'rgba(239,68,68,0.1)', color: 'var(--red)', border: '1px solid rgba(239,68,68,0.2)' }}>
           {error}
+        </div>
+      )}
+
+      {agentResult && (
+        <div className="mt-6 p-4 rounded-xl" style={{ background: 'rgba(76,175,80,0.08)', border: '1px solid rgba(76,175,80,0.2)' }}>
+          <p className="text-xs font-medium mb-1" style={{ color: 'var(--green)' }}>
+            Agent: {agentResult.selectedModelLabel || agentResult.selectedModel}
+          </p>
+          <p className="text-sm mb-2" style={{ color: 'var(--text2)' }}>{agentResult.reasoning}</p>
+          {agentResult.prompt && (
+            <details className="text-xs" style={{ color: 'var(--text3)' }}>
+              <summary className="cursor-pointer">Generated prompt</summary>
+              <p className="mt-1 whitespace-pre-wrap">{agentResult.prompt}</p>
+            </details>
+          )}
         </div>
       )}
 

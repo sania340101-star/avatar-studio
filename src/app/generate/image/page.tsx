@@ -3,7 +3,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import {
   IMAGE_MODEL_OPTIONS, IMAGE_MODEL_GROUPS, IMAGE_SIZE_OPTIONS, IMAGE_RESOLUTION_OPTIONS,
-  getImageModelFormat, imageSizeToAspectRatio, isImageModelGroupId, getImageModelIdsInGroup,
 } from '@/lib/models';
 import { getSessionUser } from '@/lib/auth';
 import { useProject } from '@/lib/ProjectContext';
@@ -25,7 +24,7 @@ interface AgentResult {
   paramNotes?: string[];
 }
 
-type Step = 'input' | 'review' | 'generating';
+type Step = 'input' | 'generating';
 
 export default function GenerateImagePage() {
   const user = getSessionUser();
@@ -38,15 +37,11 @@ export default function GenerateImagePage() {
   const [desiredSize, setDesiredSize] = useState('portrait_16_9');
   const [desiredResolution, setDesiredResolution] = useState('1k');
 
-  // Step 2: Agent result (editable)
+  // Agent result (shown after generation)
   const [agentResult, setAgentResult] = useState<AgentResult | null>(null);
-  const [editPrompt, setEditPrompt] = useState('');
-  const [editModel, setEditModel] = useState('');
-  const [editSize, setEditSize] = useState('');
 
   // State
   const [step, setStep] = useState<Step>('input');
-  const [preparing, setPreparing] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [results, setResults] = useState<GeneratedImage[]>([]);
   const [error, setError] = useState('');
@@ -110,66 +105,21 @@ export default function GenerateImagePage() {
     e.target.value = '';
   }
 
-  function getAvailableModels() {
-    const modelIds = isImageModelGroupId(modelPref)
-      ? getImageModelIdsInGroup(modelPref)
-      : [modelPref];
-    return modelIds.map(id => {
-      const opt = IMAGE_MODEL_OPTIONS.find(o => o.id === id);
-      const groupId = IMAGE_MODEL_GROUPS.find(g => g.modelIds.includes(id))?.id ?? 'other';
-      return { id, label: opt?.label ?? id, format: opt?.format ?? 'flux', group: groupId };
-    });
-  }
-
-  async function handlePrepare() {
-    if (!instruction.trim()) return;
-    setPreparing(true);
-    setError('');
-    try {
-      const res = await fetch('/api/prepare-generation', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          instruction: instruction.trim(),
-          referenceDescriptions: references.map((r, i) => `Image ${i + 1}: "${r.name}"`),
-          modelPreference: modelPref,
-          desiredParams: { size: desiredSize, resolution: desiredResolution },
-          availableModels: getAvailableModels(),
-          anthropicKey: user?.anthropicKey,
-        }),
-      });
-      const data = await res.json();
-      if (data.error) throw new Error(data.error);
-      setAgentResult(data);
-      setEditPrompt(data.prompt);
-      setEditModel(data.selectedModel);
-      setEditSize(data.params?.size || desiredSize);
-      setStep('review');
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Failed to prepare generation');
-    } finally {
-      setPreparing(false);
-    }
-  }
-
   async function handleGenerate() {
-    if (!editPrompt.trim() || !activeProject) return;
+    if (!instruction.trim() || !activeProject) return;
     setGenerating(true);
     setStep('generating');
     setError('');
+    setAgentResult(null);
     try {
-      const format = getImageModelFormat(editModel);
       const res = await fetch('/api/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           type: 'image',
-          model: editModel,
-          prompt: editPrompt.trim(),
-          size: editSize,
-          format,
-          aspectRatio: format === 'aspect_ratio' ? imageSizeToAspectRatio(editSize) : undefined,
-          count: 1,
+          instruction: instruction.trim(),
+          model: modelPref === 'auto' ? undefined : modelPref,
+          size: desiredSize,
           references: references.map(r => r.url),
           falKey: user?.falKey,
         }),
@@ -179,7 +129,16 @@ export default function GenerateImagePage() {
       const images: GeneratedImage[] = data.images || [];
       setResults(prev => [...images, ...prev]);
 
-      const modelOpt = IMAGE_MODEL_OPTIONS.find(m => m.id === editModel);
+      if (data.reasoning || data.prompt) {
+        setAgentResult({
+          prompt: data.prompt || '',
+          selectedModel: data.model || '',
+          selectedModelLabel: data.modelLabel || '',
+          params: { size: desiredSize, resolution: desiredResolution },
+          reasoning: data.reasoning || '',
+        });
+      }
+
       await fetch('/api/generations', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -187,13 +146,13 @@ export default function GenerateImagePage() {
           projectId: activeProject.id,
           userId: user?.userId,
           type: 'image',
-          modelId: editModel,
-          modelLabel: modelOpt?.label || editModel,
-          prompt: editPrompt.trim(),
+          modelId: data.model || modelPref,
+          modelLabel: data.modelLabel || modelPref,
+          prompt: data.prompt || instruction.trim(),
           params: {
-            size: editSize, count: 1, format,
+            size: desiredSize, count: 1,
             instruction: instruction.trim(),
-            agentReasoning: agentResult?.reasoning,
+            agentReasoning: data.reasoning,
           },
           referenceUrls: references.map(r => r.url),
           resultUrls: images.map(img => img.url),
@@ -204,25 +163,15 @@ export default function GenerateImagePage() {
       setStep('input');
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Generation failed');
-      setStep('review');
+      setStep('input');
     } finally {
       setGenerating(false);
     }
   }
 
-  function handleBack() {
-    setStep('input');
-    setAgentResult(null);
-  }
-
   function handleSelectVersion(gen: Generation) {
-    setEditModel(gen.modelId);
-    setEditPrompt(gen.prompt);
     if (gen.params.instruction) setInstruction(gen.params.instruction as string);
-    if (gen.params.size) {
-      setDesiredSize(gen.params.size as string);
-      setEditSize(gen.params.size as string);
-    }
+    if (gen.params.size) setDesiredSize(gen.params.size as string);
     setModelPref(gen.modelId);
     setReferences((gen.referenceUrls || []).map((url, i) => ({ url, name: `Reference ${i + 1}` })));
     setResults(gen.resultUrls.map(url => ({ url })));
@@ -336,119 +285,14 @@ export default function GenerateImagePage() {
             </div>
           </div>
 
-          {/* Prepare button */}
-          <div className="flex flex-col-reverse sm:flex-row items-start sm:items-center justify-between gap-3 pt-2">
-            <p className="text-xs" style={{ color: 'var(--text3)' }}>
-              Agent will generate prompt and select optimal parameters
-            </p>
-            <button
-              onClick={handlePrepare}
-              disabled={preparing || !instruction.trim() || !user?.anthropicKey}
-              className="w-full sm:w-auto px-6 py-2.5 rounded-lg text-sm font-semibold text-white disabled:opacity-50"
-              style={{ background: preparing ? 'var(--text3)' : 'var(--accent)' }}
-            >
-              {preparing ? (
-                <span className="flex items-center gap-2">
-                  <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  Preparing...
-                </span>
-              ) : 'Prepare Generation'}
-            </button>
-          </div>
-
-          {!user?.anthropicKey && (
-            <div className="p-3 rounded-lg text-sm" style={{ background: 'var(--accent-subtle)', color: 'var(--accent)' }}>
-              Add your Anthropic API key in Settings to enable the AI agent.
-            </div>
-          )}
-        </div>
-      )}
-
-      {step === 'review' && agentResult && (
-        <div className="space-y-5">
-          <button onClick={handleBack} className="text-sm" style={{ color: 'var(--text3)' }}>
-            &larr; Back to instruction
-          </button>
-
-          {/* Agent reasoning */}
-          <div className="p-4 rounded-xl" style={{ background: 'rgba(76,175,80,0.08)', border: '1px solid rgba(76,175,80,0.2)' }}>
-            <p className="text-xs font-medium mb-1" style={{ color: 'var(--green)' }}>Agent Reasoning</p>
-            <p className="text-sm" style={{ color: 'var(--text2)' }}>{agentResult.reasoning}</p>
-          </div>
-
-          {/* Param notes (differences) */}
-          {agentResult.paramNotes && agentResult.paramNotes.length > 0 && (
-            <div className="p-3 rounded-lg" style={{ background: 'rgba(255,193,7,0.08)', border: '1px solid rgba(255,193,7,0.2)' }}>
-              <p className="text-xs font-medium mb-1" style={{ color: '#ffc107' }}>Parameter Adjustments</p>
-              {agentResult.paramNotes.map((note, i) => (
-                <p key={i} className="text-sm" style={{ color: 'var(--text2)' }}>{note}</p>
-              ))}
-            </div>
-          )}
-
-          {/* Editable prompt */}
-          <div>
-            <label className="block text-sm mb-1.5" style={{ color: 'var(--text2)' }}>Generated Prompt <span className="text-xs" style={{ color: 'var(--text3)' }}>(editable)</span></label>
-            <textarea
-              value={editPrompt}
-              onChange={e => setEditPrompt(e.target.value)}
-              className="w-full h-36 resize-none"
-            />
-          </div>
-
-          {/* Editable model + params */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm mb-1.5" style={{ color: 'var(--text2)' }}>
-                Model
-                {isImageModelGroupId(modelPref) && (
-                  <span className="text-xs ml-1" style={{ color: 'var(--green)' }}>(agent selected)</span>
-                )}
-              </label>
-              <select value={editModel} onChange={e => setEditModel(e.target.value)} className="w-full">
-                {IMAGE_MODEL_GROUPS.map(group => (
-                  <optgroup key={group.id} label={group.label}>
-                    {group.modelIds.map(id => {
-                      const opt = IMAGE_MODEL_OPTIONS.find(o => o.id === id);
-                      return opt ? <option key={id} value={id}>{opt.label}</option> : null;
-                    })}
-                  </optgroup>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm mb-1.5" style={{ color: 'var(--text2)' }}>
-                Format
-                {editSize !== desiredSize && <span className="text-xs ml-1" style={{ color: '#ffc107' }}>(adjusted)</span>}
-              </label>
-              <select value={editSize} onChange={e => setEditSize(e.target.value)} className="w-full">
-                {IMAGE_SIZE_OPTIONS.map(o => (
-                  <option key={o.id} value={o.id}>{o.label}</option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          {/* References preview */}
-          {references.length > 0 && (
-            <div className="flex gap-2 flex-wrap">
-              {references.map((ref, i) => (
-                <div key={i} className="relative w-12 h-12 rounded overflow-hidden border" style={{ borderColor: 'var(--border)' }}>
-                  <span className="absolute top-0 left-0 z-10 w-4 h-4 flex items-center justify-center text-[10px] font-bold" style={{ background: 'var(--accent)', color: 'white' }}>{i + 1}</span>
-                  <img src={ref.url} alt="" className="w-full h-full object-cover" />
-                </div>
-              ))}
-            </div>
-          )}
-
           {/* Generate button */}
           <div className="flex flex-col-reverse sm:flex-row items-start sm:items-center justify-between gap-3 pt-2">
-            <span className="text-sm" style={{ color: 'var(--text3)' }}>
-              ~$0.03 estimated
-            </span>
+            <p className="text-xs" style={{ color: 'var(--text3)' }}>
+              AI agent will craft the prompt, select model, and generate
+            </p>
             <button
               onClick={handleGenerate}
-              disabled={generating || !editPrompt.trim()}
+              disabled={generating || !instruction.trim() || !user?.falKey}
               className="w-full sm:w-auto px-6 py-2.5 rounded-lg text-sm font-semibold text-white disabled:opacity-50"
               style={{ background: generating ? 'var(--text3)' : 'var(--accent)' }}
             >
@@ -457,25 +301,44 @@ export default function GenerateImagePage() {
                   <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                   Generating...
                 </span>
-              ) : (
-                'Generate Image'
-              )}
+              ) : 'Generate Image'}
             </button>
           </div>
+
+          {!user?.falKey && (
+            <div className="p-3 rounded-lg text-sm" style={{ background: 'var(--accent-subtle)', color: 'var(--accent)' }}>
+              Add your fal.ai API key in Settings to enable generation.
+            </div>
+          )}
         </div>
       )}
 
       {step === 'generating' && (
         <div className="text-center py-16">
           <div className="w-10 h-10 border-2 rounded-full animate-spin mx-auto mb-4" style={{ borderColor: 'var(--border)', borderTopColor: 'var(--accent)' }} />
-          <p style={{ color: 'var(--text2)' }}>Generating image...</p>
-          <p className="text-sm mt-1" style={{ color: 'var(--text3)' }}>{IMAGE_MODEL_OPTIONS.find(m => m.id === editModel)?.label}</p>
+          <p style={{ color: 'var(--text2)' }}>AI agent is generating...</p>
+          <p className="text-sm mt-1" style={{ color: 'var(--text3)' }}>Crafting prompt, selecting model, and generating image</p>
         </div>
       )}
 
       {error && (
         <div className="mt-4 p-3 rounded-lg text-sm" style={{ background: 'rgba(239,68,68,0.1)', color: 'var(--red)', border: '1px solid rgba(239,68,68,0.2)' }}>
           {error}
+        </div>
+      )}
+
+      {agentResult && (
+        <div className="mt-6 p-4 rounded-xl" style={{ background: 'rgba(76,175,80,0.08)', border: '1px solid rgba(76,175,80,0.2)' }}>
+          <p className="text-xs font-medium mb-1" style={{ color: 'var(--green)' }}>
+            Agent: {agentResult.selectedModelLabel || agentResult.selectedModel}
+          </p>
+          <p className="text-sm mb-2" style={{ color: 'var(--text2)' }}>{agentResult.reasoning}</p>
+          {agentResult.prompt && (
+            <details className="text-xs" style={{ color: 'var(--text3)' }}>
+              <summary className="cursor-pointer">Generated prompt</summary>
+              <p className="mt-1 whitespace-pre-wrap">{agentResult.prompt}</p>
+            </details>
+          )}
         </div>
       )}
 
