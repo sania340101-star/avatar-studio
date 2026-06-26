@@ -109,43 +109,43 @@ export default function VersionHistory({ generations, onSelect, onDelete }: Prop
                       </div>
 
                       {/* Instruction */}
-                      {gen.params.instruction && (
+                      {gen.params.instruction ? (
                         <div>
                           <p className="text-xs font-medium mb-1" style={{ color: 'var(--text3)' }}>Instruction</p>
                           <p className="text-sm whitespace-pre-wrap" style={{ color: 'var(--text2)' }}>{String(gen.params.instruction)}</p>
                         </div>
-                      )}
+                      ) : null}
 
                       {/* Agent reasoning */}
-                      {gen.params.agentReasoning && (
+                      {gen.params.agentReasoning ? (
                         <div className="p-3 rounded-lg" style={{ background: 'rgba(76,175,80,0.08)' }}>
                           <p className="text-xs font-medium mb-1" style={{ color: 'var(--green)' }}>Agent Reasoning</p>
                           <p className="text-sm whitespace-pre-wrap" style={{ color: 'var(--text2)' }}>{String(gen.params.agentReasoning)}</p>
                         </div>
-                      )}
+                      ) : null}
 
                       {/* Key params */}
                       <div className="flex flex-wrap gap-2">
-                        {gen.params.size && (
+                        {gen.params.size != null ? (
                           <span className="text-xs px-2 py-1 rounded" style={{ background: 'var(--bg-input)', color: 'var(--text3)' }}>
                             Size: {String(gen.params.size)}
                           </span>
-                        )}
-                        {gen.params.format && (
+                        ) : null}
+                        {gen.params.format != null ? (
                           <span className="text-xs px-2 py-1 rounded" style={{ background: 'var(--bg-input)', color: 'var(--text3)' }}>
                             Format: {String(gen.params.format)}
                           </span>
-                        )}
-                        {gen.params.count && (
+                        ) : null}
+                        {gen.params.count != null ? (
                           <span className="text-xs px-2 py-1 rounded" style={{ background: 'var(--bg-input)', color: 'var(--text3)' }}>
                             Count: {String(gen.params.count)}
                           </span>
-                        )}
-                        {gen.params.duration && (
+                        ) : null}
+                        {gen.params.duration != null ? (
                           <span className="text-xs px-2 py-1 rounded" style={{ background: 'var(--bg-input)', color: 'var(--text3)' }}>
                             Duration: {String(gen.params.duration)}s
                           </span>
-                        )}
+                        ) : null}
                         <span className="text-xs px-2 py-1 rounded" style={{ background: 'var(--bg-input)', color: 'var(--text3)' }}>
                           Model: {gen.modelLabel}
                         </span>
