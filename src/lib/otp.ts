@@ -78,11 +78,11 @@ function getTransporter(): nodemailer.Transporter | null {
   return transporter;
 }
 
-export async function sendOtpEmail(email: string, code: string): Promise<boolean> {
+export async function sendOtpEmail(email: string, code: string): Promise<{ sent: boolean; devCode?: string }> {
   const t = getTransporter();
   if (!t) {
     console.log(`[OTP] No SMTP configured. Code for ${email}: ${code}`);
-    return true;
+    return { sent: false, devCode: code };
   }
 
   await t.sendMail({
@@ -101,5 +101,5 @@ export async function sendOtpEmail(email: string, code: string): Promise<boolean
       </div>
     `,
   });
-  return true;
+  return { sent: true };
 }

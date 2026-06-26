@@ -70,6 +70,7 @@ export interface AppUser {
   role: string;
   authMethod: 'sso' | 'otp';
   falKey?: string;
+  anthropicKey?: string;
 }
 
 export interface Project {

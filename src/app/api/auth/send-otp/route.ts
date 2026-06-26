@@ -13,7 +13,11 @@ export async function POST(req: NextRequest) {
     }
 
     const code = createOtp(email);
-    await sendOtpEmail(email, code);
+    const result = await sendOtpEmail(email, code);
+
+    if (!result.sent && result.devCode) {
+      return NextResponse.json({ ok: true, devCode: result.devCode, smtpNotConfigured: true });
+    }
 
     return NextResponse.json({ ok: true });
   } catch (e: unknown) {

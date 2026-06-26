@@ -38,13 +38,14 @@ export function tryAutoLogin(): AppUser | null {
   const payload = parseJwtPayload(token);
   if (!payload || !payload.appId) return null;
 
+  const serviceKeys = (payload.serviceKeys || {}) as Record<string, string>;
   const user: AppUser = {
     userId: payload.userId as string,
     userName: payload.userName as string,
     role: (payload.role as string) || 'user',
     authMethod: 'sso',
-    falKey: (payload.serviceKeys as Record<string, string>)?.fal_ai_api_key
-      || (payload.serviceKeys as Record<string, string>)?.fal_ai_access_token,
+    falKey: serviceKeys.fal_ai_api_key || serviceKeys.fal_ai_access_token,
+    anthropicKey: serviceKeys.anthropic_api_key,
   };
 
   setSessionUser(user);

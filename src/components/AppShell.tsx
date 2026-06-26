@@ -12,6 +12,7 @@ function OtpLogin({ onLogin }: { onLogin: (user: AppUser) => void }) {
   const [step, setStep] = useState<'email' | 'code'>('email');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [devCode, setDevCode] = useState('');
 
   async function handleSendCode() {
     if (!email.includes('@')) return;
@@ -25,6 +26,7 @@ function OtpLogin({ onLogin }: { onLogin: (user: AppUser) => void }) {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
+      if (data.devCode) setDevCode(data.devCode);
       setStep('code');
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Failed to send code');
@@ -91,8 +93,15 @@ function OtpLogin({ onLogin }: { onLogin: (user: AppUser) => void }) {
         ) : (
           <>
             <p className="text-sm mb-4" style={{ color: 'var(--text2)' }}>
-              Code sent to <strong style={{ color: 'var(--text1)' }}>{email}</strong>
+              {devCode ? 'Email delivery not configured.' : 'Code sent to'}{' '}
+              <strong style={{ color: 'var(--text1)' }}>{email}</strong>
             </p>
+            {devCode && (
+              <div className="mb-4 p-3 rounded-lg text-center" style={{ background: 'var(--accent-subtle)', border: '1px solid var(--accent)' }}>
+                <p className="text-xs mb-1" style={{ color: 'var(--text3)' }}>Your login code:</p>
+                <p className="text-2xl font-semibold tracking-[0.3em]" style={{ color: 'var(--accent)' }}>{devCode}</p>
+              </div>
+            )}
             <label className="block text-sm mb-1.5" style={{ color: 'var(--text2)' }}>6-digit code</label>
             <input
               type="text"
