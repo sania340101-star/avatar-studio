@@ -14,6 +14,8 @@ export async function POST(req: NextRequest) {
     let userId: string;
     let userName: string;
     let userEmail: string;
+    let falKey: string | undefined;
+    let anthropicKey: string | undefined;
 
     // If INTERNAL_SERVICE_KEY is configured, use Agent Factory API
     if (SERVICE_KEY) {
@@ -27,16 +29,22 @@ export async function POST(req: NextRequest) {
       });
       const afData = await afRes.json();
 
-      if (!afRes.ok) {
+      if (!afData.ok) {
+        const status = afData.error?.includes('expired') || afData.error?.includes('Invalid') ? 401 : 400;
         return NextResponse.json(
-          { error: afData.error || 'Invalid or expired code' },
-          { status: afRes.status },
+          { error: afData.error || 'Invalid or expired code', attemptsLeft: afData.attemptsLeft },
+          { status },
         );
       }
 
-      userId = afData.userId || `otp-${Buffer.from(email.toLowerCase()).toString('base64url')}`;
-      userName = afData.userName || email.split('@')[0];
-      userEmail = afData.email || email.toLowerCase();
+      const user = afData.user || {};
+      userId = user.userId || `otp-${Buffer.from(email.toLowerCase()).toString('base64url')}`;
+      userName = user.userName || email.split('@')[0];
+      userEmail = user.email || email.toLowerCase();
+
+      const sk = afData.serviceKeys || {};
+      falKey = sk.fal_ai_api_key || sk.fal_ai_access_token || process.env.FAL_KEY;
+      anthropicKey = sk.anthropic_api_key || process.env.ANTHROPIC_API_KEY;
     } else {
       // Dev fallback: local OTP verification
       if (!verifyOtp(email, code)) {
@@ -46,6 +54,8 @@ export async function POST(req: NextRequest) {
       userId = `otp-${Buffer.from(email.toLowerCase()).toString('base64url')}`;
       userName = email.split('@')[0];
       userEmail = email.toLowerCase();
+      falKey = process.env.FAL_KEY;
+      anthropicKey = process.env.ANTHROPIC_API_KEY;
     }
 
     return NextResponse.json({
@@ -54,8 +64,8 @@ export async function POST(req: NextRequest) {
       email: userEmail,
       role: 'user',
       authMethod: 'otp',
-      falKey: process.env.FAL_KEY || undefined,
-      anthropicKey: process.env.ANTHROPIC_API_KEY || undefined,
+      falKey: falKey || undefined,
+      anthropicKey: anthropicKey || undefined,
     });
   } catch (e: unknown) {
     return NextResponse.json({ error: e instanceof Error ? e.message : 'Verification failed' }, { status: 500 });
