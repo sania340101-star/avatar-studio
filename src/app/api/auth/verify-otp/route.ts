@@ -43,8 +43,9 @@ export async function POST(req: NextRequest) {
       userEmail = user.email || email.toLowerCase();
 
       const sk = afData.serviceKeys || {};
-      falKey = sk.fal_ai_api_key || sk.fal_ai_access_token || process.env.FAL_KEY;
-      anthropicKey = sk.anthropic_api_key || process.env.ANTHROPIC_API_KEY;
+      const isAfUser = afData.isAfUser === true;
+      falKey = sk.fal_ai_api_key || sk.fal_ai_access_token || (isAfUser ? process.env.FAL_KEY : undefined);
+      anthropicKey = sk.anthropic_api_key || (isAfUser ? process.env.ANTHROPIC_API_KEY : undefined);
     } else {
       // Dev fallback: local OTP verification
       if (!verifyOtp(email, code)) {
