@@ -68,12 +68,12 @@ function TemplateList({ templates, onUse, onDelete, onCreate }: {
 
   return (
     <>
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
         <div>
           <h2 className="text-xl font-semibold">Templates</h2>
           {activeProject && <p className="text-sm" style={{ color: 'var(--text3)' }}>Project: {activeProject.title}</p>}
         </div>
-        <button onClick={onCreate} className="px-4 py-2 rounded-lg text-sm font-semibold text-white" style={{ background: 'var(--accent)' }}>
+        <button onClick={onCreate} className="w-full sm:w-auto px-4 py-2 rounded-lg text-sm font-semibold text-white" style={{ background: 'var(--accent)' }}>
           + New Template
         </button>
       </div>
@@ -84,7 +84,7 @@ function TemplateList({ templates, onUse, onDelete, onCreate }: {
           <p className="text-sm" style={{ color: 'var(--text3)' }}>Create a template to save model + params + prompt + references for quick generation.</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {templates.map(tmpl => {
             const refs = tmpl.references || [];
             const imgCount = refs.filter(r => r.type === 'image').length;
@@ -215,7 +215,7 @@ function TemplateForm({ userId, onSave, onCancel }: {
       </div>
 
       <div className="space-y-5 max-w-2xl">
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label className="block text-sm mb-1.5" style={{ color: 'var(--text2)' }}>Template Name</label>
             <input value={name} onChange={e => setName(e.target.value)} placeholder="Corporate Avatar HH" className="w-full" />
@@ -234,7 +234,7 @@ function TemplateForm({ userId, onSave, onCancel }: {
           <input value={description} onChange={e => setDescription(e.target.value)} placeholder="Short description..." className="w-full" />
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label className="block text-sm mb-1.5" style={{ color: 'var(--text2)' }}>Device</label>
             <select value={device} onChange={e => setDevice(e.target.value)} className="w-full">
@@ -309,7 +309,7 @@ function TemplateForm({ userId, onSave, onCancel }: {
         </div>
 
         {type === 'image' && (
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm mb-1.5" style={{ color: 'var(--text2)' }}>Size</label>
               <select value={size} onChange={e => setSize(e.target.value)} className="w-full">
@@ -536,7 +536,7 @@ function TemplateRunner({ template, onBack, projectId, userId, falKey }: {
           label={template.type === 'image' ? 'Reference Images (editable)' : 'References (editable)'}
         />
 
-        <div className="flex items-center justify-between pt-2">
+        <div className="flex flex-col-reverse sm:flex-row items-start sm:items-center justify-between gap-3 pt-2">
           <div className="flex gap-2 text-xs flex-wrap" style={{ color: 'var(--text3)' }}>
             {Object.entries(template.params).filter(([k]) => !k.startsWith('template')).map(([k, v]) => (
               <span key={k} className="px-2 py-0.5 rounded" style={{ background: 'var(--bg-input)' }}>{k}: {String(v)}</span>
@@ -545,7 +545,7 @@ function TemplateRunner({ template, onBack, projectId, userId, falKey }: {
           <button
             onClick={handleGenerate}
             disabled={generating || !prompt.trim()}
-            className="px-6 py-2.5 rounded-lg text-sm font-semibold text-white disabled:opacity-50 flex-shrink-0"
+            className="w-full sm:w-auto px-6 py-2.5 rounded-lg text-sm font-semibold text-white disabled:opacity-50 flex-shrink-0"
             style={{ background: generating ? 'var(--text3)' : 'var(--accent)' }}
           >
             {generating ? (

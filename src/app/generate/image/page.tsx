@@ -257,7 +257,7 @@ export default function GenerateImagePage() {
           </div>
 
           {/* Model preference */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm mb-1.5" style={{ color: 'var(--text2)' }}>Model</label>
               <select value={modelPref} onChange={e => setModelPref(e.target.value)} className="w-full">
@@ -284,7 +284,7 @@ export default function GenerateImagePage() {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm mb-1.5" style={{ color: 'var(--text2)' }}>Resolution</label>
               <select value={desiredResolution} onChange={e => setDesiredResolution(e.target.value)} className="w-full">
@@ -318,14 +318,14 @@ export default function GenerateImagePage() {
           </div>
 
           {/* Prepare button */}
-          <div className="flex items-center justify-between pt-2">
+          <div className="flex flex-col-reverse sm:flex-row items-start sm:items-center justify-between gap-3 pt-2">
             <p className="text-xs" style={{ color: 'var(--text3)' }}>
               Agent will generate prompt and select optimal parameters
             </p>
             <button
               onClick={handlePrepare}
               disabled={preparing || !instruction.trim() || !user?.anthropicKey}
-              className="px-6 py-2.5 rounded-lg text-sm font-semibold text-white disabled:opacity-50"
+              className="w-full sm:w-auto px-6 py-2.5 rounded-lg text-sm font-semibold text-white disabled:opacity-50"
               style={{ background: preparing ? 'var(--text3)' : 'var(--accent)' }}
             >
               {preparing ? (
@@ -378,7 +378,7 @@ export default function GenerateImagePage() {
           </div>
 
           {/* Editable model + params */}
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div>
               <label className="block text-sm mb-1.5" style={{ color: 'var(--text2)' }}>
                 Model
@@ -434,14 +434,14 @@ export default function GenerateImagePage() {
           )}
 
           {/* Generate button */}
-          <div className="flex items-center justify-between pt-2">
+          <div className="flex flex-col-reverse sm:flex-row items-start sm:items-center justify-between gap-3 pt-2">
             <span className="text-sm" style={{ color: 'var(--text3)' }}>
               ~${(0.03 * editCount).toFixed(2)} estimated
             </span>
             <button
               onClick={handleGenerate}
               disabled={generating || !editPrompt.trim()}
-              className="px-6 py-2.5 rounded-lg text-sm font-semibold text-white disabled:opacity-50"
+              className="w-full sm:w-auto px-6 py-2.5 rounded-lg text-sm font-semibold text-white disabled:opacity-50"
               style={{ background: generating ? 'var(--text3)' : 'var(--accent)' }}
             >
               {generating ? (

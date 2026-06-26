@@ -151,6 +151,7 @@ function OtpLogin({ onLogin }: { onLogin: (user: AppUser) => void }) {
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AppUser | null>(null);
   const [loading, setLoading] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   useEffect(() => {
     const u = tryAutoLogin();
@@ -175,9 +176,23 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <ProjectProvider>
-      <div className="h-full flex">
-        <Sidebar />
-        <main className="flex-1 overflow-auto p-6">
+      <div className="h-full flex flex-col md:flex-row">
+        {/* Mobile header bar */}
+        <div className="md:hidden flex items-center gap-3 px-4 py-3 border-b flex-shrink-0" style={{ borderColor: 'var(--border)', background: 'var(--bg-card)' }}>
+          <button
+            onClick={() => setSidebarOpen(true)}
+            className="w-10 h-10 flex items-center justify-center rounded-lg"
+            style={{ color: 'var(--text1)' }}
+            aria-label="Open menu"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-6 h-6">
+              <path d="M3 12h18M3 6h18M3 18h18" />
+            </svg>
+          </button>
+          <span className="text-lg font-semibold" style={{ color: 'var(--accent)' }}>Avatar Studio</span>
+        </div>
+        <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+        <main className="flex-1 overflow-auto p-4 md:p-6">
           <div className="max-w-5xl mx-auto">
             {children}
           </div>

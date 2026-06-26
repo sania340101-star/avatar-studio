@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useProject } from '@/lib/ProjectContext';
 
 const NAV_ITEMS = [
@@ -54,13 +54,30 @@ const NAV_ITEMS = [
   },
 ];
 
-export default function Sidebar() {
+export default function Sidebar({ open, onClose }: { open?: boolean; onClose?: () => void }) {
   const pathname = usePathname();
   const { projects, activeProject, setActiveProjectId, createProject, deleteProject } = useProject();
   const [creating, setCreating] = useState(false);
   const [newTitle, setNewTitle] = useState('');
   const [projectSearch, setProjectSearch] = useState('');
   const [projectDropdownOpen, setProjectDropdownOpen] = useState(false);
+  const [theme, setTheme] = useState<'light' | 'dark'>('light');
+
+  useEffect(() => {
+    const stored = localStorage.getItem('avatar-studio-theme');
+    if (stored === 'dark') setTheme('dark');
+  }, []);
+
+  function toggleTheme() {
+    const next = theme === 'light' ? 'dark' : 'light';
+    setTheme(next);
+    localStorage.setItem('avatar-studio-theme', next);
+    if (next === 'dark') {
+      document.documentElement.setAttribute('data-theme', 'dark');
+    } else {
+      document.documentElement.removeAttribute('data-theme');
+    }
+  }
 
   const filteredProjects = projectSearch
     ? projects.filter(p => p.title.toLowerCase().includes(projectSearch.toLowerCase()))
@@ -74,7 +91,20 @@ export default function Sidebar() {
   }
 
   return (
-    <aside className="w-56 flex-shrink-0 h-full flex flex-col border-r" style={{ borderColor: 'var(--border)', background: 'var(--bg-card)' }}>
+    <>
+      {/* Mobile backdrop */}
+      {open && (
+        <div
+          className="fixed inset-0 z-30 bg-black/50 md:hidden"
+          onClick={onClose}
+        />
+      )}
+      <aside className={`
+        w-56 flex-shrink-0 h-full flex flex-col border-r
+        fixed inset-y-0 left-0 z-40 transition-transform duration-200
+        md:static md:translate-x-0
+        ${open ? 'translate-x-0' : '-translate-x-full'}
+      `} style={{ borderColor: 'var(--border)', background: 'var(--bg-card)' }}>
       <div className="p-4 border-b" style={{ borderColor: 'var(--border)' }}>
         <h1 className="text-lg font-semibold" style={{ color: 'var(--accent)' }}>Avatar Studio</h1>
         <p className="text-xs mt-0.5" style={{ color: 'var(--text3)' }}>HYPERVSN</p>
@@ -167,6 +197,7 @@ export default function Sidebar() {
             <Link
               key={item.href}
               href={item.href}
+              onClick={onClose}
               className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors"
               style={{
                 background: active ? 'var(--accent-subtle)' : 'transparent',
@@ -196,9 +227,26 @@ export default function Sidebar() {
         </div>
       )}
 
-      <div className="p-3 border-t text-xs" style={{ borderColor: 'var(--border)', color: 'var(--text3)' }}>
-        v1.2.0
+      <div className="p-3 border-t text-xs flex items-center justify-between" style={{ borderColor: 'var(--border)', color: 'var(--text3)' }}>
+        <span>v1.3.0</span>
+        <button
+          onClick={toggleTheme}
+          className="p-1 rounded-md transition-colors hover:opacity-70"
+          title={theme === 'light' ? 'Switch to dark theme' : 'Switch to light theme'}
+          style={{ color: 'var(--text3)' }}
+        >
+          {theme === 'light' ? (
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
+              <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+            </svg>
+          ) : (
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
+              <circle cx="12" cy="12" r="5" /><line x1="12" y1="1" x2="12" y2="3" /><line x1="12" y1="21" x2="12" y2="23" /><line x1="4.22" y1="4.22" x2="5.64" y2="5.64" /><line x1="18.36" y1="18.36" x2="19.78" y2="19.78" /><line x1="1" y1="12" x2="3" y2="12" /><line x1="21" y1="12" x2="23" y2="12" /><line x1="4.22" y1="19.78" x2="5.64" y2="18.36" /><line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
+            </svg>
+          )}
+        </button>
       </div>
     </aside>
+    </>
   );
 }

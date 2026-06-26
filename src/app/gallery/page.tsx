@@ -75,14 +75,14 @@ function GalleryContent() {
         <div className="space-y-4">
           {generations.map(gen => (
             <div key={gen.id} className="rounded-xl border p-4" style={{ borderColor: 'var(--border)', background: 'var(--bg-card)' }}>
-              <div className="flex items-center gap-3 mb-3">
+              <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-3">
                 <span className="text-xs font-medium px-2 py-0.5 rounded" style={{
                   background: gen.type === 'image' ? 'rgba(76,175,80,0.15)' : 'rgba(108,60,224,0.15)',
                   color: gen.type === 'image' ? 'var(--green)' : 'var(--accent)',
                 }}>
                   {gen.type}
                 </span>
-                <span className="text-sm font-medium">{gen.modelLabel}</span>
+                <span className="text-sm font-medium truncate">{gen.modelLabel}</span>
                 <span className="text-xs" style={{ color: 'var(--text3)' }}>
                   {new Date(gen.createdAt).toLocaleString()}
                 </span>
@@ -98,7 +98,7 @@ function GalleryContent() {
               <p className="text-sm mb-3" style={{ color: 'var(--text2)' }}>{gen.prompt}</p>
 
               {gen.type === 'image' ? (
-                <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
                   {gen.resultUrls.map((url, i) => (
                     <a key={i} href={url} target="_blank" rel="noopener noreferrer"
                       className="rounded-lg overflow-hidden border hover:border-[var(--accent)] transition-colors"

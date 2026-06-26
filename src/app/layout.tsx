@@ -20,6 +20,14 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className={`${encodeSans.variable} h-full`}>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: `
+          try {
+            var t = localStorage.getItem('avatar-studio-theme');
+            if (t === 'dark') document.documentElement.setAttribute('data-theme', 'dark');
+          } catch(e) {}
+        ` }} />
+      </head>
       <body className="h-full font-[family-name:var(--font-encode-sans)]">
         {children}
       </body>
