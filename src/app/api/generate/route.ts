@@ -4,11 +4,11 @@ const FAL_QUEUE_URL = 'https://queue.fal.run';
 
 async function safeJson(res: Response): Promise<Record<string, unknown>> {
   const text = await res.text();
-  if (!text) throw new Error('Empty response from fal.ai');
+  if (!text) throw new Error(`Empty response from fal.ai (${res.status})`);
   try {
     return JSON.parse(text);
   } catch {
-    throw new Error(`Invalid response from fal.ai: ${text.substring(0, 300)}`);
+    throw new Error(`Invalid response from fal.ai (${res.status}): ${text.substring(0, 300)}`);
   }
 }
 
@@ -74,12 +74,12 @@ async function generateImages(
       'Content-Type': 'application/json',
       'Authorization': `Key ${falKey}`,
     },
-    body: JSON.stringify({ input }),
+    body: JSON.stringify(input),
   });
 
   if (!submitRes.ok) {
     const err = await submitRes.text();
-    throw new Error(`fal.ai error: ${err}`);
+    throw new Error(`fal.ai error (${submitRes.status}): ${err}`);
   }
 
   const submitData = await safeJson(submitRes);
@@ -122,12 +122,12 @@ async function generateVideo(
       'Content-Type': 'application/json',
       'Authorization': `Key ${falKey}`,
     },
-    body: JSON.stringify({ input }),
+    body: JSON.stringify(input),
   });
 
   if (!submitRes.ok) {
     const err = await submitRes.text();
-    throw new Error(`fal.ai error: ${err}`);
+    throw new Error(`fal.ai error (${submitRes.status}): ${err}`);
   }
 
   const submitData2 = await safeJson(submitRes);
