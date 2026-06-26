@@ -137,11 +137,14 @@ ${modelsText}
 User instruction:
 ${instruction}`;
 
+    const authHeader = anthropicKey.startsWith('sk-ant-oat')
+      ? { 'Authorization': `Bearer ${anthropicKey}` }
+      : { 'x-api-key': anthropicKey };
     const response = await fetch(ANTHROPIC_API_URL, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-api-key': anthropicKey,
+        ...authHeader,
         'anthropic-version': '2023-06-01',
       },
       body: JSON.stringify({
