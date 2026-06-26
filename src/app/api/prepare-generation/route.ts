@@ -140,7 +140,6 @@ ${instruction}`;
       body: JSON.stringify({
         system: isVideo ? VIDEO_SYSTEM_PROMPT : IMAGE_SYSTEM_PROMPT,
         prompt: userMessage,
-        model: 'claude-sonnet-4-20250514',
       }),
     });
 
