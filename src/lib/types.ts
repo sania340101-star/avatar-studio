@@ -82,6 +82,12 @@ export interface Project {
   updatedAt: number;
 }
 
+export interface GenerationCost {
+  amount: number;
+  currency: string;
+  details?: string;
+}
+
 export interface Generation {
   id: string;
   projectId: string;
@@ -96,6 +102,8 @@ export interface Generation {
   status: 'pending' | 'completed' | 'failed';
   error?: string;
   parentId?: string;
+  estimatedCost?: GenerationCost;
+  actualCost?: GenerationCost;
   createdAt: number;
 }
 

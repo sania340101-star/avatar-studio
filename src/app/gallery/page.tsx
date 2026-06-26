@@ -86,6 +86,11 @@ function GalleryContent() {
                 <span className="text-xs" style={{ color: 'var(--text3)' }}>
                   {new Date(gen.createdAt).toLocaleString()}
                 </span>
+                {(gen.actualCost || gen.estimatedCost) && (
+                  <span className="text-xs font-medium px-2 py-0.5 rounded" style={{ background: 'rgba(108,60,224,0.1)', color: 'var(--accent)' }}>
+                    {gen.actualCost ? `$${gen.actualCost.amount.toFixed(2)}` : `~$${gen.estimatedCost!.amount.toFixed(2)}`}
+                  </span>
+                )}
                 <button
                   onClick={() => handleDelete(gen.id)}
                   className="ml-auto text-xs px-2 py-1 rounded opacity-50 hover:opacity-100"

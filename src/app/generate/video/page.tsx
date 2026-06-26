@@ -11,7 +11,7 @@ import {
 } from '@/lib/models';
 import { getSessionUser } from '@/lib/auth';
 import { useProject } from '@/lib/ProjectContext';
-import { VideoModelTypeFilter, Generation, TemplateRef } from '@/lib/types';
+import { VideoModelTypeFilter, Generation, GenerationCost, TemplateRef } from '@/lib/types';
 import { useProjectCache } from '@/lib/useProjectCache';
 import ImagePicker from '@/components/ImagePicker';
 import ReferenceUpload from '@/components/ReferenceUpload';
@@ -25,6 +25,7 @@ interface AgentResult {
   params: { duration: number };
   reasoning: string;
   paramNotes?: string[];
+  estimatedCost?: GenerationCost;
 }
 
 type Step = 'input' | 'review' | 'generating';
@@ -171,6 +172,7 @@ export default function GenerateVideoPage() {
         selectedModelLabel: data.modelLabel || '',
         params: { duration: desiredDuration },
         reasoning: data.reasoning || '',
+        estimatedCost: data.estimatedCost || undefined,
       });
       setEditPrompt(data.prompt || '');
       setEditModel(data.model || '');
@@ -236,6 +238,8 @@ export default function GenerateVideoPage() {
             referenceUrls: allRefUrls,
             resultUrls: [data.video.url],
             status: 'completed',
+            estimatedCost: agentResult?.estimatedCost || undefined,
+            actualCost: data.cost || undefined,
           }),
         });
         loadHistory();
@@ -426,10 +430,25 @@ export default function GenerateVideoPage() {
         <div className="space-y-5">
           {/* Agent reasoning */}
           <div className="p-4 rounded-xl" style={{ background: 'rgba(76,175,80,0.08)', border: '1px solid rgba(76,175,80,0.2)' }}>
-            <p className="text-xs font-medium mb-1" style={{ color: 'var(--green)' }}>
-              Agent selected: {agentResult.selectedModelLabel || agentResult.selectedModel}
-            </p>
-            <p className="text-sm" style={{ color: 'var(--text2)' }}>{agentResult.reasoning}</p>
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-xs font-medium mb-1" style={{ color: 'var(--green)' }}>
+                  Agent selected: {agentResult.selectedModelLabel || agentResult.selectedModel}
+                </p>
+                <p className="text-sm" style={{ color: 'var(--text2)' }}>{agentResult.reasoning}</p>
+              </div>
+              {agentResult.estimatedCost && (
+                <div className="flex-shrink-0 text-right">
+                  <p className="text-xs font-medium" style={{ color: 'var(--text3)' }}>Est. cost</p>
+                  <p className="text-lg font-bold" style={{ color: 'var(--accent)' }}>
+                    ${agentResult.estimatedCost.amount.toFixed(2)}
+                  </p>
+                  {agentResult.estimatedCost.details && (
+                    <p className="text-xs" style={{ color: 'var(--text3)' }}>{agentResult.estimatedCost.details}</p>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Editable prompt */}

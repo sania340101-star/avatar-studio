@@ -6,7 +6,7 @@ import {
 } from '@/lib/models';
 import { getSessionUser } from '@/lib/auth';
 import { useProject } from '@/lib/ProjectContext';
-import { Generation } from '@/lib/types';
+import { Generation, GenerationCost } from '@/lib/types';
 import { useProjectCache } from '@/lib/useProjectCache';
 import { DEFAULT_SYSTEM_PROMPT } from '@/lib/constants';
 import VersionHistory from '@/components/VersionHistory';
@@ -23,6 +23,7 @@ interface AgentResult {
   params: { size: string; resolution: string };
   reasoning: string;
   paramNotes?: string[];
+  estimatedCost?: GenerationCost;
 }
 
 type Step = 'input' | 'review' | 'generating';
@@ -138,6 +139,7 @@ export default function GenerateImagePage() {
         selectedModelLabel: data.modelLabel || '',
         params: { size: desiredSize, resolution: desiredResolution },
         reasoning: data.reasoning || '',
+        estimatedCost: data.estimatedCost || undefined,
       });
       setEditPrompt(data.prompt || '');
       setEditModel(data.model || '');
@@ -195,6 +197,8 @@ export default function GenerateImagePage() {
           referenceUrls: references.map(r => r.url),
           resultUrls: images.map(img => img.url),
           status: 'completed',
+          estimatedCost: agentResult?.estimatedCost || undefined,
+          actualCost: data.cost || undefined,
         }),
       });
       loadHistory();
@@ -355,10 +359,25 @@ export default function GenerateImagePage() {
         <div className="space-y-5">
           {/* Agent reasoning */}
           <div className="p-4 rounded-xl" style={{ background: 'rgba(76,175,80,0.08)', border: '1px solid rgba(76,175,80,0.2)' }}>
-            <p className="text-xs font-medium mb-1" style={{ color: 'var(--green)' }}>
-              Agent selected: {agentResult.selectedModelLabel || agentResult.selectedModel}
-            </p>
-            <p className="text-sm" style={{ color: 'var(--text2)' }}>{agentResult.reasoning}</p>
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-xs font-medium mb-1" style={{ color: 'var(--green)' }}>
+                  Agent selected: {agentResult.selectedModelLabel || agentResult.selectedModel}
+                </p>
+                <p className="text-sm" style={{ color: 'var(--text2)' }}>{agentResult.reasoning}</p>
+              </div>
+              {agentResult.estimatedCost && (
+                <div className="flex-shrink-0 text-right">
+                  <p className="text-xs font-medium" style={{ color: 'var(--text3)' }}>Est. cost</p>
+                  <p className="text-lg font-bold" style={{ color: 'var(--accent)' }}>
+                    ${agentResult.estimatedCost.amount.toFixed(2)}
+                  </p>
+                  {agentResult.estimatedCost.details && (
+                    <p className="text-xs" style={{ color: 'var(--text3)' }}>{agentResult.estimatedCost.details}</p>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Editable prompt */}

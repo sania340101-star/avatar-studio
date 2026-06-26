@@ -70,6 +70,11 @@ export default function VersionHistory({ generations, onSelect, onDelete }: Prop
                       <span className="text-xs hidden sm:inline" style={{ color: 'var(--text3)' }}>
                         {new Date(gen.createdAt).toLocaleString()}
                       </span>
+                      {(gen.actualCost || gen.estimatedCost) && (
+                        <span className="text-xs font-medium px-1.5 py-0.5 rounded" style={{ background: 'rgba(108,60,224,0.1)', color: 'var(--accent)' }}>
+                          {gen.actualCost ? `$${gen.actualCost.amount.toFixed(2)}` : `~$${gen.estimatedCost!.amount.toFixed(2)}`}
+                        </span>
+                      )}
                     </div>
                     <p className="text-sm truncate" style={{ color: 'var(--text2)' }}>{gen.prompt}</p>
                   </div>
@@ -149,6 +154,15 @@ export default function VersionHistory({ generations, onSelect, onDelete }: Prop
                         <span className="text-xs px-2 py-1 rounded" style={{ background: 'var(--bg-input)', color: 'var(--text3)' }}>
                           Model: {gen.modelLabel}
                         </span>
+                        {gen.actualCost ? (
+                          <span className="text-xs px-2 py-1 rounded font-medium" style={{ background: 'rgba(108,60,224,0.1)', color: 'var(--accent)' }}>
+                            Cost: ${gen.actualCost.amount.toFixed(2)}
+                          </span>
+                        ) : gen.estimatedCost ? (
+                          <span className="text-xs px-2 py-1 rounded" style={{ background: 'rgba(108,60,224,0.1)', color: 'var(--accent)' }}>
+                            ~${gen.estimatedCost.amount.toFixed(2)}
+                          </span>
+                        ) : null}
                       </div>
 
                       {/* Result thumbnails grid */}

@@ -46,8 +46,9 @@ Steps:
 1. Understand the user's request — put the user's intent FIRST
 2. If model is "auto" or not specified, use recommend_model to find the best model
 3. If the user has reference images, pick a model that supports image references (image-to-image, edit, or reference-based models). Do NOT pick a text-only model when references are provided.
-4. Optionally use get_model_schema to check supported parameters
-5. Craft an optimal prompt in English for the selected model
+4. Use get_model_schema to check supported parameters
+5. Use get_pricing to get the cost for the selected model — include it in your response
+6. Craft an optimal prompt in English for the selected model
 
 # Reference images
 The user may upload reference images. These will be sent to the fal.ai model as ordered inputs.
@@ -67,7 +68,8 @@ Return ONLY a JSON object:
   "prompt": "the crafted prompt",
   "model": "fal-ai/model-id",
   "modelLabel": "Model Name",
-  "reasoning": "brief explanation of why this model and prompt"
+  "reasoning": "brief explanation of why this model and prompt",
+  "estimatedCost": { "amount": 0.05, "currency": "USD", "details": "per image" }
 }`;
 
 const IMAGE_GENERATE_SYSTEM = `You are an image generation agent for Avatar Studio (HYPERVSN).
@@ -77,14 +79,15 @@ Your job: generate an image using the given prompt and model via fal-ai MCP tool
 Steps:
 1. Use run_model with the specified model and prompt
 2. If reference images are provided, pass them to the model as image_url or reference inputs (check model schema for the correct parameter name)
-3. Return the result
+3. Return the result — include any cost/billing info from the fal.ai response if available
 
 Return ONLY a JSON object:
 {
   "images": [{"url": "https://..."}],
   "prompt": "the prompt used",
   "model": "fal-ai/model-id",
-  "modelLabel": "Model Name"
+  "modelLabel": "Model Name",
+  "cost": { "amount": 0.05, "currency": "USD", "details": "actual cost from response" }
 }`;
 
 const VIDEO_PREPARE_SYSTEM = `You are a video generation agent for Avatar Studio (HYPERVSN).
@@ -95,8 +98,9 @@ Steps:
 1. Understand the user's request — put the user's intent FIRST
 2. If model is "auto" or not specified, use recommend_model to find the best model
 3. If the user has source images/videos, pick a model that supports them (image-to-video, video-edit, etc.)
-4. Optionally use get_model_schema to check supported parameters
-5. Craft an optimal prompt in English for the selected model
+4. Use get_model_schema to check supported parameters
+5. Use get_pricing to get the cost for the selected model — include it in your response
+6. Craft an optimal prompt in English for the selected model
 
 # Reference handling
 - Source images/videos will be sent to the fal.ai model as inputs
@@ -119,7 +123,8 @@ Return ONLY a JSON object:
   "prompt": "the crafted prompt",
   "model": "fal-ai/model-id",
   "modelLabel": "Model Name",
-  "reasoning": "brief explanation of why this model and prompt"
+  "reasoning": "brief explanation of why this model and prompt",
+  "estimatedCost": { "amount": 0.10, "currency": "USD", "details": "per video" }
 }`;
 
 const VIDEO_GENERATE_SYSTEM = `You are a video generation agent for Avatar Studio (HYPERVSN).
@@ -131,14 +136,15 @@ Steps:
 2. If source images/videos are provided, pass them to the model as the appropriate input parameters
 3. Use check_job to poll until complete
 4. Use get_job_result to get the result
-5. Return the result
+5. Return the result — include any cost/billing info from the fal.ai response if available
 
 Return ONLY a JSON object:
 {
   "video": {"url": "https://..."},
   "prompt": "the prompt used",
   "model": "fal-ai/model-id",
-  "modelLabel": "Model Name"
+  "modelLabel": "Model Name",
+  "cost": { "amount": 0.10, "currency": "USD", "details": "actual cost from response" }
 }`;
 
 function downloadFile(url) {
