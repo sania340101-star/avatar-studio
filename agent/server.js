@@ -14,12 +14,14 @@ if (existsSync(envPath)) {
 
 const PORT = parseInt(process.env.AGENT_PORT || '3391', 10);
 const AF_URL = process.env.AF_INTERNAL_URL || 'http://172.18.32.73:3380';
+const APP_URL = process.env.APP_URL || 'http://avatar-studio.app.local';
 const SERVICE_KEY = process.env.INTERNAL_SERVICE_KEY || '';
 const TMP_DIR = path.join(__dirname, 'tmp');
 
 if (!existsSync(TMP_DIR)) mkdirSync(TMP_DIR);
 
 const PREPARE_TOOLS = [
+  'Read',
   'mcp__fal-ai__search_models',
   'mcp__fal-ai__recommend_model',
   'mcp__fal-ai__get_model_schema',
@@ -27,6 +29,7 @@ const PREPARE_TOOLS = [
 ].join(',');
 
 const GENERATE_TOOLS = [
+  'Read',
   'mcp__fal-ai__run_model',
   'mcp__fal-ai__submit_job',
   'mcp__fal-ai__check_job',
@@ -138,6 +141,39 @@ Return ONLY a JSON object:
   "modelLabel": "Model Name"
 }`;
 
+function downloadFile(url) {
+  const fullUrl = url.startsWith('/') ? `${APP_URL}${url}` : url;
+  return new Promise((resolve, reject) => {
+    const ext = path.extname(new URL(fullUrl).pathname) || '.jpg';
+    const tmpFile = path.join(TMP_DIR, `ref-${randomUUID()}${ext}`);
+    const proto = fullUrl.startsWith('https') ? require('https') : require('http');
+    proto.get(fullUrl, (res) => {
+      if (res.statusCode !== 200) return reject(new Error(`Download failed: ${res.statusCode}`));
+      const chunks = [];
+      res.on('data', c => chunks.push(c));
+      res.on('end', () => {
+        writeFileSync(tmpFile, Buffer.concat(chunks));
+        resolve(tmpFile);
+      });
+      res.on('error', reject);
+    }).on('error', reject);
+  });
+}
+
+async function downloadReferences(refs) {
+  if (!refs?.length) return [];
+  const results = [];
+  for (const url of refs) {
+    try {
+      const tmpFile = await downloadFile(url);
+      results.push(tmpFile);
+    } catch (e) {
+      console.error(`[agent] Failed to download ref ${url}:`, e.message);
+    }
+  }
+  return results;
+}
+
 async function getBestClaudeKey() {
   const res = await fetch(`${AF_URL}/api/internal/best-claude-key`, {
     headers: { 'x-service-key': SERVICE_KEY },
@@ -148,13 +184,20 @@ async function getBestClaudeKey() {
   return data.token;
 }
 
-function buildPrompt(body) {
+function buildPrompt(body, imageFiles) {
   const { type, instruction, model, size, references, duration, aspectRatio } = body;
   const parts = [];
 
   if (references?.length) {
     const refList = references.map((url, i) => `  ${i + 1}. ${url}`).join('\n');
     parts.push(`Reference images (${references.length} total, ordered):\n${refList}\nThe model will receive these images in this exact order. Use "the first reference image", "the second reference image" etc. in your prompt.`);
+  }
+
+  if (imageFiles?.length) {
+    parts.push(`\nIMPORTANT: Use the Read tool to view each reference image file below. Analyze what you see and use those details in your prompt.`);
+    imageFiles.forEach((f, i) => {
+      parts.push(`Reference image ${i + 1} file: ${f}`);
+    });
   }
 
   if (model && model !== 'auto') {
@@ -187,6 +230,7 @@ function callClaude(token, mcpConfig, systemPrompt, userPrompt, tools) {
       '--system-prompt', systemPrompt,
       '-p', userPrompt,
     ];
+
 
     const env = { ...process.env, CLAUDE_CODE_OAUTH_TOKEN: token };
 
@@ -260,6 +304,7 @@ const server = http.createServer(async (req, res) => {
 
   const id = randomUUID();
   const mcpConfig = path.join(TMP_DIR, `mcp-${id}.json`);
+  let imageFiles = [];
 
   try {
     const claudeToken = await getBestClaudeKey();
@@ -287,10 +332,14 @@ const server = http.createServer(async (req, res) => {
       systemPrompt += `\n\n# User Style Instructions\n${body.systemPrompt}`;
     }
 
-    const userPrompt = buildPrompt(body);
+    const allRefs = [...(body.references || [])];
+    if (body.sourceImage) allRefs.push(body.sourceImage);
+    imageFiles = await downloadReferences(allRefs);
+
+    const userPrompt = buildPrompt(body, imageFiles);
     const action = isPrepare ? 'prepare' : 'generate';
 
-    console.log(`[agent] ${type} ${action} started (${id})`);
+    console.log(`[agent] ${type} ${action} started (${id}), refs: ${imageFiles.length}`);
     const result = await callClaude(claudeToken, mcpConfig, systemPrompt, userPrompt, tools);
     console.log(`[agent] ${type} ${action} complete (${id})`);
 
@@ -301,6 +350,7 @@ const server = http.createServer(async (req, res) => {
     res.end(JSON.stringify({ error: e.message }));
   } finally {
     try { unlinkSync(mcpConfig); } catch {}
+    for (const f of imageFiles) { try { unlinkSync(f); } catch {} }
   }
 });
 
