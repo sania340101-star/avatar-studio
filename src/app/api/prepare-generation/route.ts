@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import Anthropic from '@anthropic-ai/sdk';
 
 interface PrepareRequest {
   type?: 'image' | 'video';
@@ -84,14 +83,13 @@ Rules:
 8. If model preference is a specific model — use it, but note if it's not ideal
 9. Output ONLY valid JSON, no markdown, no explanation outside the JSON`;
 
+const AF_URL = process.env.AF_INTERNAL_URL || 'http://172.18.32.73:3380';
+const SERVICE_KEY = process.env.INTERNAL_SERVICE_KEY || '';
+
 export async function POST(req: NextRequest) {
   try {
     const body: PrepareRequest = await req.json();
-    const { type = 'image', instruction, referenceDescriptions, modelPreference, desiredParams, availableModels, anthropicKey } = body;
-
-    if (!anthropicKey) {
-      return NextResponse.json({ error: 'Anthropic API key required. Add it in Settings.' }, { status: 400 });
-    }
+    const { type = 'image', instruction, referenceDescriptions, modelPreference, desiredParams, availableModels } = body;
 
     if (!instruction?.trim()) {
       return NextResponse.json({ error: 'Instruction is required.' }, { status: 400 });
@@ -133,21 +131,25 @@ ${modelsText}
 User instruction:
 ${instruction}`;
 
-    const isOAuth = anthropicKey.startsWith('sk-ant-oat');
-    const client = new Anthropic(isOAuth
-      ? { authToken: anthropicKey, apiKey: null as unknown as string }
-      : { apiKey: anthropicKey },
-    );
-
-    const message = await client.messages.create({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 1024,
-      system: isVideo ? VIDEO_SYSTEM_PROMPT : IMAGE_SYSTEM_PROMPT,
-      messages: [{ role: 'user', content: userMessage }],
+    const llmRes = await fetch(`${AF_URL}/api/internal/llm-query`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Service-Key': SERVICE_KEY,
+      },
+      body: JSON.stringify({
+        system: isVideo ? VIDEO_SYSTEM_PROMPT : IMAGE_SYSTEM_PROMPT,
+        prompt: userMessage,
+        model: 'claude-sonnet-4-20250514',
+      }),
     });
 
-    const textBlock = message.content.find(b => b.type === 'text');
-    const text = textBlock && 'text' in textBlock ? textBlock.text : '';
+    const llmData = await llmRes.json() as { ok?: boolean; text?: string; error?: string };
+    if (!llmRes.ok || !llmData.ok) {
+      throw new Error(llmData.error || 'LLM query failed');
+    }
+
+    const text = llmData.text || '';
     if (!text) throw new Error('Empty response from agent');
 
     const jsonMatch = text.match(/\{[\s\S]*\}/);
