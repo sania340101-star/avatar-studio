@@ -24,7 +24,7 @@ interface AgentResult {
   paramNotes?: string[];
 }
 
-type Step = 'input' | 'generating';
+type Step = 'input' | 'review' | 'generating';
 
 export default function GenerateImagePage() {
   const user = getSessionUser();
@@ -40,8 +40,13 @@ export default function GenerateImagePage() {
   // Agent result (shown after generation)
   const [agentResult, setAgentResult] = useState<AgentResult | null>(null);
 
+  // Editable fields for review step
+  const [editPrompt, setEditPrompt] = useState('');
+  const [editModel, setEditModel] = useState('');
+
   // State
   const [step, setStep] = useState<Step>('input');
+  const [preparing, setPreparing] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [results, setResults] = useState<GeneratedImage[]>([]);
   const [error, setError] = useState('');
@@ -105,14 +110,13 @@ export default function GenerateImagePage() {
     e.target.value = '';
   }
 
-  async function handleGenerate() {
+  async function handlePrepare() {
     if (!instruction.trim() || !activeProject) return;
-    setGenerating(true);
-    setStep('generating');
+    setPreparing(true);
     setError('');
     setAgentResult(null);
     try {
-      const res = await fetch('/api/generate', {
+      const res = await fetch('/api/prepare-generation', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -126,18 +130,49 @@ export default function GenerateImagePage() {
       });
       const data = await res.json();
       if (data.error) throw new Error(data.error);
+      setAgentResult({
+        prompt: data.prompt || '',
+        selectedModel: data.model || '',
+        selectedModelLabel: data.modelLabel || '',
+        params: { size: desiredSize, resolution: desiredResolution },
+        reasoning: data.reasoning || '',
+      });
+      setEditPrompt(data.prompt || '');
+      setEditModel(data.model || '');
+      setStep('review');
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Preparation failed');
+    } finally {
+      setPreparing(false);
+    }
+  }
+
+  function handleBack() {
+    setStep('input');
+  }
+
+  async function handleGenerate() {
+    if (!editPrompt.trim() || !activeProject) return;
+    setGenerating(true);
+    setStep('generating');
+    setError('');
+    try {
+      const res = await fetch('/api/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'image',
+          instruction: editPrompt.trim(),
+          model: editModel,
+          size: desiredSize,
+          references: references.map(r => r.url),
+          falKey: user?.falKey,
+        }),
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
       const images: GeneratedImage[] = data.images || [];
       setResults(prev => [...images, ...prev]);
-
-      if (data.reasoning || data.prompt) {
-        setAgentResult({
-          prompt: data.prompt || '',
-          selectedModel: data.model || '',
-          selectedModelLabel: data.modelLabel || '',
-          params: { size: desiredSize, resolution: desiredResolution },
-          reasoning: data.reasoning || '',
-        });
-      }
 
       await fetch('/api/generations', {
         method: 'POST',
@@ -146,13 +181,13 @@ export default function GenerateImagePage() {
           projectId: activeProject.id,
           userId: user?.userId,
           type: 'image',
-          modelId: data.model || modelPref,
-          modelLabel: data.modelLabel || modelPref,
-          prompt: data.prompt || instruction.trim(),
+          modelId: editModel || modelPref,
+          modelLabel: agentResult?.selectedModelLabel || modelPref,
+          prompt: editPrompt.trim(),
           params: {
             size: desiredSize, count: 1,
             instruction: instruction.trim(),
-            agentReasoning: data.reasoning,
+            agentReasoning: agentResult?.reasoning,
           },
           referenceUrls: references.map(r => r.url),
           resultUrls: images.map(img => img.url),
@@ -285,23 +320,23 @@ export default function GenerateImagePage() {
             </div>
           </div>
 
-          {/* Generate button */}
+          {/* Prepare button */}
           <div className="flex flex-col-reverse sm:flex-row items-start sm:items-center justify-between gap-3 pt-2">
             <p className="text-xs" style={{ color: 'var(--text3)' }}>
-              AI agent will craft the prompt, select model, and generate
+              AI agent will craft the prompt and select the best model
             </p>
             <button
-              onClick={handleGenerate}
-              disabled={generating || !instruction.trim() || !user?.falKey}
+              onClick={handlePrepare}
+              disabled={preparing || !instruction.trim() || !user?.falKey}
               className="w-full sm:w-auto px-6 py-2.5 rounded-lg text-sm font-semibold text-white disabled:opacity-50"
-              style={{ background: generating ? 'var(--text3)' : 'var(--accent)' }}
+              style={{ background: preparing ? 'var(--text3)' : 'var(--accent)' }}
             >
-              {generating ? (
+              {preparing ? (
                 <span className="flex items-center gap-2">
                   <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  Generating...
+                  Preparing...
                 </span>
-              ) : 'Generate Image'}
+              ) : 'Prepare Generation'}
             </button>
           </div>
 
@@ -313,11 +348,64 @@ export default function GenerateImagePage() {
         </div>
       )}
 
+      {step === 'review' && agentResult && (
+        <div className="space-y-5">
+          {/* Agent reasoning */}
+          <div className="p-4 rounded-xl" style={{ background: 'rgba(76,175,80,0.08)', border: '1px solid rgba(76,175,80,0.2)' }}>
+            <p className="text-xs font-medium mb-1" style={{ color: 'var(--green)' }}>
+              Agent selected: {agentResult.selectedModelLabel || agentResult.selectedModel}
+            </p>
+            <p className="text-sm" style={{ color: 'var(--text2)' }}>{agentResult.reasoning}</p>
+          </div>
+
+          {/* Editable prompt */}
+          <div>
+            <label className="block text-sm mb-1.5" style={{ color: 'var(--text2)' }}>Prompt</label>
+            <textarea
+              value={editPrompt}
+              onChange={e => setEditPrompt(e.target.value)}
+              className="w-full h-40 resize-none"
+            />
+          </div>
+
+          {/* Editable model */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm mb-1.5" style={{ color: 'var(--text2)' }}>Model</label>
+              <select value={editModel} onChange={e => setEditModel(e.target.value)} className="w-full">
+                {IMAGE_MODEL_OPTIONS.map(m => (
+                  <option key={m.id} value={m.id}>{m.label}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* Back + Generate buttons */}
+          <div className="flex items-center justify-between gap-3 pt-2">
+            <button
+              onClick={handleBack}
+              className="px-4 py-2.5 rounded-lg text-sm font-medium"
+              style={{ color: 'var(--text2)', border: '1px solid var(--border)' }}
+            >
+              Back
+            </button>
+            <button
+              onClick={handleGenerate}
+              disabled={generating || !editPrompt.trim()}
+              className="px-6 py-2.5 rounded-lg text-sm font-semibold text-white disabled:opacity-50"
+              style={{ background: 'var(--accent)' }}
+            >
+              Generate Image
+            </button>
+          </div>
+        </div>
+      )}
+
       {step === 'generating' && (
         <div className="text-center py-16">
           <div className="w-10 h-10 border-2 rounded-full animate-spin mx-auto mb-4" style={{ borderColor: 'var(--border)', borderTopColor: 'var(--accent)' }} />
-          <p style={{ color: 'var(--text2)' }}>AI agent is generating...</p>
-          <p className="text-sm mt-1" style={{ color: 'var(--text3)' }}>Crafting prompt, selecting model, and generating image</p>
+          <p style={{ color: 'var(--text2)' }}>Generating image...</p>
+          <p className="text-sm mt-1" style={{ color: 'var(--text3)' }}>Using the approved prompt and model</p>
         </div>
       )}
 
@@ -327,10 +415,10 @@ export default function GenerateImagePage() {
         </div>
       )}
 
-      {agentResult && (
+      {agentResult && step === 'input' && (
         <div className="mt-6 p-4 rounded-xl" style={{ background: 'rgba(76,175,80,0.08)', border: '1px solid rgba(76,175,80,0.2)' }}>
           <p className="text-xs font-medium mb-1" style={{ color: 'var(--green)' }}>
-            Agent: {agentResult.selectedModelLabel || agentResult.selectedModel}
+            Last generation: {agentResult.selectedModelLabel || agentResult.selectedModel}
           </p>
           <p className="text-sm mb-2" style={{ color: 'var(--text2)' }}>{agentResult.reasoning}</p>
           {agentResult.prompt && (

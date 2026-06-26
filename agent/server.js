@@ -19,58 +19,93 @@ const TMP_DIR = path.join(__dirname, 'tmp');
 
 if (!existsSync(TMP_DIR)) mkdirSync(TMP_DIR);
 
-const FAL_TOOLS = [
-  'mcp__fal-ai__run_model',
-  'mcp__fal-ai__submit_job',
-  'mcp__fal-ai__check_job',
-  'mcp__fal-ai__get_job_result',
+const PREPARE_TOOLS = [
   'mcp__fal-ai__search_models',
   'mcp__fal-ai__recommend_model',
   'mcp__fal-ai__get_model_schema',
   'mcp__fal-ai__get_pricing',
+].join(',');
+
+const GENERATE_TOOLS = [
+  'mcp__fal-ai__run_model',
+  'mcp__fal-ai__submit_job',
+  'mcp__fal-ai__check_job',
+  'mcp__fal-ai__get_job_result',
   'mcp__fal-ai__upload_file',
 ].join(',');
 
-const IMAGE_SYSTEM = `You are an image generation agent for Avatar Studio (HYPERVSN).
+const IMAGE_PREPARE_SYSTEM = `You are an image generation agent for Avatar Studio (HYPERVSN).
 
-Your job: take the user's instruction and generate an image using fal-ai MCP tools.
+Your job: analyze the user's instruction and recommend the best model + craft an optimal prompt. Do NOT generate yet.
 
 Steps:
 1. Understand the user's request
 2. If model is "auto" or not specified, use recommend_model to find the best model
-3. Craft an optimal prompt in English for the selected model
-4. Use run_model to generate the image
-5. Return the result
+3. Optionally use get_model_schema to check supported parameters
+4. Craft an optimal prompt in English for the selected model
+5. Return your recommendation
 
 For HYPERVSN content: prefer black backgrounds, 3D look, clean studio lighting.
 
 Return ONLY a JSON object:
 {
-  "images": [{"url": "https://..."}],
-  "prompt": "the prompt you used",
+  "prompt": "the crafted prompt",
   "model": "fal-ai/model-id",
   "modelLabel": "Model Name",
-  "reasoning": "brief explanation"
+  "reasoning": "brief explanation of why this model and prompt"
 }`;
 
-const VIDEO_SYSTEM = `You are a video generation agent for Avatar Studio (HYPERVSN).
+const IMAGE_GENERATE_SYSTEM = `You are an image generation agent for Avatar Studio (HYPERVSN).
 
-Your job: take the user's instruction and generate a video using fal-ai MCP tools.
+Your job: generate an image using the given prompt and model via fal-ai MCP tools. The user has already reviewed and approved the prompt.
+
+Steps:
+1. Use run_model with the specified model and prompt
+2. Return the result
+
+Return ONLY a JSON object:
+{
+  "images": [{"url": "https://..."}],
+  "prompt": "the prompt used",
+  "model": "fal-ai/model-id",
+  "modelLabel": "Model Name"
+}`;
+
+const VIDEO_PREPARE_SYSTEM = `You are a video generation agent for Avatar Studio (HYPERVSN).
+
+Your job: analyze the user's instruction and recommend the best model + craft an optimal prompt. Do NOT generate yet.
 
 Steps:
 1. Understand the user's request
 2. If model is "auto" or not specified, use recommend_model to find the best model
-3. Craft an optimal prompt for the selected model
-4. Use submit_job + check_job + get_job_result to generate (videos take longer)
-5. Return the result
+3. Optionally use get_model_schema to check supported parameters
+4. Craft an optimal prompt for the selected model
+5. Return your recommendation
+
+Return ONLY a JSON object:
+{
+  "prompt": "the crafted prompt",
+  "model": "fal-ai/model-id",
+  "modelLabel": "Model Name",
+  "reasoning": "brief explanation of why this model and prompt"
+}`;
+
+const VIDEO_GENERATE_SYSTEM = `You are a video generation agent for Avatar Studio (HYPERVSN).
+
+Your job: generate a video using the given prompt and model via fal-ai MCP tools. The user has already reviewed and approved the prompt.
+
+Steps:
+1. Use submit_job with the specified model and prompt
+2. Use check_job to poll until complete
+3. Use get_job_result to get the result
+4. Return the result
 
 Return ONLY a JSON object:
 {
   "video": {"url": "https://..."},
-  "prompt": "the prompt you used",
+  "prompt": "the prompt used",
   "model": "fal-ai/model-id",
-  "modelLabel": "Model Name",
-  "reasoning": "brief explanation"
+  "modelLabel": "Model Name"
 }`;
 
 async function getBestClaudeKey() {
@@ -110,14 +145,14 @@ function buildPrompt(body) {
   return parts.join('\n');
 }
 
-function callClaude(token, mcpConfig, systemPrompt, userPrompt) {
+function callClaude(token, mcpConfig, systemPrompt, userPrompt, tools) {
   return new Promise((resolve, reject) => {
     const args = [
       '--print', '--output-format', 'json',
       '--max-turns', '15',
       '--model', 'haiku',
       '--mcp-config', mcpConfig,
-      '--allowedTools', FAL_TOOLS,
+      '--allowedTools', tools,
       '--system-prompt', systemPrompt,
       '-p', userPrompt,
     ];
@@ -167,7 +202,10 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  if (req.method !== 'POST' || !req.url.startsWith('/generate')) {
+  const isPrepare = req.method === 'POST' && req.url.startsWith('/prepare');
+  const isGenerate = req.method === 'POST' && req.url.startsWith('/generate');
+
+  if (!isPrepare && !isGenerate) {
     res.statusCode = 404;
     res.end(JSON.stringify({ error: 'Not found' }));
     return;
@@ -205,12 +243,20 @@ const server = http.createServer(async (req, res) => {
       },
     }));
 
-    const systemPrompt = type === 'video' ? VIDEO_SYSTEM : IMAGE_SYSTEM;
+    let systemPrompt, tools;
+    if (isPrepare) {
+      systemPrompt = type === 'video' ? VIDEO_PREPARE_SYSTEM : IMAGE_PREPARE_SYSTEM;
+      tools = PREPARE_TOOLS;
+    } else {
+      systemPrompt = type === 'video' ? VIDEO_GENERATE_SYSTEM : IMAGE_GENERATE_SYSTEM;
+      tools = GENERATE_TOOLS;
+    }
     const userPrompt = buildPrompt(body);
+    const action = isPrepare ? 'prepare' : 'generate';
 
-    console.log(`[agent] ${type} generation started (${id})`);
-    const result = await callClaude(claudeToken, mcpConfig, systemPrompt, userPrompt);
-    console.log(`[agent] ${type} generation complete (${id})`);
+    console.log(`[agent] ${type} ${action} started (${id})`);
+    const result = await callClaude(claudeToken, mcpConfig, systemPrompt, userPrompt, tools);
+    console.log(`[agent] ${type} ${action} complete (${id})`);
 
     res.end(JSON.stringify({ ok: true, ...result }));
   } catch (e) {
