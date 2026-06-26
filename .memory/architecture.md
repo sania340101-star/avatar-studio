@@ -1,3 +1,15 @@
+## 2026-06-26: Video agent flow + expandable version history
+
+- Video generation page rewritten to two-step agent flow (same as image)
+- Step 1: refs + model pref (auto/group/specific) + type filter + duration + instruction → "Prepare Generation"
+- Step 2: agent reasoning + editable prompt/model/duration → "Generate Video"
+- prepare-generation API: added VIDEO_SYSTEM_PROMPT, handles type='video' with video-specific context
+- New helpers: isVideoModelGroupId(), getVideoModelIdsInGroup() in models.ts
+- VersionHistory: expandable cards with full details (prompt, instruction, reasoning, params, result thumbnails)
+- Explicit "Load Parameters" button replaces click-to-load behavior
+- Mobile responsive: collapsible sidebar, stacked forms
+- Light/dark theme: light default, toggle in Settings + sidebar
+
 ## 2026-06-26: Agent-based generation + OTP fix + editable keys
 
 - Two-step image generation flow: Instruction → Agent (Claude Sonnet) → Review/Edit → Generate

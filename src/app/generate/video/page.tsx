@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   VIDEO_MODEL_OPTIONS,
   VIDEO_MODEL_GROUPS,
@@ -13,6 +13,7 @@ import {
 import { getSessionUser } from '@/lib/auth';
 import { useProject } from '@/lib/ProjectContext';
 import { VideoModelTypeFilter, Generation, TemplateRef } from '@/lib/types';
+import { useProjectCache } from '@/lib/useProjectCache';
 import ImagePicker from '@/components/ImagePicker';
 import ReferenceUpload from '@/components/ReferenceUpload';
 import VersionHistory from '@/components/VersionHistory';
@@ -56,6 +57,39 @@ export default function GenerateVideoPage() {
   const [results, setResults] = useState<{ url: string }[]>([]);
   const [error, setError] = useState('');
   const [history, setHistory] = useState<Generation[]>([]);
+
+  // Per-project cache
+  const { cache, loaded: cacheLoaded, saveCache } = useProjectCache(activeProject?.id, 'video');
+  const cacheRestoredRef = useRef(false);
+
+  useEffect(() => {
+    if (!cacheLoaded || cacheRestoredRef.current) return;
+    if (cache) {
+      if (cache.instruction) setInstruction(cache.instruction);
+      if (cache.modelPref) setModelPref(cache.modelPref);
+      if (cache.typeFilter) setTypeFilter(cache.typeFilter as VideoModelTypeFilter);
+      if (cache.desiredDuration) setDesiredDuration(cache.desiredDuration);
+      if (cache.sourceImage) setSourceImage(cache.sourceImage);
+      if (cache.sourceVideo) setSourceVideo(cache.sourceVideo);
+      if (cache.audioRef) setAudioRef(cache.audioRef);
+      if (cache.endImage) setEndImage(cache.endImage);
+      if (cache.multiRefs?.length) setMultiRefs(cache.multiRefs);
+    }
+    cacheRestoredRef.current = true;
+  }, [cacheLoaded, cache]);
+
+  useEffect(() => {
+    if (!activeProject) return;
+    cacheRestoredRef.current = false;
+  }, [activeProject?.id]);
+
+  useEffect(() => {
+    if (!cacheRestoredRef.current) return;
+    saveCache({
+      instruction, modelPref, typeFilter, desiredDuration,
+      sourceImage, sourceVideo, audioRef, endImage, multiRefs,
+    });
+  }, [instruction, modelPref, typeFilter, desiredDuration, sourceImage, sourceVideo, audioRef, endImage, multiRefs, saveCache]);
 
   const filteredModels = filterVideoModelsByType(typeFilter);
 

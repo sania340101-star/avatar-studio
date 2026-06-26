@@ -1,14 +1,15 @@
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'fs';
 import { join } from 'path';
-import { Project, Generation, Template } from './types';
+import { Project, Generation, Template, ProjectCacheData, ImageFormCache, VideoFormCache } from './types';
 
 const DATA_DIR = process.env.DATA_DIR || join(/* turbopackIgnore: true */ process.cwd(), 'data');
 const PROJECTS_FILE = join(DATA_DIR, 'projects.json');
 const GENERATIONS_DIR = join(DATA_DIR, 'generations');
 const UPLOADS_DIR = join(DATA_DIR, 'uploads');
+const CACHE_DIR = join(DATA_DIR, 'cache');
 
 function ensureDirs() {
-  for (const dir of [DATA_DIR, GENERATIONS_DIR, UPLOADS_DIR]) {
+  for (const dir of [DATA_DIR, GENERATIONS_DIR, UPLOADS_DIR, CACHE_DIR]) {
     if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
   }
 }
@@ -74,9 +75,10 @@ export function deleteProject(projectId: string): boolean {
   if (idx === -1) return false;
   all.splice(idx, 1);
   writeJson(PROJECTS_FILE, all);
-  // Also delete generations file
   const genFile = join(GENERATIONS_DIR, `${projectId}.json`);
   try { require('fs').unlinkSync(genFile); } catch {}
+  const cacheFile = join(CACHE_DIR, `${projectId}.json`);
+  try { require('fs').unlinkSync(cacheFile); } catch {}
   return true;
 }
 
@@ -167,4 +169,23 @@ export function deleteTemplate(id: string): boolean {
   all.splice(idx, 1);
   writeJson(TEMPLATES_FILE, all);
   return true;
+}
+
+function cacheFile(projectId: string): string {
+  return join(CACHE_DIR, `${projectId}.json`);
+}
+
+export function getProjectCache(projectId: string, type: 'image' | 'video'): ImageFormCache | VideoFormCache | null {
+  ensureDirs();
+  const data: ProjectCacheData = readJson(cacheFile(projectId), { updatedAt: 0 });
+  return data[type] || null;
+}
+
+export function saveProjectCache(projectId: string, type: 'image' | 'video', formData: ImageFormCache | VideoFormCache): void {
+  ensureDirs();
+  const file = cacheFile(projectId);
+  const data: ProjectCacheData = readJson(file, { updatedAt: 0 });
+  data[type] = formData as ImageFormCache & VideoFormCache;
+  data.updatedAt = Date.now();
+  writeJson(file, data);
 }

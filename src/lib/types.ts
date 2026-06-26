@@ -97,3 +97,29 @@ export interface Generation {
   parentId?: string;
   createdAt: number;
 }
+
+export interface ImageFormCache {
+  references: { url: string; name: string }[];
+  instruction: string;
+  modelPref: string;
+  desiredSize: string;
+  desiredResolution: string;
+}
+
+export interface VideoFormCache {
+  instruction: string;
+  modelPref: string;
+  typeFilter: string;
+  desiredDuration: number;
+  sourceImage: string;
+  sourceVideo: TemplateRef | null;
+  audioRef: TemplateRef | null;
+  endImage: string;
+  multiRefs: TemplateRef[];
+}
+
+export interface ProjectCacheData {
+  image?: ImageFormCache;
+  video?: VideoFormCache;
+  updatedAt: number;
+}

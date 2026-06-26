@@ -8,6 +8,7 @@ import {
 import { getSessionUser } from '@/lib/auth';
 import { useProject } from '@/lib/ProjectContext';
 import { Generation } from '@/lib/types';
+import { useProjectCache } from '@/lib/useProjectCache';
 import VersionHistory from '@/components/VersionHistory';
 
 interface GeneratedImage {
@@ -51,6 +52,32 @@ export default function GenerateImagePage() {
   const [error, setError] = useState('');
   const [history, setHistory] = useState<Generation[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  // Per-project cache
+  const { cache, loaded: cacheLoaded, saveCache } = useProjectCache(activeProject?.id, 'image');
+  const cacheRestoredRef = useRef(false);
+
+  useEffect(() => {
+    if (!cacheLoaded || cacheRestoredRef.current) return;
+    if (cache) {
+      if (cache.references?.length) setReferences(cache.references);
+      if (cache.instruction) setInstruction(cache.instruction);
+      if (cache.modelPref) setModelPref(cache.modelPref);
+      if (cache.desiredSize) setDesiredSize(cache.desiredSize);
+      if (cache.desiredResolution) setDesiredResolution(cache.desiredResolution);
+    }
+    cacheRestoredRef.current = true;
+  }, [cacheLoaded, cache]);
+
+  useEffect(() => {
+    if (!activeProject) return;
+    cacheRestoredRef.current = false;
+  }, [activeProject?.id]);
+
+  useEffect(() => {
+    if (!cacheRestoredRef.current) return;
+    saveCache({ references, instruction, modelPref, desiredSize, desiredResolution });
+  }, [references, instruction, modelPref, desiredSize, desiredResolution, saveCache]);
 
   const loadHistory = useCallback(async () => {
     if (!activeProject) return;
