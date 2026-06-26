@@ -3,6 +3,12 @@ services:
     build: .
     container_name: ${ENV}-${PROJECT_NAME}
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3000/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
     ports:
       - "3000"
     volumes:
