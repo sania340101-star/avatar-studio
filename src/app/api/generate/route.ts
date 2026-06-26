@@ -2,6 +2,16 @@ import { NextRequest, NextResponse } from 'next/server';
 
 const FAL_QUEUE_URL = 'https://queue.fal.run';
 
+async function safeJson(res: Response): Promise<Record<string, unknown>> {
+  const text = await res.text();
+  if (!text) throw new Error('Empty response from fal.ai');
+  try {
+    return JSON.parse(text);
+  } catch {
+    throw new Error(`Invalid response from fal.ai: ${text.substring(0, 300)}`);
+  }
+}
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
@@ -72,13 +82,15 @@ async function generateImages(
     throw new Error(`fal.ai error: ${err}`);
   }
 
-  const { request_id, status: initialStatus } = await submitRes.json();
+  const submitData = await safeJson(submitRes);
+  const request_id = submitData.request_id as string;
+  const initialStatus = submitData.status as string;
 
   if (initialStatus === 'COMPLETED') {
     const resultRes = await fetch(`${FAL_QUEUE_URL}/${model}/requests/${request_id}`, {
       headers: { 'Authorization': `Key ${falKey}` },
     });
-    const result = await resultRes.json();
+    const result = await safeJson(resultRes);
     return NextResponse.json({ images: extractImages(result) });
   }
 
@@ -118,7 +130,8 @@ async function generateVideo(
     throw new Error(`fal.ai error: ${err}`);
   }
 
-  const { request_id } = await submitRes.json();
+  const submitData2 = await safeJson(submitRes);
+  const request_id = submitData2.request_id as string;
   const result = await pollForResult(model, request_id, falKey, 300000);
 
   const videoUrl = (result.video as Record<string, unknown>)?.url
@@ -137,17 +150,17 @@ async function pollForResult(model: string, requestId: string, falKey: string, t
     const statusRes = await fetch(`${FAL_QUEUE_URL}/${model}/requests/${requestId}/status`, {
       headers: { 'Authorization': `Key ${falKey}` },
     });
-    const status = await statusRes.json();
+    const status = await safeJson(statusRes);
 
     if (status.status === 'COMPLETED') {
       const resultRes = await fetch(`${FAL_QUEUE_URL}/${model}/requests/${requestId}`, {
         headers: { 'Authorization': `Key ${falKey}` },
       });
-      return await resultRes.json();
+      return await safeJson(resultRes);
     }
 
     if (status.status === 'FAILED') {
-      throw new Error(status.error || 'Generation failed');
+      throw new Error((status.error as string) || 'Generation failed');
     }
   }
   throw new Error('Generation timed out');

@@ -71,6 +71,15 @@ export default function GenerateImagePage() {
 
   useEffect(() => {
     if (!activeProject) return;
+    setReferences([]);
+    setInstruction('');
+    setModelPref('auto');
+    setDesiredSize('portrait_16_9');
+    setDesiredResolution('1k');
+    setAgentResult(null);
+    setResults([]);
+    setError('');
+    setStep('input');
     cacheRestoredRef.current = false;
   }, [activeProject?.id]);
 

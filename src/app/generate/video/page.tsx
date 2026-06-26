@@ -80,6 +80,19 @@ export default function GenerateVideoPage() {
 
   useEffect(() => {
     if (!activeProject) return;
+    setTypeFilter('all');
+    setModelPref('auto');
+    setInstruction('');
+    setDesiredDuration(5);
+    setSourceImage('');
+    setSourceVideo(null);
+    setAudioRef(null);
+    setEndImage('');
+    setMultiRefs([]);
+    setAgentResult(null);
+    setResults([]);
+    setError('');
+    setStep('input');
     cacheRestoredRef.current = false;
   }, [activeProject?.id]);
 
