@@ -1,7 +1,10 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { IMAGE_MODEL_OPTIONS, IMAGE_MODEL_GROUPS, getImageModelFormat, imageSizeToAspectRatio } from '@/lib/models';
+import {
+  IMAGE_MODEL_OPTIONS, IMAGE_MODEL_GROUPS, IMAGE_SIZE_OPTIONS, IMAGE_RESOLUTION_OPTIONS,
+  getImageModelFormat, imageSizeToAspectRatio, isImageModelGroupId, getImageModelIdsInGroup,
+} from '@/lib/models';
 import { getSessionUser } from '@/lib/auth';
 import { useProject } from '@/lib/ProjectContext';
 import { Generation } from '@/lib/types';
@@ -12,14 +15,39 @@ interface GeneratedImage {
   seed?: number;
 }
 
+interface AgentResult {
+  prompt: string;
+  selectedModel: string;
+  selectedModelLabel: string;
+  params: { size: string; resolution: string; count: number };
+  reasoning: string;
+  paramNotes?: string[];
+}
+
+type Step = 'input' | 'review' | 'generating';
+
 export default function GenerateImagePage() {
   const user = getSessionUser();
   const { activeProject } = useProject();
-  const [model, setModel] = useState(IMAGE_MODEL_OPTIONS[0].id);
-  const [prompt, setPrompt] = useState('');
-  const [size, setSize] = useState('portrait_16_9');
-  const [count, setCount] = useState(4);
-  const [references, setReferences] = useState<string[]>([]);
+
+  // Step 1: User input
+  const [references, setReferences] = useState<{ url: string; name: string }[]>([]);
+  const [modelPref, setModelPref] = useState('auto');
+  const [instruction, setInstruction] = useState('');
+  const [desiredSize, setDesiredSize] = useState('portrait_16_9');
+  const [desiredResolution, setDesiredResolution] = useState('1k');
+  const [desiredCount, setDesiredCount] = useState(4);
+
+  // Step 2: Agent result (editable)
+  const [agentResult, setAgentResult] = useState<AgentResult | null>(null);
+  const [editPrompt, setEditPrompt] = useState('');
+  const [editModel, setEditModel] = useState('');
+  const [editSize, setEditSize] = useState('');
+  const [editCount, setEditCount] = useState(4);
+
+  // State
+  const [step, setStep] = useState<Step>('input');
+  const [preparing, setPreparing] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [results, setResults] = useState<GeneratedImage[]>([]);
   const [error, setError] = useState('');
@@ -35,57 +63,6 @@ export default function GenerateImagePage() {
 
   useEffect(() => { loadHistory(); }, [loadHistory]);
 
-  async function handleGenerate() {
-    if (!prompt.trim() || !activeProject) return;
-    setGenerating(true);
-    setError('');
-    try {
-      const format = getImageModelFormat(model);
-      const res = await fetch('/api/generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          type: 'image',
-          model,
-          prompt: prompt.trim(),
-          size,
-          format,
-          aspectRatio: format === 'aspect_ratio' ? imageSizeToAspectRatio(size) : undefined,
-          count,
-          references,
-          falKey: user?.falKey,
-        }),
-      });
-      const data = await res.json();
-      if (data.error) throw new Error(data.error);
-      const images: GeneratedImage[] = data.images || [];
-      setResults(prev => [...images, ...prev]);
-
-      const modelOpt = IMAGE_MODEL_OPTIONS.find(m => m.id === model);
-      await fetch('/api/generations', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          projectId: activeProject.id,
-          userId: user?.userId,
-          type: 'image',
-          modelId: model,
-          modelLabel: modelOpt?.label || model,
-          prompt: prompt.trim(),
-          params: { size, count, format },
-          referenceUrls: references,
-          resultUrls: images.map(img => img.url),
-          status: 'completed',
-        }),
-      });
-      loadHistory();
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Generation failed');
-    } finally {
-      setGenerating(false);
-    }
-  }
-
   async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const files = e.target.files;
     if (!files) return;
@@ -94,17 +71,131 @@ export default function GenerateImagePage() {
       formData.append('file', file);
       const res = await fetch('/api/upload', { method: 'POST', body: formData });
       const data = await res.json();
-      if (data.url) setReferences(prev => [...prev, data.url]);
+      if (data.url) setReferences(prev => [...prev, { url: data.url, name: file.name }]);
     }
     e.target.value = '';
   }
 
+  function getAvailableModels() {
+    const modelIds = isImageModelGroupId(modelPref)
+      ? getImageModelIdsInGroup(modelPref)
+      : [modelPref];
+    return modelIds.map(id => {
+      const opt = IMAGE_MODEL_OPTIONS.find(o => o.id === id);
+      const groupId = IMAGE_MODEL_GROUPS.find(g => g.modelIds.includes(id))?.id ?? 'other';
+      return { id, label: opt?.label ?? id, format: opt?.format ?? 'flux', group: groupId };
+    });
+  }
+
+  async function handlePrepare() {
+    if (!instruction.trim()) return;
+    setPreparing(true);
+    setError('');
+    try {
+      const res = await fetch('/api/prepare-generation', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          instruction: instruction.trim(),
+          referenceDescriptions: references.map((r, i) => `Image ${i + 1}: "${r.name}"`),
+          modelPreference: modelPref,
+          desiredParams: { size: desiredSize, resolution: desiredResolution, count: desiredCount },
+          availableModels: getAvailableModels(),
+          anthropicKey: user?.anthropicKey,
+        }),
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      setAgentResult(data);
+      setEditPrompt(data.prompt);
+      setEditModel(data.selectedModel);
+      setEditSize(data.params?.size || desiredSize);
+      setEditCount(data.params?.count || desiredCount);
+      setStep('review');
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Failed to prepare generation');
+    } finally {
+      setPreparing(false);
+    }
+  }
+
+  async function handleGenerate() {
+    if (!editPrompt.trim() || !activeProject) return;
+    setGenerating(true);
+    setStep('generating');
+    setError('');
+    try {
+      const format = getImageModelFormat(editModel);
+      const res = await fetch('/api/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'image',
+          model: editModel,
+          prompt: editPrompt.trim(),
+          size: editSize,
+          format,
+          aspectRatio: format === 'aspect_ratio' ? imageSizeToAspectRatio(editSize) : undefined,
+          count: editCount,
+          references: references.map(r => r.url),
+          falKey: user?.falKey,
+        }),
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      const images: GeneratedImage[] = data.images || [];
+      setResults(prev => [...images, ...prev]);
+
+      const modelOpt = IMAGE_MODEL_OPTIONS.find(m => m.id === editModel);
+      await fetch('/api/generations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          projectId: activeProject.id,
+          userId: user?.userId,
+          type: 'image',
+          modelId: editModel,
+          modelLabel: modelOpt?.label || editModel,
+          prompt: editPrompt.trim(),
+          params: {
+            size: editSize, count: editCount, format,
+            instruction: instruction.trim(),
+            agentReasoning: agentResult?.reasoning,
+          },
+          referenceUrls: references.map(r => r.url),
+          resultUrls: images.map(img => img.url),
+          status: 'completed',
+        }),
+      });
+      loadHistory();
+      setStep('input');
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Generation failed');
+      setStep('review');
+    } finally {
+      setGenerating(false);
+    }
+  }
+
+  function handleBack() {
+    setStep('input');
+    setAgentResult(null);
+  }
+
   function handleSelectVersion(gen: Generation) {
-    setModel(gen.modelId);
-    setPrompt(gen.prompt);
-    if (gen.params.size) setSize(gen.params.size as string);
-    if (gen.params.count) setCount(gen.params.count as number);
-    setReferences(gen.referenceUrls || []);
+    setEditModel(gen.modelId);
+    setEditPrompt(gen.prompt);
+    if (gen.params.instruction) setInstruction(gen.params.instruction as string);
+    if (gen.params.size) {
+      setDesiredSize(gen.params.size as string);
+      setEditSize(gen.params.size as string);
+    }
+    if (gen.params.count) {
+      setDesiredCount(gen.params.count as number);
+      setEditCount(gen.params.count as number);
+    }
+    setModelPref(gen.modelId);
+    setReferences((gen.referenceUrls || []).map((url, i) => ({ url, name: `Reference ${i + 1}` })));
     setResults(gen.resultUrls.map(url => ({ url })));
   }
 
@@ -128,108 +219,257 @@ export default function GenerateImagePage() {
       <h2 className="text-xl font-semibold mb-1">Generate Image</h2>
       <p className="text-sm mb-6" style={{ color: 'var(--text3)' }}>Project: {activeProject.title}</p>
 
-      <div className="space-y-5">
-        <div>
-          <label className="block text-sm mb-1.5" style={{ color: 'var(--text2)' }}>Model</label>
-          <select value={model} onChange={e => setModel(e.target.value)} className="w-full">
-            {IMAGE_MODEL_GROUPS.map(group => (
-              <optgroup key={group.id} label={group.label}>
-                {group.modelIds.map(id => {
-                  const opt = IMAGE_MODEL_OPTIONS.find(o => o.id === id);
-                  return opt ? <option key={id} value={id}>{opt.label}</option> : null;
-                })}
-              </optgroup>
-            ))}
-          </select>
-        </div>
-
-        <div>
-          <label className="block text-sm mb-1.5" style={{ color: 'var(--text2)' }}>Prompt</label>
-          <textarea
-            value={prompt}
-            onChange={e => setPrompt(e.target.value)}
-            placeholder="A photorealistic full-body portrait of a young woman standing in a relaxed pose..."
-            className="w-full h-28 resize-none"
-          />
-          <div className="text-xs mt-1 text-right" style={{ color: 'var(--text3)' }}>
-            {prompt.length} chars
-          </div>
-        </div>
-
-        <div className="grid grid-cols-2 gap-4">
+      {step === 'input' && (
+        <div className="space-y-5">
+          {/* References at top with numbering */}
           <div>
-            <label className="block text-sm mb-1.5" style={{ color: 'var(--text2)' }}>Size</label>
-            <select value={size} onChange={e => setSize(e.target.value)} className="w-full">
-              <option value="square">Square (1:1)</option>
-              <option value="portrait_4_3">Portrait 4:3</option>
-              <option value="portrait_16_9">Portrait 16:9</option>
-              <option value="landscape_4_3">Landscape 4:3</option>
-              <option value="landscape_16_9">Landscape 16:9</option>
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm mb-1.5" style={{ color: 'var(--text2)' }}>Count</label>
-            <select value={count} onChange={e => setCount(Number(e.target.value))} className="w-full">
-              {[1, 2, 4, 6, 8, 10].map(n => (
-                <option key={n} value={n}>{n} images</option>
+            <label className="block text-sm mb-1.5" style={{ color: 'var(--text2)' }}>
+              References {references.length > 0 && <span style={{ color: 'var(--text3)' }}>({references.length})</span>}
+            </label>
+            <div className="flex flex-wrap gap-2">
+              {references.map((ref, i) => (
+                <div key={i} className="relative w-20 h-20 rounded-lg overflow-hidden border" style={{ borderColor: 'var(--border)' }}>
+                  <span className="absolute top-0 left-0 z-10 w-6 h-6 flex items-center justify-center rounded-br-lg text-xs font-bold" style={{ background: 'var(--accent)', color: 'white' }}>{i + 1}</span>
+                  <img src={ref.url} alt={ref.name} className="w-full h-full object-cover" />
+                  <button
+                    onClick={() => setReferences(prev => prev.filter((_, j) => j !== i))}
+                    className="absolute top-0 right-0 w-5 h-5 flex items-center justify-center text-xs rounded-bl-lg"
+                    style={{ background: 'var(--red)', color: 'white' }}
+                  >x</button>
+                  <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-[10px] text-white px-1 truncate">{ref.name}</div>
+                </div>
               ))}
-            </select>
-          </div>
-        </div>
-
-        <div>
-          <label className="block text-sm mb-1.5" style={{ color: 'var(--text2)' }}>Reference Images</label>
-          <div className="flex flex-wrap gap-2">
-            {references.map((ref, i) => (
-              <div key={i} className="relative w-16 h-16 rounded-lg overflow-hidden border" style={{ borderColor: 'var(--border)' }}>
-                <img src={ref} alt="" className="w-full h-full object-cover" />
-                <button
-                  onClick={() => setReferences(prev => prev.filter((_, j) => j !== i))}
-                  className="absolute top-0 right-0 w-5 h-5 flex items-center justify-center text-xs rounded-bl-lg"
-                  style={{ background: 'var(--red)', color: 'white' }}
-                >
-                  x
-                </button>
-              </div>
-            ))}
-            <button
-              onClick={() => fileRef.current?.click()}
-              className="w-16 h-16 rounded-lg border-2 border-dashed flex items-center justify-center text-2xl"
-              style={{ borderColor: 'var(--border)', color: 'var(--text3)' }}
-            >
-              +
-            </button>
-            <input ref={fileRef} type="file" accept="image/*" multiple className="hidden" onChange={handleFileUpload} />
-          </div>
-        </div>
-
-        <div className="flex items-center justify-between pt-2">
-          <span className="text-sm" style={{ color: 'var(--text3)' }}>
-            ~${(0.03 * count).toFixed(2)} estimated
-          </span>
-          <button
-            onClick={handleGenerate}
-            disabled={generating || !prompt.trim()}
-            className="px-6 py-2.5 rounded-lg text-sm font-semibold text-white disabled:opacity-50"
-            style={{ background: generating ? 'var(--text3)' : 'var(--accent)' }}
-          >
-            {generating ? (
-              <span className="flex items-center gap-2">
-                <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                Generating...
-              </span>
-            ) : (
-              `Generate ${count} image${count > 1 ? 's' : ''}`
+              <button
+                onClick={() => fileRef.current?.click()}
+                className="w-20 h-20 rounded-lg border-2 border-dashed flex flex-col items-center justify-center text-xs gap-1"
+                style={{ borderColor: 'var(--border)', color: 'var(--text3)' }}
+              >
+                <span className="text-2xl">+</span>
+                <span>Add</span>
+              </button>
+              <input ref={fileRef} type="file" accept="image/*" multiple className="hidden" onChange={handleFileUpload} />
+            </div>
+            {references.length > 0 && (
+              <p className="text-xs mt-1" style={{ color: 'var(--text3)' }}>
+                Reference by number in your instruction: &quot;image 1&quot;, &quot;image 2&quot;, etc.
+              </p>
             )}
-          </button>
-        </div>
-
-        {error && (
-          <div className="p-3 rounded-lg text-sm" style={{ background: 'rgba(239,68,68,0.1)', color: 'var(--red)', border: '1px solid rgba(239,68,68,0.2)' }}>
-            {error}
           </div>
-        )}
-      </div>
+
+          {/* Model preference */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm mb-1.5" style={{ color: 'var(--text2)' }}>Model</label>
+              <select value={modelPref} onChange={e => setModelPref(e.target.value)} className="w-full">
+                <option value="auto">Auto (agent selects)</option>
+                <optgroup label="By Group">
+                  {IMAGE_MODEL_GROUPS.map(g => (
+                    <option key={g.id} value={`group:${g.id}`}>{g.label} ({g.modelIds.length})</option>
+                  ))}
+                </optgroup>
+                <optgroup label="Specific Model">
+                  {IMAGE_MODEL_OPTIONS.map(m => (
+                    <option key={m.id} value={m.id}>{m.label}</option>
+                  ))}
+                </optgroup>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm mb-1.5" style={{ color: 'var(--text2)' }}>Format</label>
+              <select value={desiredSize} onChange={e => setDesiredSize(e.target.value)} className="w-full">
+                {IMAGE_SIZE_OPTIONS.map(o => (
+                  <option key={o.id} value={o.id}>{o.label}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm mb-1.5" style={{ color: 'var(--text2)' }}>Resolution</label>
+              <select value={desiredResolution} onChange={e => setDesiredResolution(e.target.value)} className="w-full">
+                {IMAGE_RESOLUTION_OPTIONS.map(o => (
+                  <option key={o.id} value={o.id}>{o.label}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm mb-1.5" style={{ color: 'var(--text2)' }}>Count</label>
+              <select value={desiredCount} onChange={e => setDesiredCount(Number(e.target.value))} className="w-full">
+                {[1, 2, 4, 6, 8, 10].map(n => (
+                  <option key={n} value={n}>{n} images</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* Instruction */}
+          <div>
+            <label className="block text-sm mb-1.5" style={{ color: 'var(--text2)' }}>Instruction</label>
+            <textarea
+              value={instruction}
+              onChange={e => setInstruction(e.target.value)}
+              placeholder="Describe what you want. E.g.: Take image 1 and change the background to a futuristic city. Use the style from image 2..."
+              className="w-full h-32 resize-none"
+            />
+            <div className="text-xs mt-1 text-right" style={{ color: 'var(--text3)' }}>
+              {instruction.length} chars
+            </div>
+          </div>
+
+          {/* Prepare button */}
+          <div className="flex items-center justify-between pt-2">
+            <p className="text-xs" style={{ color: 'var(--text3)' }}>
+              Agent will generate prompt and select optimal parameters
+            </p>
+            <button
+              onClick={handlePrepare}
+              disabled={preparing || !instruction.trim() || !user?.anthropicKey}
+              className="px-6 py-2.5 rounded-lg text-sm font-semibold text-white disabled:opacity-50"
+              style={{ background: preparing ? 'var(--text3)' : 'var(--accent)' }}
+            >
+              {preparing ? (
+                <span className="flex items-center gap-2">
+                  <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  Preparing...
+                </span>
+              ) : 'Prepare Generation'}
+            </button>
+          </div>
+
+          {!user?.anthropicKey && (
+            <div className="p-3 rounded-lg text-sm" style={{ background: 'var(--accent-subtle)', color: 'var(--accent)' }}>
+              Add your Anthropic API key in Settings to enable the AI agent.
+            </div>
+          )}
+        </div>
+      )}
+
+      {step === 'review' && agentResult && (
+        <div className="space-y-5">
+          <button onClick={handleBack} className="text-sm" style={{ color: 'var(--text3)' }}>
+            &larr; Back to instruction
+          </button>
+
+          {/* Agent reasoning */}
+          <div className="p-4 rounded-xl" style={{ background: 'rgba(76,175,80,0.08)', border: '1px solid rgba(76,175,80,0.2)' }}>
+            <p className="text-xs font-medium mb-1" style={{ color: 'var(--green)' }}>Agent Reasoning</p>
+            <p className="text-sm" style={{ color: 'var(--text2)' }}>{agentResult.reasoning}</p>
+          </div>
+
+          {/* Param notes (differences) */}
+          {agentResult.paramNotes && agentResult.paramNotes.length > 0 && (
+            <div className="p-3 rounded-lg" style={{ background: 'rgba(255,193,7,0.08)', border: '1px solid rgba(255,193,7,0.2)' }}>
+              <p className="text-xs font-medium mb-1" style={{ color: '#ffc107' }}>Parameter Adjustments</p>
+              {agentResult.paramNotes.map((note, i) => (
+                <p key={i} className="text-sm" style={{ color: 'var(--text2)' }}>{note}</p>
+              ))}
+            </div>
+          )}
+
+          {/* Editable prompt */}
+          <div>
+            <label className="block text-sm mb-1.5" style={{ color: 'var(--text2)' }}>Generated Prompt <span className="text-xs" style={{ color: 'var(--text3)' }}>(editable)</span></label>
+            <textarea
+              value={editPrompt}
+              onChange={e => setEditPrompt(e.target.value)}
+              className="w-full h-36 resize-none"
+            />
+          </div>
+
+          {/* Editable model + params */}
+          <div className="grid grid-cols-3 gap-4">
+            <div>
+              <label className="block text-sm mb-1.5" style={{ color: 'var(--text2)' }}>
+                Model
+                {isImageModelGroupId(modelPref) && (
+                  <span className="text-xs ml-1" style={{ color: 'var(--green)' }}>(agent selected)</span>
+                )}
+              </label>
+              <select value={editModel} onChange={e => setEditModel(e.target.value)} className="w-full">
+                {IMAGE_MODEL_GROUPS.map(group => (
+                  <optgroup key={group.id} label={group.label}>
+                    {group.modelIds.map(id => {
+                      const opt = IMAGE_MODEL_OPTIONS.find(o => o.id === id);
+                      return opt ? <option key={id} value={id}>{opt.label}</option> : null;
+                    })}
+                  </optgroup>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm mb-1.5" style={{ color: 'var(--text2)' }}>
+                Format
+                {editSize !== desiredSize && <span className="text-xs ml-1" style={{ color: '#ffc107' }}>(adjusted)</span>}
+              </label>
+              <select value={editSize} onChange={e => setEditSize(e.target.value)} className="w-full">
+                {IMAGE_SIZE_OPTIONS.map(o => (
+                  <option key={o.id} value={o.id}>{o.label}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm mb-1.5" style={{ color: 'var(--text2)' }}>
+                Count
+                {editCount !== desiredCount && <span className="text-xs ml-1" style={{ color: '#ffc107' }}>(adjusted)</span>}
+              </label>
+              <select value={editCount} onChange={e => setEditCount(Number(e.target.value))} className="w-full">
+                {[1, 2, 4, 6, 8, 10].map(n => (
+                  <option key={n} value={n}>{n}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* References preview */}
+          {references.length > 0 && (
+            <div className="flex gap-2 flex-wrap">
+              {references.map((ref, i) => (
+                <div key={i} className="relative w-12 h-12 rounded overflow-hidden border" style={{ borderColor: 'var(--border)' }}>
+                  <span className="absolute top-0 left-0 z-10 w-4 h-4 flex items-center justify-center text-[10px] font-bold" style={{ background: 'var(--accent)', color: 'white' }}>{i + 1}</span>
+                  <img src={ref.url} alt="" className="w-full h-full object-cover" />
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Generate button */}
+          <div className="flex items-center justify-between pt-2">
+            <span className="text-sm" style={{ color: 'var(--text3)' }}>
+              ~${(0.03 * editCount).toFixed(2)} estimated
+            </span>
+            <button
+              onClick={handleGenerate}
+              disabled={generating || !editPrompt.trim()}
+              className="px-6 py-2.5 rounded-lg text-sm font-semibold text-white disabled:opacity-50"
+              style={{ background: generating ? 'var(--text3)' : 'var(--accent)' }}
+            >
+              {generating ? (
+                <span className="flex items-center gap-2">
+                  <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  Generating...
+                </span>
+              ) : (
+                `Generate ${editCount} image${editCount > 1 ? 's' : ''}`
+              )}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {step === 'generating' && (
+        <div className="text-center py-16">
+          <div className="w-10 h-10 border-2 rounded-full animate-spin mx-auto mb-4" style={{ borderColor: 'var(--border)', borderTopColor: 'var(--accent)' }} />
+          <p style={{ color: 'var(--text2)' }}>Generating {editCount} image{editCount > 1 ? 's' : ''}...</p>
+          <p className="text-sm mt-1" style={{ color: 'var(--text3)' }}>{IMAGE_MODEL_OPTIONS.find(m => m.id === editModel)?.label}</p>
+        </div>
+      )}
+
+      {error && (
+        <div className="mt-4 p-3 rounded-lg text-sm" style={{ background: 'rgba(239,68,68,0.1)', color: 'var(--red)', border: '1px solid rgba(239,68,68,0.2)' }}>
+          {error}
+        </div>
+      )}
 
       {results.length > 0 && (
         <div className="mt-8">

@@ -401,6 +401,32 @@ export function filterVideoModelsByType(typeFilter: VideoModelTypeFilter): Video
 // Helpers
 // ---------------------------------------------------------------------------
 
+export const IMAGE_SIZE_OPTIONS = [
+  { id: 'square', label: 'Square (1:1)' },
+  { id: 'portrait_4_3', label: 'Portrait 4:3' },
+  { id: 'portrait_16_9', label: 'Portrait 16:9' },
+  { id: 'landscape_4_3', label: 'Landscape 4:3' },
+  { id: 'landscape_16_9', label: 'Landscape 16:9' },
+];
+
+export const IMAGE_RESOLUTION_OPTIONS = [
+  { id: 'sd', label: 'SD' },
+  { id: '1k', label: '1K' },
+  { id: '2k', label: '2K' },
+  { id: '4k', label: '4K' },
+];
+
+export function isImageModelGroupId(id: string): boolean {
+  return id === 'auto' || id.startsWith('group:');
+}
+
+export function getImageModelIdsInGroup(groupId: string): string[] {
+  if (groupId === 'auto') return IMAGE_MODEL_OPTIONS.map(o => o.id);
+  const g = groupId.replace('group:', '');
+  const group = IMAGE_MODEL_GROUPS.find(gr => gr.id === g);
+  return group ? group.modelIds : [];
+}
+
 export function getImageModelLabel(modelId: string): string {
   return IMAGE_MODEL_OPTIONS.find(o => o.id === modelId)?.label ?? modelId;
 }
