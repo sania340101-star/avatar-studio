@@ -63,7 +63,7 @@ export default function GenerateVideoPage() {
   const selectedModelForRefs = isVideoModelGroupId(modelPref)
     ? null
     : VIDEO_MODEL_OPTIONS.find(m => m.id === modelPref);
-  const selectedType = selectedModelForRefs
+  const selectedType: VideoModelTypeFilter = selectedModelForRefs
     ? getVideoModelType(selectedModelForRefs)
     : typeFilter !== 'all' ? typeFilter : 'image-to-video';
 
@@ -293,22 +293,20 @@ export default function GenerateVideoPage() {
       {step === 'input' && (
         <div className="space-y-5">
           {/* Context-aware reference inputs */}
-          {selectedType !== 'text-to-video' && (
+          {(selectedType as string) !== 'text-to-video' && (
             <div className="space-y-3 p-4 rounded-xl" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
               <p className="text-sm font-medium" style={{ color: 'var(--text1)' }}>References</p>
 
-              {selectedType !== 'text-to-video' && (
-                <div className="p-2 rounded-lg text-xs" style={{ background: 'var(--accent-subtle)', color: 'var(--text2)' }}>
-                  {selectedType === 'avatar' && 'Talking avatar: provide image + audio file'}
-                  {selectedType === 'lip-sync' && 'Lip-sync: provide video + audio file'}
-                  {selectedType === 'motion-control' && 'Motion control: image + reference video for motion transfer'}
-                  {selectedType === 'start-end-frame' && 'Start/end frame: provide start image + optional end image'}
-                  {selectedType === 'multi-reference' && 'Multi-reference: provide 2+ reference images'}
-                  {selectedType === 'video-edit' && 'Video edit: provide source video + describe changes'}
-                  {selectedType === 'utility' && 'Utility: provide source video for processing'}
-                  {selectedType === 'image-to-video' && 'Image to video: provide source image + prompt'}
-                </div>
-              )}
+              <div className="p-2 rounded-lg text-xs" style={{ background: 'var(--accent-subtle)', color: 'var(--text2)' }}>
+                {selectedType === 'avatar' && 'Talking avatar: provide image + audio file'}
+                {selectedType === 'lip-sync' && 'Lip-sync: provide video + audio file'}
+                {selectedType === 'motion-control' && 'Motion control: image + reference video for motion transfer'}
+                {selectedType === 'start-end-frame' && 'Start/end frame: provide start image + optional end image'}
+                {selectedType === 'multi-reference' && 'Multi-reference: provide 2+ reference images'}
+                {selectedType === 'video-edit' && 'Video edit: provide source video + describe changes'}
+                {selectedType === 'utility' && 'Utility: provide source video for processing'}
+                {selectedType === 'image-to-video' && 'Image to video: provide source image + prompt'}
+              </div>
 
               {(selectedType === 'image-to-video' || selectedType === 'avatar' || selectedType === 'motion-control' || selectedType === 'start-end-frame') && (
                 <ImagePicker value={sourceImage} onChange={setSourceImage} label="Source Image" />
