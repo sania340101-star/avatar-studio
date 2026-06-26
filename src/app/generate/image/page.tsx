@@ -126,6 +126,7 @@ export default function GenerateImagePage() {
           size: desiredSize,
           references: references.map(r => r.url),
           falKey: user?.falKey,
+          systemPrompt: user?.systemPrompt,
         }),
       });
       const data = await res.json();
@@ -167,6 +168,7 @@ export default function GenerateImagePage() {
           size: desiredSize,
           references: references.map(r => r.url),
           falKey: user?.falKey,
+          systemPrompt: user?.systemPrompt,
         }),
       });
       const data = await res.json();

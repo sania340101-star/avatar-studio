@@ -141,6 +141,7 @@ export default function GenerateVideoPage() {
       model: modelPref === 'auto' ? undefined : modelPref,
       duration: desiredDuration,
       falKey: user?.falKey,
+      systemPrompt: user?.systemPrompt,
     };
     if (sourceImage) body.sourceImage = sourceImage;
     if (sourceVideo) body.sourceVideo = sourceVideo.url;

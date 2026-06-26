@@ -71,6 +71,7 @@ export interface AppUser {
   authMethod: 'sso' | 'otp';
   falKey?: string;
   anthropicKey?: string;
+  systemPrompt?: string;
 }
 
 export interface Project {

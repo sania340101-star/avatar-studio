@@ -251,6 +251,11 @@ const server = http.createServer(async (req, res) => {
       systemPrompt = type === 'video' ? VIDEO_GENERATE_SYSTEM : IMAGE_GENERATE_SYSTEM;
       tools = GENERATE_TOOLS;
     }
+
+    if (body.systemPrompt) {
+      systemPrompt += `\n\n# User Style Instructions\n${body.systemPrompt}`;
+    }
+
     const userPrompt = buildPrompt(body);
     const action = isPrepare ? 'prepare' : 'generate';
 

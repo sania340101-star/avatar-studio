@@ -3,11 +3,13 @@
 import { useState, useEffect } from 'react';
 import AppShell from '@/components/AppShell';
 import { getSessionUser, setSessionUser, clearSession } from '@/lib/auth';
+import { DEFAULT_SYSTEM_PROMPT } from '@/lib/constants';
 
 export default function SettingsPage() {
   const user = getSessionUser();
   const [falKey, setFalKey] = useState(user?.falKey || '');
   const [anthropicKey, setAnthropicKey] = useState(user?.anthropicKey || '');
+  const [systemPrompt, setSystemPrompt] = useState(user?.systemPrompt || DEFAULT_SYSTEM_PROMPT);
   const [saved, setSaved] = useState(false);
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
 
@@ -28,7 +30,7 @@ export default function SettingsPage() {
 
   function handleSave() {
     if (!user) return;
-    const updated = { ...user, falKey: falKey.trim() || undefined, anthropicKey: anthropicKey.trim() || undefined };
+    const updated = { ...user, falKey: falKey.trim() || undefined, anthropicKey: anthropicKey.trim() || undefined, systemPrompt: systemPrompt.trim() || undefined };
     setSessionUser(updated);
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
@@ -141,6 +143,36 @@ export default function SettingsPage() {
                 </button>
                 {saved && <span className="text-sm" style={{ color: 'var(--green)' }}>Saved</span>}
               </div>
+            </div>
+          </div>
+
+          <div className="rounded-xl p-5" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+            <h3 className="font-medium mb-1">System Prompt</h3>
+            <p className="text-xs mb-4" style={{ color: 'var(--text3)' }}>
+              Instructions injected into every generation. Defines visual style, display requirements, and quality rules for the AI agent.
+            </p>
+            <textarea
+              value={systemPrompt}
+              onChange={e => setSystemPrompt(e.target.value)}
+              className="w-full h-48 resize-y text-sm"
+              placeholder="Enter system prompt for generation agent..."
+            />
+            <div className="flex items-center gap-3 mt-3">
+              <button
+                onClick={() => setSystemPrompt(DEFAULT_SYSTEM_PROMPT)}
+                className="px-4 py-2 rounded-lg text-sm"
+                style={{ color: 'var(--text2)', border: '1px solid var(--border)' }}
+              >
+                Reset to Default
+              </button>
+              <button
+                onClick={handleSave}
+                className="px-5 py-2 rounded-lg text-sm font-semibold text-white"
+                style={{ background: 'var(--accent)' }}
+              >
+                Save
+              </button>
+              {saved && <span className="text-sm" style={{ color: 'var(--green)' }}>Saved</span>}
             </div>
           </div>
 
