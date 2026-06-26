@@ -133,13 +133,11 @@ ${modelsText}
 User instruction:
 ${instruction}`;
 
-    const clientOptions: ConstructorParameters<typeof Anthropic>[0] = {};
-    if (anthropicKey.startsWith('sk-ant-oat')) {
-      clientOptions.authToken = anthropicKey;
-    } else {
-      clientOptions.apiKey = anthropicKey;
-    }
-    const client = new Anthropic(clientOptions);
+    const isOAuth = anthropicKey.startsWith('sk-ant-oat');
+    const client = new Anthropic(isOAuth
+      ? { authToken: anthropicKey, apiKey: null as unknown as string }
+      : { apiKey: anthropicKey },
+    );
 
     const message = await client.messages.create({
       model: 'claude-sonnet-4-20250514',
