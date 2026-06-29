@@ -39,23 +39,25 @@ export async function clearSession(): Promise<void> {
 export async function initAuth(): Promise<AppUser | null> {
   if (typeof window === 'undefined') return null;
 
-  // 1. Check sessionStorage
+  // 1. Check sessionStorage (but only trust if hasFalKey is true — otherwise re-verify)
   try {
     const raw = sessionStorage.getItem(SESSION_KEY);
-    if (raw) return JSON.parse(raw);
-  } catch { /* fall through */ }
-
-  // 2. Check user-info cookie (set by server on SSO)
-  try {
-    const cookie = getCookie(USER_INFO_COOKIE);
-    if (cookie) {
-      const user: AppUser = JSON.parse(cookie);
-      sessionStorage.setItem(SESSION_KEY, JSON.stringify(user));
-      return user;
+    if (raw) {
+      const cached = JSON.parse(raw) as AppUser;
+      if (cached.hasFalKey) return cached;
     }
   } catch { /* fall through */ }
 
-  // 3. Ask the server (session cookie is httpOnly, so only the server can read it)
+  // 2. Check user-info cookie (set by server on SSO)
+  let cachedUser: AppUser | null = null;
+  try {
+    const cookie = getCookie(USER_INFO_COOKIE);
+    if (cookie) {
+      cachedUser = JSON.parse(cookie);
+    }
+  } catch { /* fall through */ }
+
+  // 3. Ask the server to verify (always, to pick up env fallback keys)
   try {
     const res = await fetch('/api/auth/me');
     if (res.ok) {
@@ -67,6 +69,12 @@ export async function initAuth(): Promise<AppUser | null> {
       }
     }
   } catch { /* server unreachable */ }
+
+  // 4. Fall back to cookie if server unreachable
+  if (cachedUser) {
+    sessionStorage.setItem(SESSION_KEY, JSON.stringify(cachedUser));
+    return cachedUser;
+  }
 
   return null;
 }
