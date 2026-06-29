@@ -7,6 +7,20 @@ import { Generation } from '@/lib/types';
 
 type TabFilter = 'all' | 'image' | 'video';
 
+async function downloadUrl(url: string, filename: string) {
+  try {
+    const res = await fetch(url);
+    const blob = await res.blob();
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  } catch {
+    window.open(url, '_blank');
+  }
+}
+
 function GalleryContent() {
   const { projects, activeProject } = useProject();
   const [tab, setTab] = useState<TabFilter>('all');
@@ -118,21 +132,41 @@ function GalleryContent() {
               {gen.type === 'image' ? (
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
                   {gen.resultUrls.map((url, i) => (
-                    <button key={i} onClick={() => setLightbox({ url, type: 'image' })}
-                      className="rounded-lg overflow-hidden border hover:border-[var(--accent)] transition-colors cursor-zoom-in"
+                    <div key={i} className="relative group rounded-lg overflow-hidden border hover:border-[var(--accent)] transition-colors"
                       style={{ borderColor: 'var(--border)' }}>
-                      <img src={url} alt="" className="w-full aspect-square object-cover" />
-                    </button>
+                      <button onClick={() => setLightbox({ url, type: 'image' })} className="w-full cursor-zoom-in">
+                        <img src={url} alt="" className="w-full aspect-square object-cover" />
+                      </button>
+                      <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-end justify-center p-2 pointer-events-none">
+                        <button
+                          onClick={(e) => { e.stopPropagation(); downloadUrl(url, `image-${i + 1}.png`); }}
+                          className="pointer-events-auto px-3 py-1 rounded text-xs text-white font-medium"
+                          style={{ background: 'var(--accent)' }}
+                        >
+                          Download
+                        </button>
+                      </div>
+                    </div>
                   ))}
                 </div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   {gen.resultUrls.map((url, i) => (
-                    <button key={i} onClick={() => setLightbox({ url, type: 'video' })}
-                      className="rounded-lg overflow-hidden border hover:border-[var(--accent)] transition-colors cursor-zoom-in"
+                    <div key={i} className="relative group rounded-lg overflow-hidden border hover:border-[var(--accent)] transition-colors"
                       style={{ borderColor: 'var(--border)' }}>
-                      <video src={url} className="w-full pointer-events-none" />
-                    </button>
+                      <button onClick={() => setLightbox({ url, type: 'video' })} className="w-full cursor-zoom-in">
+                        <video src={url} className="w-full pointer-events-none" />
+                      </button>
+                      <div className="absolute bottom-0 left-0 right-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex justify-center p-2 pointer-events-none">
+                        <button
+                          onClick={(e) => { e.stopPropagation(); downloadUrl(url, `video-${i + 1}.mp4`); }}
+                          className="pointer-events-auto px-3 py-1 rounded text-xs text-white font-medium"
+                          style={{ background: 'var(--accent)' }}
+                        >
+                          Download
+                        </button>
+                      </div>
+                    </div>
                   ))}
                 </div>
               )}
@@ -156,14 +190,25 @@ function GalleryContent() {
           style={{ background: 'rgba(0,0,0,0.85)' }}
           onClick={() => setLightbox(null)}
         >
-          <button
-            onClick={() => setLightbox(null)}
-            className="absolute top-4 right-4 text-white/70 hover:text-white transition-colors z-10"
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-8 h-8">
-              <path d="M18 6L6 18M6 6l12 12" />
-            </svg>
-          </button>
+          <div className="absolute top-4 right-4 flex items-center gap-2 z-10">
+            <button
+              onClick={(e) => { e.stopPropagation(); downloadUrl(lightbox.url, lightbox.type === 'image' ? 'image.png' : 'video.mp4'); }}
+              className="text-white/70 hover:text-white transition-colors"
+              title="Download"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-7 h-7">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" />
+              </svg>
+            </button>
+            <button
+              onClick={() => setLightbox(null)}
+              className="text-white/70 hover:text-white transition-colors"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-8 h-8">
+                <path d="M18 6L6 18M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
           <div className="max-w-[90vw] max-h-[90vh]" onClick={e => e.stopPropagation()}>
             {lightbox.type === 'image' ? (
               <img src={lightbox.url} alt="" className="max-w-full max-h-[90vh] object-contain rounded-lg" />
