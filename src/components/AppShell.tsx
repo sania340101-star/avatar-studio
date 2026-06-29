@@ -85,12 +85,14 @@ function OtpLogin({ onLogin }: { onLogin: (user: AppUser) => void }) {
         setError(attemptsLeft !== undefined ? `${msg} (${attemptsLeft} attempts left)` : msg);
         return;
       }
+      const u = data.user || data;
       const user: AppUser = {
-        userId: data.userId,
-        userName: data.userName,
-        role: data.role,
+        userId: u.userId,
+        userName: u.userName,
+        email: u.email,
+        role: u.role,
         authMethod: 'otp',
-        hasFalKey: data.hasFalKey,
+        hasFalKey: u.hasFalKey,
       };
       setSessionUser(user);
       onLogin(user);

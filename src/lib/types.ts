@@ -67,6 +67,7 @@ export interface Template {
 export interface AppUser {
   userId: string;
   userName: string;
+  email?: string;
   role: string;
   authMethod: 'sso' | 'otp';
   hasFalKey?: boolean;

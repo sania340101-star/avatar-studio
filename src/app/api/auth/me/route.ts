@@ -18,12 +18,25 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ user: null });
   }
 
+  let userName = '';
+  let email = '';
+  try {
+    const userInfo = request.cookies.get('user-info')?.value;
+    if (userInfo) {
+      const info = JSON.parse(decodeURIComponent(userInfo));
+      userName = info.userName || '';
+      email = info.email || '';
+    }
+  } catch { /* ignore */ }
+
   return NextResponse.json({
     user: {
       userId: session?.userId ?? (payload.userId as string) ?? 'unknown',
+      userName,
+      email,
       role: payload.role ?? 'user',
+      authMethod: 'otp',
       hasFalKey: !!(session?.falKey || process.env.FAL_KEY),
-      hasAnthropicKey: !!(session?.anthropicKey),
     },
   });
 }
