@@ -48,17 +48,36 @@ export interface TemplateRef {
   name: string;
 }
 
+export interface TemplateSlot {
+  id: string;
+  modelId: string;
+  modelLabel: string;
+  typeFilter: string;
+  instruction: string;
+  duration: number;
+  aspectRatio: string;
+  quality: string;
+  fps: number;
+  strategy: string;
+  references: TemplateRef[];
+}
+
 export interface Template {
   id: string;
   name: string;
   description: string;
   type: 'image' | 'video';
   device: 'hh1x3' | 'solo' | 'any';
-  modelId: string;
-  modelLabel: string;
   promptTemplate: string;
-  params: Record<string, unknown>;
-  references: TemplateRef[];
+  slots: TemplateSlot[];
+  /** @deprecated use slots instead */
+  modelId?: string;
+  /** @deprecated use slots instead */
+  modelLabel?: string;
+  /** @deprecated use slots instead */
+  params?: Record<string, unknown>;
+  /** @deprecated use slots instead */
+  references?: TemplateRef[];
   createdBy: string;
   createdAt: number;
   updatedAt: number;

@@ -7,8 +7,8 @@ export async function POST(req: NextRequest) {
   const userId = req.headers.get('x-user-id');
   if (!userId) return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
   const body = await req.json();
-  if (!body.name || !body.modelId || !body.promptTemplate) {
-    return NextResponse.json({ error: 'name, modelId, and promptTemplate are required' }, { status: 400 });
+  if (!body.name || (!body.slots?.length && !body.modelId)) {
+    return NextResponse.json({ error: 'name and at least one slot are required' }, { status: 400 });
   }
   body.createdBy = userId;
   return NextResponse.json(createTemplate(body));
