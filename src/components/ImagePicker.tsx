@@ -11,19 +11,27 @@ interface Props {
 }
 
 export default function ImagePicker({ value, onChange, label = 'Source Image' }: Props) {
-  const { activeProject } = useProject();
+  const { projects, activeProject } = useProject();
   const [showPicker, setShowPicker] = useState(false);
   const [projectImages, setProjectImages] = useState<Generation[]>([]);
+  const [pickerProjectId, setPickerProjectId] = useState<string>('');
   const [uploading, setUploading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (showPicker && activeProject) {
-      fetch(`/api/generations?projectId=${activeProject.id}&type=image`)
-        .then(r => r.json())
-        .then(data => { if (Array.isArray(data)) setProjectImages(data); });
+    if (showPicker) {
+      setPickerProjectId(activeProject?.id || 'all');
     }
   }, [showPicker, activeProject]);
+
+  useEffect(() => {
+    if (!showPicker) return;
+    const params = new URLSearchParams({ type: 'image' });
+    if (pickerProjectId && pickerProjectId !== 'all') params.set('projectId', pickerProjectId);
+    fetch(`/api/generations?${params}`)
+      .then(r => r.json())
+      .then(data => { if (Array.isArray(data)) setProjectImages(data); });
+  }, [showPicker, pickerProjectId]);
 
   async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -45,6 +53,10 @@ export default function ImagePicker({ value, onChange, label = 'Source Image' }:
   }
 
   const allImages = projectImages.flatMap(g => g.resultUrls);
+  const projectMap = Object.fromEntries(projects.map(p => [p.id, p.title]));
+  const pickerLabel = pickerProjectId === 'all'
+    ? `All projects (${allImages.length})`
+    : `${projectMap[pickerProjectId] || 'Project'} (${allImages.length})`;
 
   return (
     <div>
@@ -100,9 +112,25 @@ export default function ImagePicker({ value, onChange, label = 'Source Image' }:
               <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleUpload} />
             </div>
 
+            {projects.length > 1 && (
+              <div className="mb-3">
+                <select
+                  value={pickerProjectId}
+                  onChange={e => setPickerProjectId(e.target.value)}
+                  className="w-full text-sm px-3 py-2 rounded-lg border"
+                  style={{ borderColor: 'var(--border)', background: 'var(--bg-input)', color: 'var(--text1)' }}
+                >
+                  <option value="all">All Projects</option>
+                  {projects.map(p => (
+                    <option key={p.id} value={p.id}>{p.title}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+
             {allImages.length > 0 && (
               <>
-                <p className="text-sm mb-2" style={{ color: 'var(--text2)' }}>From this project ({allImages.length})</p>
+                <p className="text-sm mb-2" style={{ color: 'var(--text2)' }}>{pickerLabel}</p>
                 <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
                   {allImages.map((url, i) => (
                     <button
@@ -120,7 +148,7 @@ export default function ImagePicker({ value, onChange, label = 'Source Image' }:
 
             {allImages.length === 0 && (
               <p className="text-sm text-center py-6" style={{ color: 'var(--text3)' }}>
-                No images in this project yet. Generate some images first or upload from your computer.
+                No images yet. Generate some images first or upload from your computer.
               </p>
             )}
           </div>

@@ -1,18 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getGenerations, addGeneration, deleteGeneration, getProject } from '@/lib/storage';
+import { getGenerations, getAllUserGenerations, addGeneration, deleteGeneration, getProject } from '@/lib/storage';
 
 export async function GET(req: NextRequest) {
   const userId = req.headers.get('x-user-id');
   if (!userId) return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
 
   const projectId = req.nextUrl.searchParams.get('projectId');
-  if (!projectId) return NextResponse.json({ error: 'projectId required' }, { status: 400 });
+  const type = req.nextUrl.searchParams.get('type') as 'image' | 'video' | null;
+
+  if (!projectId) {
+    return NextResponse.json(getAllUserGenerations(userId, type || undefined));
+  }
 
   const project = getProject(projectId);
   if (!project) return NextResponse.json({ error: 'Project not found' }, { status: 404 });
   if (project.userId !== userId) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
-  const type = req.nextUrl.searchParams.get('type') as 'image' | 'video' | null;
   return NextResponse.json(getGenerations(projectId, type || undefined));
 }
 

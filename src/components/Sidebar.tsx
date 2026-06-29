@@ -25,6 +25,7 @@ const NAV_ITEMS = [
       </svg>
     ),
   },
+  { type: 'separator' as const },
   {
     label: 'Templates',
     href: '/templates',
@@ -34,7 +35,6 @@ const NAV_ITEMS = [
       </svg>
     ),
   },
-  { type: 'separator' as const },
   {
     label: 'Gallery',
     href: '/gallery',
@@ -209,10 +209,17 @@ export default function Sidebar({ open, onClose, user }: { open?: boolean; onClo
         )}
       </div>
 
-      <nav className="flex-1 p-3 space-y-1 overflow-auto">
+      <nav className="flex-1 p-3 overflow-auto">
+        <p className="text-[10px] font-semibold uppercase tracking-wider px-3 mb-1" style={{ color: 'var(--text3)' }}>Project</p>
+        <div className="space-y-1">
         {NAV_ITEMS.map((item, i) => {
           if ('type' in item && item.type === 'separator') {
-            return <div key={i} className="my-3 border-t" style={{ borderColor: 'var(--border)' }} />;
+            return (
+              <div key={i}>
+                <div className="my-3 border-t" style={{ borderColor: 'var(--border)' }} />
+                <p className="text-[10px] font-semibold uppercase tracking-wider px-3 mb-1" style={{ color: 'var(--text3)' }}>Global</p>
+              </div>
+            );
           }
           if (!('href' in item)) return null;
           const active = pathname.startsWith(item.href);
@@ -232,6 +239,7 @@ export default function Sidebar({ open, onClose, user }: { open?: boolean; onClo
             </Link>
           );
         })}
+        </div>
       </nav>
 
       {activeProject && (

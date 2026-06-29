@@ -8,34 +8,28 @@ import { Generation } from '@/lib/types';
 type TabFilter = 'all' | 'image' | 'video';
 
 function GalleryContent() {
-  const { activeProject } = useProject();
+  const { projects, activeProject } = useProject();
   const [tab, setTab] = useState<TabFilter>('all');
+  const [filterProjectId, setFilterProjectId] = useState<string>('all');
   const [generations, setGenerations] = useState<Generation[]>([]);
 
   const load = useCallback(async () => {
-    if (!activeProject) return;
-    const typeParam = tab !== 'all' ? `&type=${tab}` : '';
-    const res = await fetch(`/api/generations?projectId=${activeProject.id}${typeParam}`);
+    const params = new URLSearchParams();
+    if (filterProjectId !== 'all') params.set('projectId', filterProjectId);
+    if (tab !== 'all') params.set('type', tab);
+    const res = await fetch(`/api/generations?${params}`);
     const data = await res.json();
     if (Array.isArray(data)) setGenerations(data);
-  }, [activeProject, tab]);
+  }, [filterProjectId, tab]);
 
   useEffect(() => { load(); }, [load]);
 
-  async function handleDelete(genId: string) {
-    if (!activeProject) return;
-    await fetch(`/api/generations?projectId=${activeProject.id}&generationId=${genId}`, { method: 'DELETE' });
+  async function handleDelete(gen: Generation) {
+    await fetch(`/api/generations?projectId=${gen.projectId}&generationId=${gen.id}`, { method: 'DELETE' });
     load();
   }
 
-  if (!activeProject) {
-    return (
-      <div className="text-center py-16">
-        <p className="text-lg mb-2" style={{ color: 'var(--text2)' }}>No project selected</p>
-        <p className="text-sm" style={{ color: 'var(--text3)' }}>Create a project in the sidebar to start.</p>
-      </div>
-    );
-  }
+  const projectMap = Object.fromEntries(projects.map(p => [p.id, p.title]));
 
   const tabs: { id: TabFilter; label: string }[] = [
     { id: 'all', label: 'All' },
@@ -46,22 +40,35 @@ function GalleryContent() {
   return (
     <div>
       <h2 className="text-xl font-semibold mb-1">Gallery</h2>
-      <p className="text-sm mb-6" style={{ color: 'var(--text3)' }}>Project: {activeProject.title}</p>
+      <p className="text-sm mb-6" style={{ color: 'var(--text3)' }}>All your generations across projects</p>
 
-      <div className="flex gap-2 mb-6">
-        {tabs.map(t => (
-          <button
-            key={t.id}
-            onClick={() => setTab(t.id)}
-            className="px-4 py-2 rounded-lg text-sm font-medium transition-colors"
-            style={{
-              background: tab === t.id ? 'var(--accent)' : 'var(--bg-input)',
-              color: tab === t.id ? 'white' : 'var(--text2)',
-            }}
-          >
-            {t.label}
-          </button>
-        ))}
+      <div className="flex flex-wrap items-center gap-3 mb-6">
+        <div className="flex gap-2">
+          {tabs.map(t => (
+            <button
+              key={t.id}
+              onClick={() => setTab(t.id)}
+              className="px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+              style={{
+                background: tab === t.id ? 'var(--accent)' : 'var(--bg-input)',
+                color: tab === t.id ? 'white' : 'var(--text2)',
+              }}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+        <select
+          value={filterProjectId}
+          onChange={e => setFilterProjectId(e.target.value)}
+          className="text-sm px-3 py-2 rounded-lg border"
+          style={{ borderColor: 'var(--border)', background: 'var(--bg-input)', color: 'var(--text1)' }}
+        >
+          <option value="all">All Projects</option>
+          {projects.map(p => (
+            <option key={p.id} value={p.id}>{p.title}</option>
+          ))}
+        </select>
       </div>
 
       {generations.length === 0 ? (
@@ -83,6 +90,11 @@ function GalleryContent() {
                   {gen.type}
                 </span>
                 <span className="text-sm font-medium truncate">{gen.modelLabel}</span>
+                {filterProjectId === 'all' && projectMap[gen.projectId] && (
+                  <span className="text-xs px-2 py-0.5 rounded" style={{ background: 'var(--bg-input)', color: 'var(--text3)' }}>
+                    {projectMap[gen.projectId]}
+                  </span>
+                )}
                 <span className="text-xs" style={{ color: 'var(--text3)' }}>
                   {new Date(gen.createdAt).toLocaleString()}
                 </span>
@@ -92,7 +104,7 @@ function GalleryContent() {
                   </span>
                 )}
                 <button
-                  onClick={() => handleDelete(gen.id)}
+                  onClick={() => handleDelete(gen)}
                   className="ml-auto text-xs px-2 py-1 rounded opacity-50 hover:opacity-100"
                   style={{ color: 'var(--red)' }}
                 >
