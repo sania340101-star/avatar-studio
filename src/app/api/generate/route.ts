@@ -51,7 +51,7 @@ export async function POST(req: NextRequest) {
         'Content-Type': 'application/json',
         'X-Service-Key': SERVICE_KEY,
       },
-      body: JSON.stringify(body),
+      body: JSON.stringify({ ...body, falKey }),
     });
 
     const data = await agentRes.json();
