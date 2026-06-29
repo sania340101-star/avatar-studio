@@ -12,7 +12,7 @@ export async function GET(req: NextRequest) {
 
   const sessionId = req.headers.get('x-session-id');
   const session = sessionId ? getSession(sessionId) : null;
-  const falKey = session?.falKey || process.env.FAL_AI_KEY || undefined;
+  const falKey = session?.falKey || process.env.FAL_KEY || undefined;
   const falBalance = await getFalBalance(falKey);
 
   return NextResponse.json({
