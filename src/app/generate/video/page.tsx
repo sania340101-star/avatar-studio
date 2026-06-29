@@ -15,7 +15,7 @@ import {
   aspectRatioToNumeric,
 } from '@/lib/models';
 import { useProject } from '@/lib/ProjectContext';
-import { VideoModelTypeFilter, Generation, TemplateRef, JobData } from '@/lib/types';
+import { VideoModelTypeFilter, Generation, GenerationCost, TemplateRef, JobData } from '@/lib/types';
 import { useProjectCache } from '@/lib/useProjectCache';
 import ImagePicker from '@/components/ImagePicker';
 import ReferenceUpload from '@/components/ReferenceUpload';
@@ -52,6 +52,8 @@ export default function GenerateVideoPage() {
   const [results, setResults] = useState<{ url: string }[]>([]);
   const [error, setError] = useState('');
   const [history, setHistory] = useState<Generation[]>([]);
+  const [pricingLoading, setPricingLoading] = useState(false);
+  const [dynamicCost, setDynamicCost] = useState<GenerationCost | null>(null);
 
   // Job state
   const [job, setJob] = useState<JobData | null>(null);
@@ -106,6 +108,7 @@ export default function GenerateVideoPage() {
     cacheRestoredRef.current = false;
     setSourceImageAR(null);
     setViewStep('input');
+    setDynamicCost(null);
   }, [activeProject?.id]);
 
   useEffect(() => {
@@ -233,6 +236,34 @@ export default function GenerateVideoPage() {
   }, [activeProject]);
 
   useEffect(() => { loadHistory(); }, [loadHistory]);
+
+  const fetchPricingRef = useRef(0);
+  async function fetchPricing(modelId: string) {
+    if (!user?.hasFalKey || !modelId || modelId === 'auto' || modelId.startsWith('group:')) {
+      setDynamicCost(null);
+      return;
+    }
+    const callId = ++fetchPricingRef.current;
+    setPricingLoading(true);
+    try {
+      const res = await fetch('/api/pricing', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ modelId }),
+      });
+      if (callId !== fetchPricingRef.current) return;
+      const data = await res.json();
+      if (data.amount != null) {
+        setDynamicCost({ amount: data.amount, currency: data.currency || 'USD', details: data.details || '' });
+      } else {
+        setDynamicCost(null);
+      }
+    } catch {
+      if (callId === fetchPricingRef.current) setDynamicCost(null);
+    } finally {
+      if (callId === fetchPricingRef.current) setPricingLoading(false);
+    }
+  }
 
   function handleTypeFilterChange(newFilter: VideoModelTypeFilter) {
     setTypeFilter(newFilter);
@@ -536,26 +567,24 @@ export default function GenerateVideoPage() {
             </div>
           </div>
 
-          {hasPrepared && (
-            <div className="p-3 rounded-lg text-sm flex items-center justify-between gap-3"
-              style={{ background: 'rgba(76,175,80,0.08)', border: '1px solid rgba(76,175,80,0.15)' }}>
-              <span style={{ color: 'var(--green)' }}>Prompt prepared. Edit settings and re-prepare, or continue to review.</span>
-              <button onClick={() => setViewStep('review')}
-                className="flex-shrink-0 text-sm font-medium px-3 py-1 rounded-lg"
-                style={{ background: 'var(--accent)', color: 'white' }}>
+          <div className="flex items-center justify-between gap-3 pt-2">
+            {hasPrepared ? (
+              <button
+                onClick={() => setViewStep('review')}
+                className="px-4 py-2.5 rounded-lg text-sm font-medium"
+                style={{ color: 'var(--text2)', border: '1px solid var(--border)' }}
+              >
                 Review &rarr;
               </button>
-            </div>
-          )}
-
-          <div className="flex flex-col-reverse sm:flex-row items-start sm:items-center justify-between gap-3 pt-2">
-            <p className="text-xs" style={{ color: 'var(--text3)' }}>
-              AI agent will craft the prompt and select the best model
-            </p>
+            ) : (
+              <p className="text-xs" style={{ color: 'var(--text3)' }}>
+                AI agent will craft the prompt and select the best model
+              </p>
+            )}
             <button
               onClick={handlePrepare}
               disabled={isPreparing || !instruction.trim() || !user?.hasFalKey}
-              className="w-full sm:w-auto px-6 py-2.5 rounded-lg text-sm font-semibold text-white disabled:opacity-50"
+              className="px-6 py-2.5 rounded-lg text-sm font-semibold text-white disabled:opacity-50"
               style={{ background: isPreparing ? 'var(--text3)' : 'var(--accent)' }}
             >
               {isPreparing ? (
@@ -575,7 +604,9 @@ export default function GenerateVideoPage() {
         </div>
       )}
 
-      {effectiveView === 'review' && job?.prepareResult && (
+      {effectiveView === 'review' && job?.prepareResult && (() => {
+        const displayCost = dynamicCost || job.prepareResult.estimatedCost || null;
+        return (
         <div className="space-y-5">
           <div className="p-4 rounded-xl" style={{ background: 'rgba(76,175,80,0.08)', border: '1px solid rgba(76,175,80,0.2)' }}>
             <div className="flex items-start justify-between gap-3">
@@ -585,17 +616,24 @@ export default function GenerateVideoPage() {
                 </p>
                 <p className="text-sm" style={{ color: 'var(--text2)' }}>{job.prepareResult.reasoning}</p>
               </div>
-              {job.prepareResult.estimatedCost && (
-                <div className="flex-shrink-0 text-right">
-                  <p className="text-xs font-medium" style={{ color: 'var(--text3)' }}>Est. cost</p>
-                  <p className="text-lg font-bold" style={{ color: 'var(--accent)' }}>
-                    ${job.prepareResult.estimatedCost.amount.toFixed(2)}
-                  </p>
-                  {job.prepareResult.estimatedCost.details && (
-                    <p className="text-xs" style={{ color: 'var(--text3)' }}>{job.prepareResult.estimatedCost.details}</p>
-                  )}
-                </div>
-              )}
+              <div className="flex-shrink-0 text-right">
+                {pricingLoading ? (
+                  <>
+                    <p className="text-xs font-medium" style={{ color: 'var(--text3)' }}>Est. cost</p>
+                    <span className="inline-block w-5 h-5 border-2 rounded-full animate-spin" style={{ borderColor: 'var(--border)', borderTopColor: 'var(--accent)' }} />
+                  </>
+                ) : displayCost ? (
+                  <>
+                    <p className="text-xs font-medium" style={{ color: 'var(--text3)' }}>Est. cost</p>
+                    <p className="text-lg font-bold" style={{ color: 'var(--accent)' }}>
+                      ${(displayCost.amount ?? 0).toFixed(3)}
+                    </p>
+                    {displayCost.details && (
+                      <p className="text-xs" style={{ color: 'var(--text3)' }}>{displayCost.details}</p>
+                    )}
+                  </>
+                ) : null}
+              </div>
             </div>
           </div>
 
@@ -611,7 +649,7 @@ export default function GenerateVideoPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm mb-1.5" style={{ color: 'var(--text2)' }}>Model</label>
-              <select value={editModel} onChange={e => setEditModel(e.target.value)} className="w-full">
+              <select value={editModel} onChange={e => { setEditModel(e.target.value); fetchPricing(e.target.value); }} className="w-full">
                 {filteredModels.map(m => (
                   <option key={m.id} value={m.id}>{m.label}</option>
                 ))}
@@ -625,7 +663,7 @@ export default function GenerateVideoPage() {
               className="px-4 py-2.5 rounded-lg text-sm font-medium"
               style={{ color: 'var(--text2)', border: '1px solid var(--border)' }}
             >
-              Back
+              &larr; Configure
             </button>
             <button
               onClick={handleGenerate}
@@ -637,7 +675,8 @@ export default function GenerateVideoPage() {
             </button>
           </div>
         </div>
-      )}
+        );
+      })()}
 
       {effectiveView === 'generating' && (
         <div className="text-center py-16">

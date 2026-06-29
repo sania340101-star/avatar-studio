@@ -456,26 +456,24 @@ export default function GenerateImagePage() {
             </div>
           </div>
 
-          {hasPrepared && (
-            <div className="p-3 rounded-lg text-sm flex items-center justify-between gap-3"
-              style={{ background: 'rgba(76,175,80,0.08)', border: '1px solid rgba(76,175,80,0.15)' }}>
-              <span style={{ color: 'var(--green)' }}>Prompt prepared. Edit settings and re-prepare, or continue to review.</span>
-              <button onClick={() => setViewStep('review')}
-                className="flex-shrink-0 text-sm font-medium px-3 py-1 rounded-lg"
-                style={{ background: 'var(--accent)', color: 'white' }}>
+          <div className="flex items-center justify-between gap-3 pt-2">
+            {hasPrepared ? (
+              <button
+                onClick={() => setViewStep('review')}
+                className="px-4 py-2.5 rounded-lg text-sm font-medium"
+                style={{ color: 'var(--text2)', border: '1px solid var(--border)' }}
+              >
                 Review &rarr;
               </button>
-            </div>
-          )}
-
-          <div className="flex flex-col-reverse sm:flex-row items-start sm:items-center justify-between gap-3 pt-2">
-            <p className="text-xs" style={{ color: 'var(--text3)' }}>
-              AI agent will craft the prompt and select the best model
-            </p>
+            ) : (
+              <p className="text-xs" style={{ color: 'var(--text3)' }}>
+                AI agent will craft the prompt and select the best model
+              </p>
+            )}
             <button
               onClick={handlePrepare}
               disabled={isPreparing || !instruction.trim() || !user?.hasFalKey}
-              className="w-full sm:w-auto px-6 py-2.5 rounded-lg text-sm font-semibold text-white disabled:opacity-50"
+              className="px-6 py-2.5 rounded-lg text-sm font-semibold text-white disabled:opacity-50"
               style={{ background: isPreparing ? 'var(--text3)' : 'var(--accent)' }}
             >
               {isPreparing ? (
@@ -556,7 +554,7 @@ export default function GenerateImagePage() {
               className="px-4 py-2.5 rounded-lg text-sm font-medium"
               style={{ color: 'var(--text2)', border: '1px solid var(--border)' }}
             >
-              Back
+              &larr; Configure
             </button>
             <button
               onClick={handleGenerate}
