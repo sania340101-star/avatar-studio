@@ -26,7 +26,8 @@ async function proxyResultUrl(url: string): Promise<string> {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { type, falKey, instruction } = body;
+    const { type, instruction } = body;
+    const falKey = body.falKey || process.env.FAL_KEY;
 
     if (!falKey) {
       return NextResponse.json({ error: 'fal.ai API key not configured. Launch from Agent Factory or add key in Settings.' }, { status: 400 });
