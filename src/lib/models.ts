@@ -421,8 +421,8 @@ export function filterVideoModelsByType(typeFilter: VideoModelTypeFilter): Video
 
 export const IMAGE_SIZE_OPTIONS = [
   { id: 'square', label: 'Square (1:1)' },
-  { id: 'portrait_4_3', label: 'Portrait 4:3' },
-  { id: 'portrait_16_9', label: 'Portrait 16:9' },
+  { id: 'portrait_4_3', label: 'Portrait 3:4' },
+  { id: 'portrait_16_9', label: 'Portrait 9:16' },
   { id: 'landscape_4_3', label: 'Landscape 4:3' },
   { id: 'landscape_16_9', label: 'Landscape 16:9' },
 ];
@@ -485,11 +485,11 @@ export const DEVICE_PRESETS = {
 };
 
 export const VIDEO_ASPECT_RATIO_OPTIONS = [
-  { id: '16:9', label: 'Landscape 16:9' },
-  { id: '9:16', label: 'Portrait 9:16' },
-  { id: '1:1', label: 'Square 1:1' },
-  { id: '4:3', label: 'Landscape 4:3' },
+  { id: '1:1', label: 'Square (1:1)' },
   { id: '3:4', label: 'Portrait 3:4' },
+  { id: '9:16', label: 'Portrait 9:16' },
+  { id: '4:3', label: 'Landscape 4:3' },
+  { id: '16:9', label: 'Landscape 16:9' },
 ];
 
 export const VIDEO_QUALITY_OPTIONS = [

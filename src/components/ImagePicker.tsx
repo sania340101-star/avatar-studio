@@ -8,9 +8,10 @@ interface Props {
   value: string;
   onChange: (url: string) => void;
   label?: string;
+  refNumber?: number;
 }
 
-export default function ImagePicker({ value, onChange, label = 'Source Image' }: Props) {
+export default function ImagePicker({ value, onChange, label = 'Source Image', refNumber }: Props) {
   const { projects, activeProject } = useProject();
   const [showPicker, setShowPicker] = useState(false);
   const [projectImages, setProjectImages] = useState<Generation[]>([]);
@@ -65,6 +66,9 @@ export default function ImagePicker({ value, onChange, label = 'Source Image' }:
       {value ? (
         <div className="flex items-center gap-3">
           <div className="relative w-16 h-16 rounded-lg overflow-hidden border" style={{ borderColor: 'var(--border)' }}>
+            {refNumber != null && (
+              <span className="absolute top-0 left-0 z-10 w-5 h-5 flex items-center justify-center rounded-br-lg text-[10px] font-bold" style={{ background: 'var(--accent)', color: 'white' }}>{refNumber}</span>
+            )}
             <img src={value} alt="" className="w-full h-full object-cover" />
             <button
               onClick={() => onChange('')}

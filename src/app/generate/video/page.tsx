@@ -32,7 +32,7 @@ export default function GenerateVideoPage() {
   const [modelPref, setModelPref] = useState('auto');
   const [instruction, setInstruction] = useState('');
   const [desiredDuration, setDesiredDuration] = useState(5);
-  const [aspectRatio, setAspectRatio] = useState('16:9');
+  const [aspectRatio, setAspectRatio] = useState('9:16');
   const [quality, setQuality] = useState('1k');
   const [fps, setFps] = useState(24);
   const [strategy, setStrategy] = useState('balance');
@@ -87,7 +87,7 @@ export default function GenerateVideoPage() {
     setModelPref('auto');
     setInstruction('');
     setDesiredDuration(5);
-    setAspectRatio('16:9');
+    setAspectRatio('9:16');
     setQuality('1k');
     setFps(24);
     setStrategy('balance');
@@ -374,11 +374,11 @@ export default function GenerateVideoPage() {
               </div>
 
               {(selectedType === 'image-to-video' || selectedType === 'avatar' || selectedType === 'motion-control' || selectedType === 'start-end-frame') && (
-                <ImagePicker value={sourceImage} onChange={setSourceImage} label="Source Image" />
+                <ImagePicker value={sourceImage} onChange={setSourceImage} label="Source Image" refNumber={1} />
               )}
 
               {selectedType === 'start-end-frame' && (
-                <ImagePicker value={endImage} onChange={setEndImage} label="End Image (optional)" />
+                <ImagePicker value={endImage} onChange={setEndImage} label="End Image (optional)" refNumber={2} />
               )}
 
               {selectedType === 'multi-reference' && (
