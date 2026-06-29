@@ -71,6 +71,7 @@ export default function Sidebar({ open, onClose, user }: { open?: boolean; onClo
   const [projectDropdownOpen, setProjectDropdownOpen] = useState(false);
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
   const [spending, setSpending] = useState<SpendingData | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   useEffect(() => {
     const stored = localStorage.getItem('avatar-studio-theme');
@@ -245,16 +246,49 @@ export default function Sidebar({ open, onClose, user }: { open?: boolean; onClo
       {activeProject && (
         <div className="p-3 border-t" style={{ borderColor: 'var(--border)' }}>
           <button
-            onClick={() => {
-              if (confirm(`Delete project "${activeProject.title}"?`)) {
-                deleteProject(activeProject.id);
-              }
-            }}
+            onClick={() => setConfirmDelete(true)}
             className="w-full py-1.5 rounded-lg text-xs"
             style={{ color: 'var(--red)', background: 'rgba(239,68,68,0.08)' }}
           >
             Delete Project
           </button>
+        </div>
+      )}
+
+      {confirmDelete && activeProject && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => setConfirmDelete(false)}>
+          <div className="absolute inset-0 bg-black/50" />
+          <div
+            className="relative rounded-xl p-5 w-80 shadow-xl"
+            style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="w-10 h-10 rounded-full flex items-center justify-center mx-auto mb-3" style={{ background: 'rgba(239,68,68,0.1)' }}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5" style={{ color: 'var(--red)' }}>
+                <polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+              </svg>
+            </div>
+            <h3 className="text-sm font-semibold text-center mb-1" style={{ color: 'var(--text1)' }}>Delete project?</h3>
+            <p className="text-xs text-center mb-4" style={{ color: 'var(--text3)' }}>
+              &quot;{activeProject.title}&quot; and all its generations will be permanently deleted.
+            </p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setConfirmDelete(false)}
+                className="flex-1 py-2 rounded-lg text-sm font-medium"
+                style={{ border: '1px solid var(--border)', color: 'var(--text2)' }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => { deleteProject(activeProject.id); setConfirmDelete(false); }}
+                className="flex-1 py-2 rounded-lg text-sm font-medium text-white"
+                style={{ background: 'var(--red, #ef4444)' }}
+              >
+                Delete
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
