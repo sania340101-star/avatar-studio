@@ -15,10 +15,11 @@ import {
   aspectRatioToNumeric,
 } from '@/lib/models';
 import { useProject } from '@/lib/ProjectContext';
-import { VideoModelTypeFilter, Generation, GenerationCost, TemplateRef, JobData } from '@/lib/types';
+import { VideoModelTypeFilter, Generation, GenerationCost, TemplateRef, JobData, Template } from '@/lib/types';
 import { useProjectCache } from '@/lib/useProjectCache';
 import ImagePicker from '@/components/ImagePicker';
 import ReferenceUpload from '@/components/ReferenceUpload';
+import BatchRunner from '@/components/BatchRunner';
 import { DEFAULT_SYSTEM_PROMPT } from '@/lib/constants';
 import VersionHistory from '@/components/VersionHistory';
 import StepBar from '@/components/StepBar';
@@ -65,6 +66,16 @@ export default function GenerateVideoPage() {
   const jobIdRef = useRef<string | null>(null);
   const completedRef = useRef<string | null>(null);
   const [viewStep, setViewStep] = useState<'input' | 'review'>('input');
+
+  // Template mode
+  const [templates, setTemplates] = useState<Template[]>([]);
+  const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null);
+
+  useEffect(() => {
+    fetch('/api/templates').then(r => r.json()).then(data => {
+      if (Array.isArray(data)) setTemplates(data.filter((t: Template) => t.slots?.length > 0));
+    }).catch(() => {});
+  }, []);
 
   // Per-project cache
   const { cache, loaded: cacheLoaded, saveCache } = useProjectCache(activeProject?.id, 'video');
@@ -434,6 +445,18 @@ export default function GenerateVideoPage() {
     );
   }
 
+  if (selectedTemplate && activeProject) {
+    return (
+      <div>
+        <BatchRunner
+          template={selectedTemplate}
+          projectId={activeProject.id}
+          onBack={() => setSelectedTemplate(null)}
+        />
+      </div>
+    );
+  }
+
   return (
     <div>
       <div className="flex items-center gap-3 flex-wrap mb-1">
@@ -443,6 +466,27 @@ export default function GenerateVideoPage() {
           {activeProject.title}
         </span>
       </div>
+
+      {templates.length > 0 && (
+        <div className="mb-4 p-3 rounded-xl flex items-center gap-3" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+          <span className="text-sm" style={{ color: 'var(--text2)' }}>Template:</span>
+          <select
+            value=""
+            onChange={e => {
+              const tmpl = templates.find(t => t.id === e.target.value);
+              if (tmpl) setSelectedTemplate(tmpl);
+            }}
+            className="flex-1 text-sm"
+          >
+            <option value="">Single generation (manual)</option>
+            {templates.map(t => (
+              <option key={t.id} value={t.id}>
+                {t.name} ({t.slots.length} slot{t.slots.length !== 1 ? 's' : ''})
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
 
       <StepBar
         current={effectiveView}
