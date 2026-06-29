@@ -612,7 +612,7 @@ export default function GenerateVideoPage() {
       )}
 
       {effectiveView === 'review' && job?.prepareResult && (() => {
-        const displayCost = dynamicCost || job.prepareResult.estimatedCost || null;
+        const displayCost = dynamicCost || (editModel === job.prepareResult.model ? job.prepareResult.estimatedCost : null);
         return (
         <div className="space-y-5">
           <div className="p-4 rounded-xl" style={{ background: 'rgba(76,175,80,0.08)', border: '1px solid rgba(76,175,80,0.2)' }}>

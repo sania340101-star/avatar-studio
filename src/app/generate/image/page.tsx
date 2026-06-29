@@ -334,7 +334,7 @@ export default function GenerateImagePage() {
     loadHistory();
   }
 
-  const displayCost = dynamicCost || job?.prepareResult?.estimatedCost || null;
+  const displayCost = dynamicCost || (editModel === job?.prepareResult?.model ? job?.prepareResult?.estimatedCost : null);
 
   if (!activeProject) {
     return (
