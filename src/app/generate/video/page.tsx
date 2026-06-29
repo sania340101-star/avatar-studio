@@ -21,6 +21,7 @@ import ImagePicker from '@/components/ImagePicker';
 import ReferenceUpload from '@/components/ReferenceUpload';
 import { DEFAULT_SYSTEM_PROMPT } from '@/lib/constants';
 import VersionHistory from '@/components/VersionHistory';
+import StepBar from '@/components/StepBar';
 
 type Step = 'input' | 'review' | 'generating';
 
@@ -56,6 +57,7 @@ export default function GenerateVideoPage() {
   const [job, setJob] = useState<JobData | null>(null);
   const jobIdRef = useRef<string | null>(null);
   const completedRef = useRef<string | null>(null);
+  const [viewStep, setViewStep] = useState<'input' | 'review'>('input');
 
   // Per-project cache
   const { cache, loaded: cacheLoaded, saveCache } = useProjectCache(activeProject?.id, 'video');
@@ -103,6 +105,7 @@ export default function GenerateVideoPage() {
     completedRef.current = null;
     cacheRestoredRef.current = false;
     setSourceImageAR(null);
+    setViewStep('input');
   }, [activeProject?.id]);
 
   useEffect(() => {
@@ -260,7 +263,7 @@ export default function GenerateVideoPage() {
     return body;
   }
 
-  const step: Step = (() => {
+  const jobStep: Step = (() => {
     if (!job || job.status === 'complete' || job.status === 'error') return 'input';
     if (job.status === 'prepared') return 'review';
     if (job.status === 'generating') return 'generating';
@@ -268,6 +271,16 @@ export default function GenerateVideoPage() {
   })();
 
   const isPreparing = job?.status === 'preparing';
+  const hasPrepared = jobStep === 'review';
+  const effectiveView: Step = jobStep === 'generating' ? 'generating' : hasPrepared ? viewStep : 'input';
+
+  const prevJobStepRef = useRef<Step>('input');
+  useEffect(() => {
+    if (jobStep === 'review' && prevJobStepRef.current !== 'review') {
+      setViewStep('review');
+    }
+    prevJobStepRef.current = jobStep;
+  }, [jobStep]);
 
   async function handlePrepare() {
     if (!instruction.trim() || !activeProject) return;
@@ -293,12 +306,7 @@ export default function GenerateVideoPage() {
   }
 
   function handleBack() {
-    if (job && job.status === 'prepared') {
-      job.status = 'error';
-      job.error = 'Cancelled by user';
-    }
-    jobIdRef.current = null;
-    setJob(null);
+    setViewStep('input');
   }
 
   async function handleGenerate() {
@@ -353,10 +361,22 @@ export default function GenerateVideoPage() {
 
   return (
     <div>
-      <h2 className="text-xl font-semibold mb-1">Generate Video</h2>
-      <p className="text-sm mb-6" style={{ color: 'var(--text3)' }}>Project: {activeProject.title}</p>
+      <div className="flex items-center gap-3 flex-wrap mb-1">
+        <h2 className="text-xl font-semibold">Generate Video</h2>
+        <span className="px-2.5 py-0.5 rounded-full text-xs font-medium"
+          style={{ background: 'var(--accent-subtle)', color: 'var(--accent)' }}>
+          {activeProject.title}
+        </span>
+      </div>
 
-      {step === 'input' && (
+      <StepBar
+        current={effectiveView}
+        hasPrepared={hasPrepared}
+        isPreparing={isPreparing}
+        onStepClick={setViewStep}
+      />
+
+      {effectiveView === 'input' && (
         <div className="space-y-5">
           {(selectedType as string) !== 'text-to-video' && (
             <div className="space-y-3 p-4 rounded-xl" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
@@ -516,6 +536,18 @@ export default function GenerateVideoPage() {
             </div>
           </div>
 
+          {hasPrepared && (
+            <div className="p-3 rounded-lg text-sm flex items-center justify-between gap-3"
+              style={{ background: 'rgba(76,175,80,0.08)', border: '1px solid rgba(76,175,80,0.15)' }}>
+              <span style={{ color: 'var(--green)' }}>Prompt prepared. Edit settings and re-prepare, or continue to review.</span>
+              <button onClick={() => setViewStep('review')}
+                className="flex-shrink-0 text-sm font-medium px-3 py-1 rounded-lg"
+                style={{ background: 'var(--accent)', color: 'white' }}>
+                Review &rarr;
+              </button>
+            </div>
+          )}
+
           <div className="flex flex-col-reverse sm:flex-row items-start sm:items-center justify-between gap-3 pt-2">
             <p className="text-xs" style={{ color: 'var(--text3)' }}>
               AI agent will craft the prompt and select the best model
@@ -531,7 +563,7 @@ export default function GenerateVideoPage() {
                   <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                   Preparing...
                 </span>
-              ) : 'Prepare Generation'}
+              ) : hasPrepared ? 'Re-prepare' : 'Prepare Generation'}
             </button>
           </div>
 
@@ -543,7 +575,7 @@ export default function GenerateVideoPage() {
         </div>
       )}
 
-      {step === 'review' && job?.prepareResult && (
+      {effectiveView === 'review' && job?.prepareResult && (
         <div className="space-y-5">
           <div className="p-4 rounded-xl" style={{ background: 'rgba(76,175,80,0.08)', border: '1px solid rgba(76,175,80,0.2)' }}>
             <div className="flex items-start justify-between gap-3">
@@ -607,7 +639,7 @@ export default function GenerateVideoPage() {
         </div>
       )}
 
-      {step === 'generating' && (
+      {effectiveView === 'generating' && (
         <div className="text-center py-16">
           <div className="w-10 h-10 border-2 rounded-full animate-spin mx-auto mb-4" style={{ borderColor: 'var(--border)', borderTopColor: 'var(--accent)' }} />
           <p style={{ color: 'var(--text2)' }}>Generating video...</p>
@@ -618,21 +650,6 @@ export default function GenerateVideoPage() {
       {error && (
         <div className="mt-4 p-3 rounded-lg text-sm" style={{ background: 'rgba(239,68,68,0.1)', color: 'var(--red)', border: '1px solid rgba(239,68,68,0.2)' }}>
           {error}
-        </div>
-      )}
-
-      {job?.prepareResult && step === 'input' && !isPreparing && (
-        <div className="mt-6 p-4 rounded-xl" style={{ background: 'rgba(76,175,80,0.08)', border: '1px solid rgba(76,175,80,0.2)' }}>
-          <p className="text-xs font-medium mb-1" style={{ color: 'var(--green)' }}>
-            Last generation: {job.prepareResult.modelLabel || job.prepareResult.model}
-          </p>
-          <p className="text-sm mb-2" style={{ color: 'var(--text2)' }}>{job.prepareResult.reasoning}</p>
-          {job.prepareResult.prompt && (
-            <details className="text-xs" style={{ color: 'var(--text3)' }}>
-              <summary className="cursor-pointer">Generated prompt</summary>
-              <p className="mt-1 whitespace-pre-wrap">{job.prepareResult.prompt}</p>
-            </details>
-          )}
         </div>
       )}
 
