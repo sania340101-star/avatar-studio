@@ -63,11 +63,11 @@ export default function ImagePicker({ value, onChange, label = 'Source Image', r
     <div>
       <label className="block text-sm mb-1.5" style={{ color: 'var(--text2)' }}>{label}</label>
 
-      {value ? (
-        <div className="flex items-center gap-3">
-          <div className="relative w-16 h-16 rounded-lg overflow-hidden border" style={{ borderColor: 'var(--border)' }}>
+      <div className="flex flex-wrap gap-2">
+        {value && (
+          <div className="relative w-20 h-20 rounded-lg overflow-hidden border" style={{ borderColor: 'var(--border)' }}>
             {refNumber != null && (
-              <span className="absolute top-0 left-0 z-10 w-5 h-5 flex items-center justify-center rounded-br-lg text-[10px] font-bold" style={{ background: 'var(--accent)', color: 'white' }}>{refNumber}</span>
+              <span className="absolute top-0 left-0 z-10 w-6 h-6 flex items-center justify-center rounded-br-lg text-xs font-bold" style={{ background: 'var(--accent)', color: 'white' }}>{refNumber}</span>
             )}
             <img src={value} alt="" className="w-full h-full object-cover" />
             <button
@@ -78,23 +78,16 @@ export default function ImagePicker({ value, onChange, label = 'Source Image', r
               x
             </button>
           </div>
-          <button
-            onClick={() => setShowPicker(true)}
-            className="text-sm px-3 py-1.5 rounded-lg border"
-            style={{ borderColor: 'var(--border)', color: 'var(--text2)' }}
-          >
-            Change
-          </button>
-        </div>
-      ) : (
+        )}
         <button
           onClick={() => setShowPicker(true)}
-          className="w-full py-3 rounded-lg border-2 border-dashed text-sm"
+          className="w-20 h-20 rounded-lg border-2 border-dashed flex flex-col items-center justify-center text-xs gap-1"
           style={{ borderColor: 'var(--border)', color: 'var(--text3)' }}
         >
-          Select image from project or upload
+          <span className="text-2xl">+</span>
+          <span>{value ? 'Change' : 'Add'}</span>
         </button>
-      )}
+      </div>
 
       {showPicker && (
         <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.7)' }}>
