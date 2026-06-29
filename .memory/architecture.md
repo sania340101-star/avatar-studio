@@ -1,3 +1,27 @@
+## 2026-06-29: SQLite billing system
+
+- SQLite `billing.db` in Docker volume (`/app/data/billing.db`, WAL mode)
+- Tables: `spending` (user_id, cost_usd, model, gen_type, created_at), `user_limits` (user_id, daily_limit_usd)
+- Default daily limit: $5.00 per user
+- `/api/generate` checks budget before calling agent, records cost after success
+- `/api/user/spending` returns daily spend, limit, remaining, fal.ai balance
+- fal.ai balance: fetched via `GET https://api.fal.ai/v1/account/billing?expand=credits`, field `credits.current_balance`, cached 60s
+- falKey stored server-side in session (sessions.ts), spending endpoint reads via x-session-id header
+- Sidebar UI: progress bar (green→yellow→red), fal.ai balance, username
+- Dependency: `better-sqlite3` (native, needs python3+make+g++ in Docker build stage)
+- `next.config.ts`: `serverExternalPackages: ['better-sqlite3']`
+
+Key files:
+- `src/lib/billing.ts` — SQLite module: record, getDailySpent, checkBudget, getFalBalance
+- `src/app/api/user/spending/route.ts` — spending + fal balance endpoint
+- `src/app/api/generate/route.ts` — budget check + cost recording
+
+## 2026-06-29: Git workflow established
+
+- Bitbucket: `kinomoltd/avatar-studio` (origin), GitHub: backup (github remote)
+- Local repo synced with D30 production state
+- Next step: set up git clone on D30 for pull-based deploys
+
 ## 2026-06-26: MCP architecture — Claude CLI + fal-mcp on D30
 
 - Replaced direct fal.ai REST API with Claude CLI + fal-mcp agent architecture
