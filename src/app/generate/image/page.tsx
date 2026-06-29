@@ -338,10 +338,15 @@ export default function GenerateImagePage() {
 
       {step === 'input' && (
         <div className="space-y-5">
-          <div>
-            <label className="block text-sm mb-1.5" style={{ color: 'var(--text2)' }}>
+          <div className="space-y-3 p-4 rounded-xl" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+            <p className="text-sm font-medium" style={{ color: 'var(--text1)' }}>
               References {references.length > 0 && <span style={{ color: 'var(--text3)' }}>({references.length})</span>}
-            </label>
+            </p>
+
+            <div className="p-2 rounded-lg text-xs" style={{ background: 'var(--accent-subtle)', color: 'var(--text2)' }}>
+              Upload reference images for editing, style transfer, or compositing. Reference by number: &quot;image 1&quot;, &quot;image 2&quot;, etc.
+            </div>
+
             <div className="flex flex-wrap gap-2">
               {references.map((ref, i) => (
                 <div key={i} className="relative w-20 h-20 rounded-lg overflow-hidden border" style={{ borderColor: 'var(--border)' }}>
@@ -365,11 +370,6 @@ export default function GenerateImagePage() {
               </button>
               <input ref={fileRef} type="file" accept="image/*" multiple className="hidden" onChange={handleFileUpload} />
             </div>
-            {references.length > 0 && (
-              <p className="text-xs mt-1" style={{ color: 'var(--text3)' }}>
-                Reference by number in your instruction: &quot;image 1&quot;, &quot;image 2&quot;, etc.
-              </p>
-            )}
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
