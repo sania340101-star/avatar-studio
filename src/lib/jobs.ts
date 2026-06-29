@@ -2,7 +2,7 @@ import { writeFileSync } from 'fs';
 import { join, extname } from 'path';
 import { getUploadsDir } from '@/lib/storage';
 import { checkBudget, recordSpending } from '@/lib/billing';
-import { JobData } from '@/lib/types';
+import { JobData, TemplateSlot } from '@/lib/types';
 
 const AGENT_URL = process.env.AGENT_URL || 'http://172.18.16.24:3391';
 const SERVICE_KEY = process.env.INTERNAL_SERVICE_KEY || '';
@@ -109,6 +109,79 @@ export function confirmJob(job: JobData, editedPrompt: string, editedModel: stri
     job.error = err instanceof Error ? err.message : 'Generation failed';
     job.updatedAt = Date.now();
   });
+}
+
+export function createBatchJobs(
+  userId: string,
+  projectId: string,
+  templateId: string,
+  slots: TemplateSlot[],
+  sharedInstruction: string,
+  sharedInput: Record<string, unknown>,
+  falKey: string,
+): { batchId: string; jobs: JobData[] } {
+  const budget = checkBudget(userId);
+  if (!budget.allowed) {
+    throw new Error(`Daily spending limit reached ($${budget.spent.toFixed(2)} / $${budget.limit.toFixed(2)}).`);
+  }
+
+  const batchId = `batch-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const batchJobs: JobData[] = [];
+
+  for (let i = 0; i < slots.length; i++) {
+    const slot = slots[i];
+    const instruction = slot.instruction || sharedInstruction;
+    const imageRefs = slot.references.filter(r => r.type === 'image');
+    const videoRefs = slot.references.filter(r => r.type === 'video');
+    const audioRefs = slot.references.filter(r => r.type === 'audio');
+
+    const input: Record<string, unknown> = {
+      ...sharedInput,
+      instruction,
+      modelPref: slot.modelId,
+      duration: slot.duration,
+      aspectRatio: slot.aspectRatio,
+      quality: slot.quality,
+      fps: slot.fps,
+      strategy: slot.strategy,
+    };
+    if (imageRefs.length > 0) input.sourceImage = sharedInput.sourceImage || imageRefs[0].url;
+    if (imageRefs.length > 1) input.endImage = imageRefs[1].url;
+    if (videoRefs.length > 0) input.sourceVideo = videoRefs[0].url;
+    if (audioRefs.length > 0) input.audioUrl = audioRefs[0].url;
+
+    const job: JobData = {
+      id: `job-${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${i}`,
+      userId,
+      projectId,
+      type: 'video',
+      status: 'generating',
+      input,
+      batchId,
+      slotIndex: i,
+      templateId,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    };
+    jobs.set(job.id, job);
+    batchJobs.push(job);
+
+    runGenerate(job, instruction, slot.modelId, falKey).catch(err => {
+      job.status = 'error';
+      job.error = err instanceof Error ? err.message : 'Generation failed';
+      job.updatedAt = Date.now();
+    });
+  }
+
+  return { batchId, jobs: batchJobs };
+}
+
+export function getBatchJobs(batchId: string): JobData[] {
+  const result: JobData[] = [];
+  for (const job of jobs.values()) {
+    if (job.batchId === batchId) result.push(job);
+  }
+  return result.sort((a, b) => (a.slotIndex ?? 0) - (b.slotIndex ?? 0));
 }
 
 async function runPrepare(job: JobData, falKey: string) {

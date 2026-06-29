@@ -195,6 +195,9 @@ export interface JobData {
   prepareResult?: JobPrepareResult;
   result?: JobResult;
   error?: string;
+  batchId?: string;
+  slotIndex?: number;
+  templateId?: string;
   createdAt: number;
   updatedAt: number;
 }
