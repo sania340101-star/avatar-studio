@@ -50,6 +50,15 @@ export const IMAGE_MODEL_OPTIONS: ImageModelOption[] = [
   { id: 'fal-ai/firered-image-edit-v1.1', label: 'FireRed Image Edit v1.1', format: 'flux' },
   { id: 'fal-ai/reve/edit', label: 'Reve Edit', format: 'flux' },
   { id: 'imagineart/imagineart-1.5-preview/text-to-image', label: 'ImagineArt 1.5', format: 'aspect_ratio' },
+  // Kolors
+  { id: 'fal-ai/kolors/image-to-image', label: 'Kolors Image-to-Image', format: 'aspect_ratio' },
+  // GPT Image
+  { id: 'openai/gpt-image-2', label: 'GPT Image 2', format: 'aspect_ratio' },
+  { id: 'openai/gpt-image-2/edit', label: 'GPT Image 2 Edit', format: 'aspect_ratio' },
+  // FLUX Klein
+  { id: 'fal-ai/flux-2/klein/9b', label: 'FLUX.2 Klein 9B', format: 'flux' },
+  // Ideogram
+  { id: 'fal-ai/ideogram/v3', label: 'Ideogram V3', format: 'aspect_ratio' },
 ];
 
 // ---------------------------------------------------------------------------
@@ -58,6 +67,10 @@ export const IMAGE_MODEL_OPTIONS: ImageModelOption[] = [
 
 const IMAGE_GROUP_PREFIXES: [string, string][] = [
   ['fal-ai/flux', 'flux'],
+  ['fal-ai/kolors', 'kolors'],
+  ['openai/', 'openai'],
+  ['fal-ai/ideogram', 'ideogram'],
+  ['fal-ai/flux-2/klein', 'flux'],
   ['fal-ai/nano-banana', 'nano-banana'],
   ['fal-ai/recraft', 'recraft'],
   ['fal-ai/qwen-image-2', 'qwen'],
@@ -73,6 +86,9 @@ const IMAGE_GROUP_LABELS: Record<string, string> = {
   qwen: 'Qwen Image',
   seedream: 'Seedream',
   bria: 'Bria',
+  kolors: 'Kolors',
+  openai: 'OpenAI',
+  ideogram: 'Ideogram',
   other: 'Other',
 };
 
@@ -334,6 +350,8 @@ const VIDEO_GROUP_LABELS: Record<string, string> = {
   ovi: 'Ovi',
   goalforce: 'Goal Force',
   mirelo: 'Mirelo',
+  openai: 'OpenAI',
+  ideogram: 'Ideogram',
   other: 'Other',
 };
 

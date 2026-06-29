@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { writeFileSync } from 'fs';
 import { join, extname } from 'path';
 import { getUploadsDir } from '@/lib/storage';
+import { checkBudget, recordSpending } from '@/lib/billing';
 
 const AGENT_URL = process.env.AGENT_URL || 'http://172.18.16.24:3391';
 const SERVICE_KEY = process.env.INTERNAL_SERVICE_KEY || '';
@@ -35,6 +36,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Instruction is required.' }, { status: 400 });
     }
 
+    const userId = req.headers.get('x-user-id') || 'anonymous';
+    const budget = checkBudget(userId);
+    if (!budget.allowed) {
+      return NextResponse.json({
+        error: `Daily spending limit reached ($${budget.spent.toFixed(2)} / $${budget.limit.toFixed(2)}). Try again tomorrow.`,
+      }, { status: 429 });
+    }
+
     const agentRes = await fetch(`${AGENT_URL}/generate`, {
       method: 'POST',
       headers: {
@@ -48,6 +57,11 @@ export async function POST(req: NextRequest) {
 
     if (!agentRes.ok || data.error) {
       throw new Error(data.error || `Agent error (${agentRes.status})`);
+    }
+
+    const costUsd = typeof data.cost?.amount === 'number' ? data.cost.amount : 0;
+    if (costUsd > 0) {
+      recordSpending(userId, costUsd, data.model || '', type || 'image');
     }
 
     if (type === 'video') {

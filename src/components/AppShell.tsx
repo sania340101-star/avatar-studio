@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { AppUser } from '@/lib/types';
-import { tryAutoLogin, setSessionUser } from '@/lib/auth';
+import { initAuth, setSessionUser } from '@/lib/auth';
 import { ProjectProvider } from '@/lib/ProjectContext';
 import Sidebar from './Sidebar';
 
@@ -90,8 +90,7 @@ function OtpLogin({ onLogin }: { onLogin: (user: AppUser) => void }) {
         userName: data.userName,
         role: data.role,
         authMethod: 'otp',
-        falKey: data.falKey,
-        anthropicKey: data.anthropicKey,
+        hasFalKey: data.hasFalKey,
       };
       setSessionUser(user);
       onLogin(user);
@@ -224,9 +223,10 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   useEffect(() => {
-    const u = tryAutoLogin();
-    setUser(u);
-    setLoading(false);
+    initAuth().then(u => {
+      setUser(u);
+      setLoading(false);
+    });
   }, []);
 
   if (loading) {
@@ -261,7 +261,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           </button>
           <span className="text-lg font-semibold" style={{ color: 'var(--accent)' }}>Avatar Studio</span>
         </div>
-        <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+        <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} user={user} />
         <main className="flex-1 overflow-auto p-4 md:p-6 pb-[env(safe-area-inset-bottom,0px)]">
           <div className="max-w-5xl mx-auto">
             {children}

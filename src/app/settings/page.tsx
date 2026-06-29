@@ -7,8 +7,6 @@ import { DEFAULT_SYSTEM_PROMPT } from '@/lib/constants';
 
 export default function SettingsPage() {
   const user = getSessionUser();
-  const [falKey, setFalKey] = useState(user?.falKey || '');
-  const [anthropicKey, setAnthropicKey] = useState(user?.anthropicKey || '');
   const [systemPrompt, setSystemPrompt] = useState(user?.systemPrompt || DEFAULT_SYSTEM_PROMPT);
   const [saved, setSaved] = useState(false);
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
@@ -30,7 +28,7 @@ export default function SettingsPage() {
 
   function handleSave() {
     if (!user) return;
-    const updated = { ...user, falKey: falKey.trim() || undefined, anthropicKey: anthropicKey.trim() || undefined, systemPrompt: systemPrompt.trim() || undefined };
+    const updated = { ...user, systemPrompt: systemPrompt.trim() || undefined };
     setSessionUser(updated);
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
@@ -40,8 +38,6 @@ export default function SettingsPage() {
     clearSession();
     window.location.href = '/';
   }
-
-  const isOtp = user?.authMethod === 'otp';
 
   return (
     <AppShell>
@@ -103,45 +99,16 @@ export default function SettingsPage() {
           <div className="rounded-xl p-5" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
             <h3 className="font-medium mb-1">API Keys</h3>
             <p className="text-xs mb-4" style={{ color: 'var(--text3)' }}>
-              {isOtp
-                ? 'Enter your API keys to enable generation and AI agent features.'
-                : 'Keys synced from Agent Factory. Override here if needed.'}
+              Keys are managed server-side for security. They are provided via Agent Factory SSO or configured by the administrator.
             </p>
-
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm mb-1.5" style={{ color: 'var(--text2)' }}>fal.ai API Key</label>
-                <input
-                  type="password"
-                  value={falKey}
-                  onChange={e => setFalKey(e.target.value)}
-                  placeholder="Enter fal.ai API key..."
-                  className="w-full"
-                />
-                <p className="text-xs mt-1" style={{ color: 'var(--text3)' }}>Required for image and video generation</p>
-              </div>
-
-              <div>
-                <label className="block text-sm mb-1.5" style={{ color: 'var(--text2)' }}>Anthropic API Key</label>
-                <input
-                  type="password"
-                  value={anthropicKey}
-                  onChange={e => setAnthropicKey(e.target.value)}
-                  placeholder="Enter Anthropic API key..."
-                  className="w-full"
-                />
-                <p className="text-xs mt-1" style={{ color: 'var(--text3)' }}>Required for AI prompt generation agent</p>
-              </div>
-
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={handleSave}
-                  className="px-5 py-2 rounded-lg text-sm font-semibold text-white"
-                  style={{ background: 'var(--accent)' }}
-                >
-                  Save Keys
-                </button>
-                {saved && <span className="text-sm" style={{ color: 'var(--green)' }}>Saved</span>}
+            <div className="space-y-2 text-sm">
+              <div className="flex justify-between items-center">
+                <span style={{ color: 'var(--text2)' }}>fal.ai</span>
+                {user?.hasFalKey ? (
+                  <span className="px-2 py-0.5 rounded text-xs font-medium" style={{ background: 'rgba(76,175,80,0.1)', color: 'var(--green)' }}>Configured</span>
+                ) : (
+                  <span className="px-2 py-0.5 rounded text-xs font-medium" style={{ background: 'rgba(239,68,68,0.1)', color: 'var(--red)' }}>Not configured</span>
+                )}
               </div>
             </div>
           </div>

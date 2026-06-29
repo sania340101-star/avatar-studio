@@ -1,3 +1,18 @@
+## 2026-06-26: MCP architecture deployed and tested
+
+Done:
+- Claude CLI + fal-mcp installed on D30, verified working
+- Agent wrapper (server.js) deployed as systemd service (avatar-agent.service)
+- best-claude-key endpoint on D32 (AdminPanel restarted)
+- Avatar Studio generate flow rewritten (single-step via agent)
+- Container rebuilt on D30, E2E test passed
+- Full chain: UI → route.ts → agent wrapper → D32 key pool → Claude CLI → fal-mcp → result
+
+Pending:
+- Phase 4a: Mask preview with canvas overlay
+- Phase 4b: Export with FFmpeg
+- Clean up old ANTHROPIC_API_KEY from container .env
+
 ## 2026-06-26: Phase 3e — Per-project cache deployed
 
 Done:

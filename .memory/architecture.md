@@ -1,3 +1,22 @@
+## 2026-06-26: MCP architecture — Claude CLI + fal-mcp on D30
+
+- Replaced direct fal.ai REST API with Claude CLI + fal-mcp agent architecture
+- Agent wrapper: `agent/server.js` on D30 host (port 3391, systemd: avatar-agent.service)
+- Flow: UI → route.ts (proxy) → agent wrapper → Claude CLI → fal-mcp → fal.ai
+- Claude keys: rotated from D32 key pool via GET /api/internal/best-claude-key
+- Per-request temp .mcp.json with user's fal key in auth headers (cleaned up after)
+- Claude CLI flags: --print --output-format json --max-turns 15 --model haiku --allowedTools
+- Single-step generation: user writes instruction, agent selects model + crafts prompt + generates
+- Image and video pages merged from two-step (prepare+generate) to one-step flow
+- Removed: /api/prepare-generation endpoint, review step UI, direct fal.ai queue polling
+- Container .env: AGENT_URL=http://172.18.16.24:3391
+
+Key files:
+- `agent/server.js` — HTTP wrapper bridging Docker → Claude CLI on D30 host
+- `agent/.env` — AF_INTERNAL_URL, INTERNAL_SERVICE_KEY, AGENT_PORT
+- `src/app/api/generate/route.ts` — simple proxy to agent wrapper
+- D32: `admin-panel/api/internal/auth.js` — best-claude-key endpoint
+
 ## 2026-06-26: Video agent flow + expandable version history
 
 - Video generation page rewritten to two-step agent flow (same as image)

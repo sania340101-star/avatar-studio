@@ -4,7 +4,6 @@ import { useState, useEffect, useCallback } from 'react';
 import AppShell from '@/components/AppShell';
 import { useProject } from '@/lib/ProjectContext';
 import { Template, TemplateRef, Generation, VideoModelTypeFilter } from '@/lib/types';
-import { getSessionUser } from '@/lib/auth';
 import {
   IMAGE_MODEL_OPTIONS, IMAGE_MODEL_GROUPS,
   VIDEO_MODEL_OPTIONS, VIDEO_MODEL_GROUPS,
@@ -18,8 +17,7 @@ import ReferenceUpload from '@/components/ReferenceUpload';
 type View = 'list' | 'create' | 'use';
 
 function TemplatesContent() {
-  const user = getSessionUser();
-  const { activeProject } = useProject();
+  const { user, activeProject } = useProject();
   const [view, setView] = useState<View>('list');
   const [templates, setTemplates] = useState<Template[]>([]);
   const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null);
@@ -52,7 +50,7 @@ function TemplatesContent() {
         <TemplateForm userId={user?.userId || ''} onSave={() => { load(); setView('list'); }} onCancel={() => setView('list')} />
       )}
       {view === 'use' && selectedTemplate && (
-        <TemplateRunner template={selectedTemplate} onBack={() => setView('list')} projectId={activeProject?.id} userId={user?.userId} falKey={user?.falKey} />
+        <TemplateRunner template={selectedTemplate} onBack={() => setView('list')} projectId={activeProject?.id} />
       )}
     </div>
   );
@@ -409,12 +407,10 @@ function TemplateForm({ userId, onSave, onCancel }: {
   );
 }
 
-function TemplateRunner({ template, onBack, projectId, userId, falKey }: {
+function TemplateRunner({ template, onBack, projectId }: {
   template: Template;
   onBack: () => void;
   projectId?: string;
-  userId?: string;
-  falKey?: string;
 }) {
   const templateRefs = template.references || [];
   const [prompt, setPrompt] = useState(template.promptTemplate);
@@ -448,7 +444,6 @@ function TemplateRunner({ template, onBack, projectId, userId, falKey }: {
         type: template.type,
         model: template.modelId,
         prompt: prompt.trim(),
-        falKey,
       };
 
       if (template.type === 'image') {
@@ -486,7 +481,6 @@ function TemplateRunner({ template, onBack, projectId, userId, falKey }: {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           projectId,
-          userId,
           type: template.type,
           modelId: template.modelId,
           modelLabel: template.modelLabel,

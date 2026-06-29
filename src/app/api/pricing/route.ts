@@ -16,33 +16,33 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'fal.ai API key not configured.' }, { status: 400 });
     }
 
-    const body = await req.json();
-    const { instruction } = body;
+    const { modelId } = await req.json();
 
-    if (!instruction?.trim()) {
-      return NextResponse.json({ error: 'Instruction is required.' }, { status: 400 });
+    if (!modelId) {
+      return NextResponse.json({ error: 'modelId required' }, { status: 400 });
     }
 
-    const agentBody = { ...body, falKey: session.falKey };
-
-    const agentRes = await fetch(`${AGENT_URL}/prepare`, {
+    const agentRes = await fetch(`${AGENT_URL}/pricing`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'X-Service-Key': SERVICE_KEY,
       },
-      body: JSON.stringify(agentBody),
+      body: JSON.stringify({ modelId, falKey: session.falKey }),
     });
 
     const data = await agentRes.json();
 
     if (!agentRes.ok || data.error) {
-      throw new Error(data.error || `Agent error (${agentRes.status})`);
+      return NextResponse.json({ error: data.error || 'Pricing unavailable' }, { status: 502 });
     }
 
-    return NextResponse.json(data);
-  } catch (e: unknown) {
-    const message = e instanceof Error ? e.message : 'Failed to prepare generation';
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json({
+      amount: data.amount ?? null,
+      currency: data.currency ?? 'USD',
+      details: data.details ?? '',
+    });
+  } catch {
+    return NextResponse.json({ error: 'Pricing service unavailable' }, { status: 502 });
   }
 }

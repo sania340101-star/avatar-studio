@@ -1,3 +1,4 @@
+import { randomInt } from 'crypto';
 import nodemailer from 'nodemailer';
 
 interface OtpEntry {
@@ -19,7 +20,7 @@ setInterval(() => {
 }, 60_000);
 
 function generateCode(): string {
-  return String(Math.floor(100000 + Math.random() * 900000));
+  return String(randomInt(100000, 1000000));
 }
 
 export function createOtp(email: string): string {
@@ -38,16 +39,20 @@ export function verifyOtp(email: string, code: string): boolean {
   const key = email.toLowerCase();
   const entry = otpStore.get(key);
   if (!entry) return false;
+
   if (Date.now() > entry.expiresAt) {
     otpStore.delete(key);
     return false;
   }
+
   entry.attempts++;
   if (entry.attempts > MAX_ATTEMPTS) {
     otpStore.delete(key);
     return false;
   }
+
   if (entry.code !== code) return false;
+
   otpStore.delete(key);
   return true;
 }
@@ -61,7 +66,6 @@ export function isEmailAllowed(email: string): boolean {
 }
 
 let transporter: nodemailer.Transporter | null = null;
-
 function getTransporter(): nodemailer.Transporter | null {
   if (transporter) return transporter;
   const host = process.env.SMTP_HOST;
@@ -91,15 +95,16 @@ export async function sendOtpEmail(email: string, code: string): Promise<{ sent:
     subject: 'Avatar Studio — Login Code',
     text: `Your login code: ${code}\n\nThis code expires in 5 minutes.`,
     html: `
-      <div style="font-family: 'Encode Sans', sans-serif; max-width: 400px; margin: 0 auto; padding: 32px; background: #1a1730; color: #f0eef5; border-radius: 16px;">
+      <div style="font-family: 'Encode Sans', sans-serif; max-width: 400px; margin: 0 auto; padding: 32px; background: #1a1625; border-radius: 16px;">
         <h2 style="color: #6c3ce0; margin: 0 0 16px;">Avatar Studio</h2>
         <p style="margin: 0 0 24px; color: #a8a3b8;">Your login code:</p>
-        <div style="font-size: 32px; font-weight: 600; letter-spacing: 8px; text-align: center; padding: 16px; background: #13112a; border-radius: 8px; border: 1px solid #2a2745;">
+        <div style="font-size: 32px; font-weight: 600; letter-spacing: 8px; text-align: center; padding: 16px; background: #2a2435; border-radius: 8px; color: #e8e4f0;">
           ${code}
         </div>
         <p style="margin: 24px 0 0; font-size: 12px; color: #6b6580;">This code expires in 5 minutes.</p>
       </div>
     `,
   });
+
   return { sent: true };
 }

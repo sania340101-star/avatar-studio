@@ -4,7 +4,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
   const params = await searchParams;
   const token = params.token;
   if (token) {
-    redirect(`/generate/image?token=${encodeURIComponent(token)}`);
+    redirect(`/api/auth/sso?token=${encodeURIComponent(token)}`);
   }
   redirect('/generate/image');
 }

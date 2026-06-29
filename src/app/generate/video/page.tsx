@@ -9,7 +9,6 @@ import {
   getVideoModelType,
   isVideoModelGroupId,
 } from '@/lib/models';
-import { getSessionUser } from '@/lib/auth';
 import { useProject } from '@/lib/ProjectContext';
 import { VideoModelTypeFilter, Generation, GenerationCost, TemplateRef } from '@/lib/types';
 import { useProjectCache } from '@/lib/useProjectCache';
@@ -31,8 +30,7 @@ interface AgentResult {
 type Step = 'input' | 'review' | 'generating';
 
 export default function GenerateVideoPage() {
-  const user = getSessionUser();
-  const { activeProject } = useProject();
+  const { user, activeProject } = useProject();
 
   // Step 1: User input
   const [typeFilter, setTypeFilter] = useState<VideoModelTypeFilter>('all');
@@ -127,7 +125,6 @@ export default function GenerateVideoPage() {
 
   function handleTypeFilterChange(newFilter: VideoModelTypeFilter) {
     setTypeFilter(newFilter);
-    // If current modelPref is a specific model that doesn't match the new filter, reset to auto
     if (!isVideoModelGroupId(modelPref)) {
       const available = filterVideoModelsByType(newFilter);
       if (!available.find(m => m.id === modelPref)) {
@@ -142,7 +139,6 @@ export default function GenerateVideoPage() {
       instruction: instruction.trim(),
       model: modelPref === 'auto' ? undefined : modelPref,
       duration: desiredDuration,
-      falKey: user?.falKey,
       systemPrompt: user?.systemPrompt || DEFAULT_SYSTEM_PROMPT,
     };
     if (sourceImage) body.sourceImage = sourceImage;
@@ -220,7 +216,6 @@ export default function GenerateVideoPage() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             projectId: activeProject.id,
-            userId: user?.userId,
             type: 'video',
             modelId: editModel || modelPref,
             modelLabel: agentResult?.selectedModelLabel || modelPref,
@@ -405,7 +400,7 @@ export default function GenerateVideoPage() {
             </p>
             <button
               onClick={handlePrepare}
-              disabled={preparing || !instruction.trim() || !user?.falKey}
+              disabled={preparing || !instruction.trim() || !user?.hasFalKey}
               className="w-full sm:w-auto px-6 py-2.5 rounded-lg text-sm font-semibold text-white disabled:opacity-50"
               style={{ background: preparing ? 'var(--text3)' : 'var(--accent)' }}
             >
@@ -418,7 +413,7 @@ export default function GenerateVideoPage() {
             </button>
           </div>
 
-          {!user?.falKey && (
+          {!user?.hasFalKey && (
             <div className="p-3 rounded-lg text-sm" style={{ background: 'var(--accent-subtle)', color: 'var(--accent)' }}>
               Add your fal.ai API key in Settings to enable generation.
             </div>

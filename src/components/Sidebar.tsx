@@ -2,8 +2,9 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useProject } from '@/lib/ProjectContext';
+import { AppUser } from '@/lib/types';
 
 const NAV_ITEMS = [
   {
@@ -54,7 +55,14 @@ const NAV_ITEMS = [
   },
 ];
 
-export default function Sidebar({ open, onClose }: { open?: boolean; onClose?: () => void }) {
+interface SpendingData {
+  spent: number;
+  limit: number;
+  remaining: number;
+  falBalance: number | null;
+}
+
+export default function Sidebar({ open, onClose, user }: { open?: boolean; onClose?: () => void; user?: AppUser | null }) {
   const pathname = usePathname();
   const { projects, activeProject, setActiveProjectId, createProject, deleteProject } = useProject();
   const [creating, setCreating] = useState(false);
@@ -62,11 +70,26 @@ export default function Sidebar({ open, onClose }: { open?: boolean; onClose?: (
   const [projectSearch, setProjectSearch] = useState('');
   const [projectDropdownOpen, setProjectDropdownOpen] = useState(false);
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
+  const [spending, setSpending] = useState<SpendingData | null>(null);
 
   useEffect(() => {
     const stored = localStorage.getItem('avatar-studio-theme');
     if (stored === 'dark') setTheme('dark');
   }, []);
+
+  const fetchSpending = useCallback(async () => {
+    if (!user) return;
+    try {
+      const res = await fetch('/api/user/spending');
+      if (res.ok) setSpending(await res.json());
+    } catch { /* ignore */ }
+  }, [user]);
+
+  useEffect(() => {
+    fetchSpending();
+    const iv = setInterval(fetchSpending, 30_000);
+    return () => clearInterval(iv);
+  }, [fetchSpending]);
 
   function toggleTheme() {
     const next = theme === 'light' ? 'dark' : 'light';
@@ -227,11 +250,44 @@ export default function Sidebar({ open, onClose }: { open?: boolean; onClose?: (
         </div>
       )}
 
+      {spending && (
+        <div className="px-3 pt-3 pb-1 border-t" style={{ borderColor: 'var(--border)' }}>
+          <div className="flex items-center justify-between mb-1.5">
+            <span className="text-xs font-medium" style={{ color: 'var(--text2)' }}>Daily spend</span>
+            <span className="text-xs" style={{ color: 'var(--text3)' }}>
+              ${spending.spent.toFixed(2)} / ${spending.limit.toFixed(2)}
+            </span>
+          </div>
+          <div className="w-full h-1.5 rounded-full overflow-hidden" style={{ background: 'var(--border)' }}>
+            <div
+              className="h-full rounded-full transition-all duration-300"
+              style={{
+                width: `${Math.min(100, (spending.spent / spending.limit) * 100)}%`,
+                background: spending.spent >= spending.limit ? 'var(--red, #ef4444)' : spending.spent >= spending.limit * 0.8 ? '#f59e0b' : 'var(--accent)',
+              }}
+            />
+          </div>
+          {spending.falBalance !== null && (
+            <div className="flex items-center justify-between mt-1.5">
+              <span className="text-xs" style={{ color: 'var(--text3)' }}>fal.ai balance</span>
+              <span className="text-xs font-medium" style={{ color: 'var(--text2)' }}>
+                ${spending.falBalance.toFixed(2)}
+              </span>
+            </div>
+          )}
+        </div>
+      )}
+
       <div className="p-3 border-t text-xs flex items-center justify-between" style={{ borderColor: 'var(--border)', color: 'var(--text3)' }}>
-        <span>v1.3.0</span>
+        <div className="flex items-center gap-1.5 min-w-0">
+          {user && (
+            <span className="truncate" title={user.userName}>{user.userName}</span>
+          )}
+          {!user && <span>v1.4.0</span>}
+        </div>
         <button
           onClick={toggleTheme}
-          className="p-1 rounded-md transition-colors hover:opacity-70"
+          className="p-1 rounded-md transition-colors hover:opacity-70 flex-shrink-0"
           title={theme === 'light' ? 'Switch to dark theme' : 'Switch to light theme'}
           style={{ color: 'var(--text3)' }}
         >

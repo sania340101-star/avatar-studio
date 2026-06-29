@@ -69,8 +69,7 @@ export interface AppUser {
   userName: string;
   role: string;
   authMethod: 'sso' | 'otp';
-  falKey?: string;
-  anthropicKey?: string;
+  hasFalKey?: boolean;
   systemPrompt?: string;
 }
 
