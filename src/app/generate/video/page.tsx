@@ -58,6 +58,7 @@ export default function GenerateVideoPage() {
   const [history, setHistory] = useState<Generation[]>([]);
   const [pricingLoading, setPricingLoading] = useState(false);
   const [dynamicCost, setDynamicCost] = useState<GenerationCost | null>(null);
+  const [unitPrice, setUnitPrice] = useState<{ amount: number; unit: string } | null>(null);
 
   // Job state
   const [job, setJob] = useState<JobData | null>(null);
@@ -257,9 +258,17 @@ export default function GenerateVideoPage() {
   useEffect(() => { loadHistory(); }, [loadHistory]);
 
   const fetchPricingRef = useRef(0);
-  async function fetchPricing(modelId: string) {
+  function computeCost(up: { amount: number; unit: string }, dur: number): GenerationCost {
+    if (up.unit === 'seconds') {
+      return { amount: up.amount * dur, currency: 'USD', details: `${dur} seconds × $${up.amount.toFixed(3)}/sec` };
+    }
+    return { amount: up.amount, currency: 'USD', details: up.unit ? `per ${up.unit}` : '' };
+  }
+
+  async function fetchPricing(modelId: string, dur?: number) {
     if (!user?.hasFalKey || !modelId || modelId === 'auto' || modelId.startsWith('group:')) {
       setDynamicCost(null);
+      setUnitPrice(null);
       return;
     }
     const callId = ++fetchPricingRef.current;
@@ -273,12 +282,15 @@ export default function GenerateVideoPage() {
       if (callId !== fetchPricingRef.current) return;
       const data = await res.json();
       if (data.amount != null) {
-        setDynamicCost({ amount: data.amount, currency: data.currency || 'USD', details: data.details || '' });
+        const up = { amount: data.amount, unit: (data.details || '').replace('per ', '') };
+        setUnitPrice(up);
+        setDynamicCost(computeCost(up, dur ?? editDuration));
       } else {
+        setUnitPrice(null);
         setDynamicCost(null);
       }
     } catch {
-      if (callId === fetchPricingRef.current) setDynamicCost(null);
+      if (callId === fetchPricingRef.current) { setDynamicCost(null); setUnitPrice(null); }
     } finally {
       if (callId === fetchPricingRef.current) setPricingLoading(false);
     }
@@ -323,6 +335,10 @@ export default function GenerateVideoPage() {
   const isPreparing = job?.status === 'preparing';
   const hasPrepared = jobStep === 'review';
   const effectiveView: Step = jobStep === 'generating' ? 'generating' : hasPrepared ? viewStep : 'input';
+
+  useEffect(() => {
+    if (unitPrice) setDynamicCost(computeCost(unitPrice, editDuration));
+  }, [editDuration]);
 
   const prevJobStepRef = useRef<Step>('input');
   useEffect(() => {

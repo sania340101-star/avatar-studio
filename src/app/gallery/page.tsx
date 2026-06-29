@@ -98,9 +98,9 @@ function GalleryContent() {
                 <span className="text-xs" style={{ color: 'var(--text3)' }}>
                   {new Date(gen.createdAt).toLocaleString()}
                 </span>
-                {(gen.actualCost || gen.estimatedCost) && (
+                {(gen.actualCost?.amount != null || gen.estimatedCost?.amount != null) && (
                   <span className="text-xs font-medium px-2 py-0.5 rounded" style={{ background: 'rgba(108,60,224,0.1)', color: 'var(--accent)' }}>
-                    {gen.actualCost ? `$${gen.actualCost.amount.toFixed(2)}` : `~$${gen.estimatedCost!.amount.toFixed(2)}`}
+                    {gen.actualCost?.amount != null ? `$${gen.actualCost.amount.toFixed(2)}` : `~$${gen.estimatedCost!.amount!.toFixed(2)}`}
                   </span>
                 )}
                 <button
@@ -136,7 +136,7 @@ function GalleryContent() {
 
               {Object.keys(gen.params).length > 0 && (
                 <div className="mt-3 flex flex-wrap gap-2">
-                  {Object.entries(gen.params).map(([k, v]) => v != null && (
+                  {Object.entries(gen.params).map(([k, v]) => v != null && typeof v !== 'object' && (
                     <span key={k} className="text-xs px-2 py-0.5 rounded" style={{ background: 'var(--bg-input)', color: 'var(--text3)' }}>
                       {k}: {String(v)}
                     </span>
