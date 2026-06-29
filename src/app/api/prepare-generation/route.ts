@@ -12,8 +12,9 @@ export async function POST(req: NextRequest) {
     }
 
     const session = getSession(sessionId);
-    if (!session?.falKey) {
-      return NextResponse.json({ error: 'fal.ai API key not configured.' }, { status: 400 });
+    const falKey = session?.falKey || process.env.FAL_KEY;
+    if (!falKey) {
+      return NextResponse.json({ error: 'fal.ai API key not configured. Launch from Agent Factory or add key in Settings.' }, { status: 400 });
     }
 
     const body = await req.json();
@@ -23,7 +24,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Instruction is required.' }, { status: 400 });
     }
 
-    const agentBody = { ...body, falKey: session.falKey };
+    const agentBody = { ...body, falKey };
 
     const agentRes = await fetch(`${AGENT_URL}/prepare`, {
       method: 'POST',

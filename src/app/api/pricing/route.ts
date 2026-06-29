@@ -12,7 +12,8 @@ export async function POST(req: NextRequest) {
     }
 
     const session = getSession(sessionId);
-    if (!session?.falKey) {
+    const falKey = session?.falKey || process.env.FAL_KEY;
+    if (!falKey) {
       return NextResponse.json({ error: 'fal.ai API key not configured.' }, { status: 400 });
     }
 
@@ -28,7 +29,7 @@ export async function POST(req: NextRequest) {
         'Content-Type': 'application/json',
         'X-Service-Key': SERVICE_KEY,
       },
-      body: JSON.stringify({ modelId, falKey: session.falKey }),
+      body: JSON.stringify({ modelId, falKey }),
     });
 
     const data = await agentRes.json();

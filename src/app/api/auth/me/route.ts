@@ -14,16 +14,16 @@ export async function GET(request: NextRequest) {
   }
 
   const session = getSession(payload.sessionId as string);
-  if (!session) {
+  if (!session && !process.env.FAL_KEY) {
     return NextResponse.json({ user: null });
   }
 
   return NextResponse.json({
     user: {
-      userId: session.userId,
+      userId: session?.userId ?? (payload.userId as string) ?? 'unknown',
       role: payload.role ?? 'user',
-      hasFalKey: !!session.falKey,
-      hasAnthropicKey: !!session.anthropicKey,
+      hasFalKey: !!(session?.falKey || process.env.FAL_KEY),
+      hasAnthropicKey: !!(session?.anthropicKey),
     },
   });
 }

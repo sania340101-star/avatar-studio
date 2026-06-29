@@ -5,7 +5,12 @@ export interface SessionData {
   createdAt: number;
 }
 
-const sessions = new Map<string, SessionData>();
+// Persist sessions across Next.js HMR reloads in dev mode
+const globalSessions = globalThis as unknown as { __avatarSessions?: Map<string, SessionData> };
+if (!globalSessions.__avatarSessions) {
+  globalSessions.__avatarSessions = new Map<string, SessionData>();
+}
+const sessions = globalSessions.__avatarSessions;
 const TTL_MS = 24 * 60 * 60 * 1000;
 
 function generateId(): string {
