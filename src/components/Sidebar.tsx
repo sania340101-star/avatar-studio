@@ -289,7 +289,7 @@ export default function Sidebar({ open, onClose, user }: { open?: boolean; onClo
       <div className="p-3 border-t text-xs flex items-center justify-between" style={{ borderColor: 'var(--border)', color: 'var(--text3)' }}>
         <div className="flex items-center gap-1.5 min-w-0">
           {user && (
-            <span className="truncate" title={user.userName}>{user.userName}</span>
+            <span className="truncate" title={user.userName || user.userId}>{user.userName || user.userId}</span>
           )}
           {!user && <span>v1.4.0</span>}
         </div>
