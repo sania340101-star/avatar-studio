@@ -94,7 +94,7 @@ export async function getFalBalance(falKey?: string): Promise<number | null> {
     });
     if (!res.ok) return null;
     const data = await res.json();
-    const balance = data.credits?.balance ?? data.balance ?? null;
+    const balance = data.credits?.current_balance ?? data.balance ?? null;
     if (typeof balance === 'number') {
       _falBalanceCache = { value: balance, ts: Date.now() };
     }
