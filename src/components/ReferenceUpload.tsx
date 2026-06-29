@@ -61,6 +61,7 @@ export default function ReferenceUpload({ references, onChange, accept, label = 
                 const globalIdx = references.indexOf(ref);
                 return (
                   <div key={i} className="relative w-16 h-16 rounded-lg overflow-hidden border" style={{ borderColor: 'var(--border)' }}>
+                    <span className="absolute top-0 left-0 z-10 w-5 h-5 flex items-center justify-center rounded-br-lg text-[10px] font-bold" style={{ background: 'var(--accent)', color: 'white' }}>{i + 1}</span>
                     <img src={ref.url} alt={ref.name} className="w-full h-full object-cover" />
                     <button
                       onClick={() => handleRemove(globalIdx)}
@@ -124,6 +125,7 @@ export default function ReferenceUpload({ references, onChange, accept, label = 
           {images.length > 0 && `${images.length} image${images.length > 1 ? 's' : ''}`}
           {videos.length > 0 && `${images.length > 0 ? ', ' : ''}${videos.length} video${videos.length > 1 ? 's' : ''}`}
           {audios.length > 0 && `${(images.length > 0 || videos.length > 0) ? ', ' : ''}${audios.length} audio`}
+          {images.length > 1 && ' — reference by number: "image 1", "image 2", etc.'}
         </p>
       )}
     </div>

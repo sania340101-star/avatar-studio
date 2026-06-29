@@ -5,9 +5,14 @@ import {
   VIDEO_MODEL_OPTIONS,
   VIDEO_MODEL_GROUPS,
   VIDEO_MODEL_TYPE_FILTERS,
+  VIDEO_ASPECT_RATIO_OPTIONS,
+  VIDEO_QUALITY_OPTIONS,
+  VIDEO_FPS_OPTIONS,
+  VIDEO_STRATEGY_OPTIONS,
   filterVideoModelsByType,
   getVideoModelType,
   isVideoModelGroupId,
+  aspectRatioToNumeric,
 } from '@/lib/models';
 import { useProject } from '@/lib/ProjectContext';
 import { VideoModelTypeFilter, Generation, TemplateRef, JobData } from '@/lib/types';
@@ -27,7 +32,12 @@ export default function GenerateVideoPage() {
   const [modelPref, setModelPref] = useState('auto');
   const [instruction, setInstruction] = useState('');
   const [desiredDuration, setDesiredDuration] = useState(5);
+  const [aspectRatio, setAspectRatio] = useState('16:9');
+  const [quality, setQuality] = useState('1k');
+  const [fps, setFps] = useState(24);
+  const [strategy, setStrategy] = useState('balance');
   const [sourceImage, setSourceImage] = useState('');
+  const [sourceImageAR, setSourceImageAR] = useState<number | null>(null);
   const [sourceVideo, setSourceVideo] = useState<TemplateRef | null>(null);
   const [audioRef, setAudioRef] = useState<TemplateRef | null>(null);
   const [endImage, setEndImage] = useState('');
@@ -58,6 +68,10 @@ export default function GenerateVideoPage() {
       if (cache.modelPref) setModelPref(cache.modelPref);
       if (cache.typeFilter) setTypeFilter(cache.typeFilter as VideoModelTypeFilter);
       if (cache.desiredDuration) setDesiredDuration(cache.desiredDuration);
+      if (cache.aspectRatio) setAspectRatio(cache.aspectRatio);
+      if (cache.quality) setQuality(cache.quality);
+      if (cache.fps) setFps(cache.fps);
+      if (cache.strategy) setStrategy(cache.strategy);
       if (cache.sourceImage) setSourceImage(cache.sourceImage);
       if (cache.sourceVideo) setSourceVideo(cache.sourceVideo);
       if (cache.audioRef) setAudioRef(cache.audioRef);
@@ -73,6 +87,10 @@ export default function GenerateVideoPage() {
     setModelPref('auto');
     setInstruction('');
     setDesiredDuration(5);
+    setAspectRatio('16:9');
+    setQuality('1k');
+    setFps(24);
+    setStrategy('balance');
     setSourceImage('');
     setSourceVideo(null);
     setAudioRef(null);
@@ -84,15 +102,25 @@ export default function GenerateVideoPage() {
     jobIdRef.current = null;
     completedRef.current = null;
     cacheRestoredRef.current = false;
+    setSourceImageAR(null);
   }, [activeProject?.id]);
+
+  useEffect(() => {
+    if (!sourceImage) { setSourceImageAR(null); return; }
+    const img = document.createElement('img');
+    img.onload = () => setSourceImageAR(img.naturalWidth / img.naturalHeight);
+    img.onerror = () => setSourceImageAR(null);
+    img.src = sourceImage;
+  }, [sourceImage]);
 
   useEffect(() => {
     if (!cacheRestoredRef.current) return;
     saveCache({
       instruction, modelPref, typeFilter, desiredDuration,
+      aspectRatio, quality, fps, strategy,
       sourceImage, sourceVideo, audioRef, endImage, multiRefs,
     });
-  }, [instruction, modelPref, typeFilter, desiredDuration, sourceImage, sourceVideo, audioRef, endImage, multiRefs, saveCache]);
+  }, [instruction, modelPref, typeFilter, desiredDuration, aspectRatio, quality, fps, strategy, sourceImage, sourceVideo, audioRef, endImage, multiRefs, saveCache]);
 
   // Check for active job on mount / project change
   useEffect(() => {
@@ -161,6 +189,7 @@ export default function GenerateVideoPage() {
           prompt: job.result.prompt || editPrompt,
           params: {
             duration: desiredDuration, typeFilter,
+            aspectRatio, quality, fps, strategy,
             instruction: instruction.trim(),
             agentReasoning: job.prepareResult?.reasoning,
             sourceImage: sourceImage || undefined,
@@ -217,6 +246,10 @@ export default function GenerateVideoPage() {
       instruction: instruction.trim(),
       model: modelPref === 'auto' ? undefined : modelPref,
       duration: desiredDuration,
+      aspectRatio,
+      quality,
+      fps,
+      strategy,
       systemPrompt: user?.systemPrompt || DEFAULT_SYSTEM_PROMPT,
     };
     if (sourceImage) body.sourceImage = sourceImage;
@@ -289,6 +322,10 @@ export default function GenerateVideoPage() {
     if (gen.params.instruction) setInstruction(gen.params.instruction as string);
     if (gen.params.duration) setDesiredDuration(gen.params.duration as number);
     if (gen.params.typeFilter) setTypeFilter(gen.params.typeFilter as VideoModelTypeFilter);
+    if (gen.params.aspectRatio) setAspectRatio(gen.params.aspectRatio as string);
+    if (gen.params.quality) setQuality(gen.params.quality as string);
+    if (gen.params.fps) setFps(gen.params.fps as number);
+    if (gen.params.strategy) setStrategy(gen.params.strategy as string);
     setModelPref(gen.modelId);
     setSourceImage((gen.params.sourceImage as string) || '');
     setSourceVideo(gen.params.sourceVideo ? { url: gen.params.sourceVideo as string, type: 'video', name: 'Source video' } : null);
@@ -404,14 +441,67 @@ export default function GenerateVideoPage() {
             </div>
           </div>
 
-          <div>
-            <label className="block text-sm mb-1.5" style={{ color: 'var(--text2)' }}>Duration (seconds)</label>
-            <select value={desiredDuration} onChange={e => setDesiredDuration(Number(e.target.value))} className="w-full" style={{ maxWidth: '200px' }}>
-              {[3, 4, 5, 6, 7, 8, 10, 12, 15, 20].map(d => (
-                <option key={d} value={d}>{d}s</option>
-              ))}
-            </select>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <div>
+              <label className="block text-sm mb-1.5" style={{ color: 'var(--text2)' }}>Duration</label>
+              <select value={desiredDuration} onChange={e => setDesiredDuration(Number(e.target.value))} className="w-full">
+                {[3, 4, 5, 6, 7, 8, 10, 12, 15, 20].map(d => (
+                  <option key={d} value={d}>{d}s</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm mb-1.5" style={{ color: 'var(--text2)' }}>Aspect Ratio</label>
+              <select value={aspectRatio} onChange={e => setAspectRatio(e.target.value)} className="w-full">
+                {VIDEO_ASPECT_RATIO_OPTIONS.map(o => (
+                  <option key={o.id} value={o.id}>{o.label}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm mb-1.5" style={{ color: 'var(--text2)' }}>Quality</label>
+              <select value={quality} onChange={e => setQuality(e.target.value)} className="w-full">
+                {VIDEO_QUALITY_OPTIONS.map(o => (
+                  <option key={o.id} value={o.id}>{o.label}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm mb-1.5" style={{ color: 'var(--text2)' }}>FPS</label>
+              <select value={fps} onChange={e => setFps(Number(e.target.value))} className="w-full">
+                {VIDEO_FPS_OPTIONS.map(o => (
+                  <option key={o.id} value={o.id}>{o.label}</option>
+                ))}
+              </select>
+            </div>
           </div>
+
+          <div>
+            <label className="block text-sm mb-1.5" style={{ color: 'var(--text2)' }}>Strategy</label>
+            <div className="grid grid-cols-3 gap-2">
+              {VIDEO_STRATEGY_OPTIONS.map(s => (
+                <button
+                  key={s.id}
+                  onClick={() => setStrategy(s.id)}
+                  className="py-2.5 rounded-lg text-sm font-medium transition-colors text-center"
+                  style={{
+                    background: strategy === s.id ? 'var(--accent)' : 'var(--bg-input)',
+                    color: strategy === s.id ? 'white' : 'var(--text2)',
+                    border: `1px solid ${strategy === s.id ? 'var(--accent)' : 'var(--border)'}`,
+                  }}
+                >
+                  {s.label}
+                  <span className="block text-[10px] mt-0.5" style={{ opacity: 0.7 }}>{s.description}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {sourceImage && sourceImageAR !== null && Math.abs(sourceImageAR - aspectRatioToNumeric(aspectRatio)) > 0.15 && (
+            <div className="p-3 rounded-lg text-sm" style={{ background: 'rgba(245,158,11,0.1)', color: '#f59e0b', border: '1px solid rgba(245,158,11,0.2)' }}>
+              Source image aspect ratio ({sourceImageAR.toFixed(2)}) doesn&apos;t match video ({aspectRatio}). The image will be auto-adjusted before generation.
+            </div>
+          )}
 
           <div>
             <label className="block text-sm mb-1.5" style={{ color: 'var(--text2)' }}>Instruction</label>

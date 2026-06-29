@@ -483,3 +483,35 @@ export const DEVICE_PRESETS = {
   hh1x3: { name: 'HH 1x3', width: 930, height: 2174, fps: 60 },
   solo: { name: 'Solo', width: 880, height: 880, fps: 60 },
 };
+
+export const VIDEO_ASPECT_RATIO_OPTIONS = [
+  { id: '16:9', label: 'Landscape 16:9' },
+  { id: '9:16', label: 'Portrait 9:16' },
+  { id: '1:1', label: 'Square 1:1' },
+  { id: '4:3', label: 'Landscape 4:3' },
+  { id: '3:4', label: 'Portrait 3:4' },
+];
+
+export const VIDEO_QUALITY_OPTIONS = [
+  { id: 'sd', label: 'SD' },
+  { id: '1k', label: '1K' },
+  { id: '2k', label: '2K' },
+  { id: '4k', label: '4K' },
+];
+
+export const VIDEO_FPS_OPTIONS = [
+  { id: 24, label: '24 fps' },
+  { id: 30, label: '30 fps' },
+  { id: 60, label: '60 fps' },
+];
+
+export const VIDEO_STRATEGY_OPTIONS = [
+  { id: 'economy', label: 'Economy', description: 'Cheapest models' },
+  { id: 'balance', label: 'Balance', description: 'Cost vs quality' },
+  { id: 'quality', label: 'Quality', description: 'Best results' },
+];
+
+export function aspectRatioToNumeric(ar: string): number {
+  const [w, h] = ar.split(':').map(Number);
+  return w / h;
+}

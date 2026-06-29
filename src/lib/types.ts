@@ -119,6 +119,10 @@ export interface VideoFormCache {
   modelPref: string;
   typeFilter: string;
   desiredDuration: number;
+  aspectRatio: string;
+  quality: string;
+  fps: number;
+  strategy: string;
   sourceImage: string;
   sourceVideo: TemplateRef | null;
   audioRef: TemplateRef | null;
