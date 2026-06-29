@@ -148,11 +148,11 @@ export default function GenerateVideoPage() {
     return () => { cancelled = true; };
   }, [activeProject?.id]);
 
-  // Poll active job
+  // Poll active job (stop once prepared — user may edit fields)
   useEffect(() => {
     const id = jobIdRef.current;
     if (!id) return;
-    if (job?.status === 'complete' || job?.status === 'error') return;
+    if (job?.status === 'complete' || job?.status === 'error' || job?.status === 'prepared') return;
 
     const interval = setInterval(async () => {
       try {
