@@ -116,7 +116,14 @@ export default function GenerateImagePage() {
     const interval = setInterval(async () => {
       try {
         const res = await fetch(`/api/jobs/${id}`);
-        if (!res.ok) return;
+        if (!res.ok) {
+          if (res.status === 404) {
+            jobIdRef.current = null;
+            setJob(null);
+            setError('Job expired. Please try again.');
+          }
+          return;
+        }
         const data: JobData = await res.json();
         setJob(data);
         if (data.status === 'prepared' && data.prepareResult) {
