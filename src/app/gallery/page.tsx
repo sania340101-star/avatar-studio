@@ -12,6 +12,7 @@ function GalleryContent() {
   const [tab, setTab] = useState<TabFilter>('all');
   const [filterProjectId, setFilterProjectId] = useState<string>('all');
   const [generations, setGenerations] = useState<Generation[]>([]);
+  const [lightbox, setLightbox] = useState<{ url: string; type: 'image' | 'video' } | null>(null);
 
   const load = useCallback(async () => {
     const params = new URLSearchParams();
@@ -117,19 +118,21 @@ function GalleryContent() {
               {gen.type === 'image' ? (
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
                   {gen.resultUrls.map((url, i) => (
-                    <a key={i} href={url} target="_blank" rel="noopener noreferrer"
-                      className="rounded-lg overflow-hidden border hover:border-[var(--accent)] transition-colors"
+                    <button key={i} onClick={() => setLightbox({ url, type: 'image' })}
+                      className="rounded-lg overflow-hidden border hover:border-[var(--accent)] transition-colors cursor-zoom-in"
                       style={{ borderColor: 'var(--border)' }}>
                       <img src={url} alt="" className="w-full aspect-square object-cover" />
-                    </a>
+                    </button>
                   ))}
                 </div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   {gen.resultUrls.map((url, i) => (
-                    <div key={i} className="rounded-lg overflow-hidden border" style={{ borderColor: 'var(--border)' }}>
-                      <video src={url} controls className="w-full" />
-                    </div>
+                    <button key={i} onClick={() => setLightbox({ url, type: 'video' })}
+                      className="rounded-lg overflow-hidden border hover:border-[var(--accent)] transition-colors cursor-zoom-in"
+                      style={{ borderColor: 'var(--border)' }}>
+                      <video src={url} className="w-full pointer-events-none" />
+                    </button>
                   ))}
                 </div>
               )}
@@ -145,6 +148,29 @@ function GalleryContent() {
               )}
             </div>
           ))}
+        </div>
+      )}
+      {lightbox && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center"
+          style={{ background: 'rgba(0,0,0,0.85)' }}
+          onClick={() => setLightbox(null)}
+        >
+          <button
+            onClick={() => setLightbox(null)}
+            className="absolute top-4 right-4 text-white/70 hover:text-white transition-colors z-10"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-8 h-8">
+              <path d="M18 6L6 18M6 6l12 12" />
+            </svg>
+          </button>
+          <div className="max-w-[90vw] max-h-[90vh]" onClick={e => e.stopPropagation()}>
+            {lightbox.type === 'image' ? (
+              <img src={lightbox.url} alt="" className="max-w-full max-h-[90vh] object-contain rounded-lg" />
+            ) : (
+              <video src={lightbox.url} className="max-w-full max-h-[90vh] object-contain rounded-lg" controls autoPlay />
+            )}
+          </div>
         </div>
       )}
     </div>
