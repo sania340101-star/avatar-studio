@@ -7,7 +7,7 @@ import { Template, TemplateSlot, TemplateRef, VideoModelTypeFilter } from '@/lib
 import {
   VIDEO_MODEL_OPTIONS, VIDEO_MODEL_GROUPS,
   VIDEO_MODEL_TYPE_FILTERS, filterVideoModelsByType, getVideoModelType,
-  VIDEO_ASPECT_RATIO_OPTIONS, VIDEO_QUALITY_OPTIONS, VIDEO_FPS_OPTIONS, VIDEO_STRATEGY_OPTIONS,
+  VIDEO_ASPECT_RATIO_OPTIONS, VIDEO_QUALITY_OPTIONS, VIDEO_FPS_OPTIONS,
   DEVICE_PRESETS,
 } from '@/lib/models';
 import ImagePicker from '@/components/ImagePicker';
@@ -337,13 +337,6 @@ function SlotCard({ slot, index, total, onChange, onRemove }: {
                 {VIDEO_FPS_OPTIONS.map(o => <option key={o.id} value={o.id}>{o.label}</option>)}
               </select>
             </div>
-          </div>
-
-          <div>
-            <label className="block text-xs mb-1" style={{ color: 'var(--text3)' }}>Strategy</label>
-            <select value={slot.strategy} onChange={e => updateField('strategy', e.target.value)} className="w-full text-sm">
-              {VIDEO_STRATEGY_OPTIONS.map(o => <option key={o.id} value={o.id}>{o.label} — {o.description}</option>)}
-            </select>
           </div>
 
           <div>

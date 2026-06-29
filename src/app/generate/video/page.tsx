@@ -615,26 +615,28 @@ export default function GenerateVideoPage() {
             </div>
           </div>
 
-          <div>
-            <label className="block text-sm mb-1.5" style={{ color: 'var(--text2)' }}>Strategy</label>
-            <div className="grid grid-cols-3 gap-2">
-              {VIDEO_STRATEGY_OPTIONS.map(s => (
-                <button
-                  key={s.id}
-                  onClick={() => setStrategy(s.id)}
-                  className="py-2.5 rounded-lg text-sm font-medium transition-colors text-center"
-                  style={{
-                    background: strategy === s.id ? 'var(--accent)' : 'var(--bg-input)',
-                    color: strategy === s.id ? 'white' : 'var(--text2)',
-                    border: `1px solid ${strategy === s.id ? 'var(--accent)' : 'var(--border)'}`,
-                  }}
-                >
-                  {s.label}
-                  <span className="block text-[10px] mt-0.5" style={{ opacity: 0.7 }}>{s.description}</span>
-                </button>
-              ))}
+          {(modelPref === 'auto' || isVideoModelGroupId(modelPref)) && (
+            <div>
+              <label className="block text-sm mb-1.5" style={{ color: 'var(--text2)' }}>Strategy</label>
+              <div className="grid grid-cols-3 gap-2">
+                {VIDEO_STRATEGY_OPTIONS.map(s => (
+                  <button
+                    key={s.id}
+                    onClick={() => setStrategy(s.id)}
+                    className="py-2.5 rounded-lg text-sm font-medium transition-colors text-center"
+                    style={{
+                      background: strategy === s.id ? 'var(--accent)' : 'var(--bg-input)',
+                      color: strategy === s.id ? 'white' : 'var(--text2)',
+                      border: `1px solid ${strategy === s.id ? 'var(--accent)' : 'var(--border)'}`,
+                    }}
+                  >
+                    {s.label}
+                    <span className="block text-[10px] mt-0.5" style={{ opacity: 0.7 }}>{s.description}</span>
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
 
           {sourceImage && sourceImageAR !== null && Math.abs(sourceImageAR - aspectRatioToNumeric(aspectRatio)) > 0.15 && (
             <div className="p-3 rounded-lg text-sm" style={{ background: 'rgba(245,158,11,0.1)', color: '#f59e0b', border: '1px solid rgba(245,158,11,0.2)' }}>
