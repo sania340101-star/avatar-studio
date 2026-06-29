@@ -111,7 +111,7 @@ async function runPrepare(job: JobData, falKey: string) {
   const res = await fetch(`${AGENT_URL}/prepare`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'X-Service-Key': SERVICE_KEY },
-    body: JSON.stringify({ ...job.input, falKey }),
+    body: JSON.stringify({ ...job.input, type: job.type, falKey }),
   });
   const data = await res.json();
   if (!res.ok || data.error) throw new Error(data.error || `Agent error (${res.status})`);
@@ -131,7 +131,7 @@ async function runGenerate(job: JobData, prompt: string, model: string, falKey: 
   const res = await fetch(`${AGENT_URL}/generate`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'X-Service-Key': SERVICE_KEY },
-    body: JSON.stringify({ ...job.input, instruction: prompt, model, falKey }),
+    body: JSON.stringify({ ...job.input, type: job.type, instruction: prompt, model, falKey }),
   });
   const data = await res.json();
   if (!res.ok || data.error) throw new Error(data.error || `Agent error (${res.status})`);
