@@ -10,29 +10,19 @@ import {
   isVideoModelGroupId,
 } from '@/lib/models';
 import { useProject } from '@/lib/ProjectContext';
-import { VideoModelTypeFilter, Generation, GenerationCost, TemplateRef } from '@/lib/types';
+import { VideoModelTypeFilter, Generation, TemplateRef, JobData } from '@/lib/types';
 import { useProjectCache } from '@/lib/useProjectCache';
 import ImagePicker from '@/components/ImagePicker';
 import ReferenceUpload from '@/components/ReferenceUpload';
 import { DEFAULT_SYSTEM_PROMPT } from '@/lib/constants';
 import VersionHistory from '@/components/VersionHistory';
 
-interface AgentResult {
-  prompt: string;
-  selectedModel: string;
-  selectedModelLabel: string;
-  params: { duration: number };
-  reasoning: string;
-  paramNotes?: string[];
-  estimatedCost?: GenerationCost;
-}
-
 type Step = 'input' | 'review' | 'generating';
 
 export default function GenerateVideoPage() {
   const { user, activeProject } = useProject();
 
-  // Step 1: User input
+  // User input
   const [typeFilter, setTypeFilter] = useState<VideoModelTypeFilter>('all');
   const [modelPref, setModelPref] = useState('auto');
   const [instruction, setInstruction] = useState('');
@@ -43,20 +33,19 @@ export default function GenerateVideoPage() {
   const [endImage, setEndImage] = useState('');
   const [multiRefs, setMultiRefs] = useState<TemplateRef[]>([]);
 
-  // Agent result (shown after generation)
-  const [agentResult, setAgentResult] = useState<AgentResult | null>(null);
-
   // Editable fields for review step
   const [editPrompt, setEditPrompt] = useState('');
   const [editModel, setEditModel] = useState('');
 
   // State
-  const [step, setStep] = useState<Step>('input');
-  const [preparing, setPreparing] = useState(false);
-  const [generating, setGenerating] = useState(false);
   const [results, setResults] = useState<{ url: string }[]>([]);
   const [error, setError] = useState('');
   const [history, setHistory] = useState<Generation[]>([]);
+
+  // Job state
+  const [job, setJob] = useState<JobData | null>(null);
+  const jobIdRef = useRef<string | null>(null);
+  const completedRef = useRef<string | null>(null);
 
   // Per-project cache
   const { cache, loaded: cacheLoaded, saveCache } = useProjectCache(activeProject?.id, 'video');
@@ -89,10 +78,11 @@ export default function GenerateVideoPage() {
     setAudioRef(null);
     setEndImage('');
     setMultiRefs([]);
-    setAgentResult(null);
     setResults([]);
     setError('');
-    setStep('input');
+    setJob(null);
+    jobIdRef.current = null;
+    completedRef.current = null;
     cacheRestoredRef.current = false;
   }, [activeProject?.id]);
 
@@ -104,9 +94,98 @@ export default function GenerateVideoPage() {
     });
   }, [instruction, modelPref, typeFilter, desiredDuration, sourceImage, sourceVideo, audioRef, endImage, multiRefs, saveCache]);
 
+  // Check for active job on mount / project change
+  useEffect(() => {
+    if (!activeProject) return;
+    let cancelled = false;
+    fetch(`/api/jobs?projectId=${activeProject.id}&type=video`)
+      .then(r => r.json())
+      .then(data => {
+        if (cancelled || !data.active) return;
+        const j: JobData = data.active;
+        jobIdRef.current = j.id;
+        setJob(j);
+        if (j.status === 'prepared' && j.prepareResult) {
+          setEditPrompt(j.prepareResult.prompt);
+          setEditModel(j.prepareResult.model);
+        }
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [activeProject?.id]);
+
+  // Poll active job
+  useEffect(() => {
+    const id = jobIdRef.current;
+    if (!id) return;
+    if (job?.status === 'complete' || job?.status === 'error') return;
+
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch(`/api/jobs/${id}`);
+        if (!res.ok) return;
+        const data: JobData = await res.json();
+        setJob(data);
+        if (data.status === 'prepared' && data.prepareResult) {
+          setEditPrompt(data.prepareResult.prompt);
+          setEditModel(data.prepareResult.model);
+        }
+      } catch { /* ignore */ }
+    }, 1500);
+    return () => clearInterval(interval);
+  }, [job?.status]);
+
+  // Handle job completion
+  useEffect(() => {
+    if (!job || !activeProject) return;
+    if (job.status === 'complete' && job.result && completedRef.current !== job.id) {
+      completedRef.current = job.id;
+      if (job.result.video) {
+        setResults(prev => [job.result!.video!, ...prev]);
+      }
+      const allRefUrls = [
+        ...(sourceImage ? [sourceImage] : []),
+        ...(sourceVideo ? [sourceVideo.url] : []),
+        ...(audioRef ? [audioRef.url] : []),
+        ...(endImage ? [endImage] : []),
+        ...multiRefs.map(r => r.url),
+      ];
+      fetch('/api/generations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          projectId: activeProject.id,
+          type: 'video',
+          modelId: job.result.model || editModel || modelPref,
+          modelLabel: job.result.modelLabel || job.prepareResult?.modelLabel || modelPref,
+          prompt: job.result.prompt || editPrompt,
+          params: {
+            duration: desiredDuration, typeFilter,
+            instruction: instruction.trim(),
+            agentReasoning: job.prepareResult?.reasoning,
+            sourceImage: sourceImage || undefined,
+            sourceVideo: sourceVideo?.url,
+            audioUrl: audioRef?.url,
+            endImage: endImage || undefined,
+            referenceImages: multiRefs.length > 0 ? multiRefs.map(r => r.url) : undefined,
+          },
+          referenceUrls: allRefUrls,
+          resultUrls: job.result.video ? [job.result.video.url] : [],
+          status: 'completed',
+          estimatedCost: job.prepareResult?.estimatedCost || undefined,
+          actualCost: job.result.cost || undefined,
+        }),
+      }).then(() => loadHistory()).catch(() => {});
+      jobIdRef.current = null;
+    }
+    if (job.status === 'error') {
+      setError(job.error || 'Unknown error');
+      jobIdRef.current = null;
+    }
+  }, [job?.status, job?.id]);
+
   const filteredModels = filterVideoModelsByType(typeFilter);
 
-  // Determine selected model type for context-aware reference inputs
   const selectedModelForRefs = isVideoModelGroupId(modelPref)
     ? null
     : VIDEO_MODEL_OPTIONS.find(m => m.id === modelPref);
@@ -135,7 +214,6 @@ export default function GenerateVideoPage() {
 
   function buildBody(): Record<string, unknown> {
     const body: Record<string, unknown> = {
-      type: 'video',
       instruction: instruction.trim(),
       model: modelPref === 'auto' ? undefined : modelPref,
       duration: desiredDuration,
@@ -149,102 +227,61 @@ export default function GenerateVideoPage() {
     return body;
   }
 
+  const step: Step = (() => {
+    if (!job || job.status === 'complete' || job.status === 'error') return 'input';
+    if (job.status === 'prepared') return 'review';
+    if (job.status === 'generating') return 'generating';
+    return 'input';
+  })();
+
+  const isPreparing = job?.status === 'preparing';
+
   async function handlePrepare() {
     if (!instruction.trim() || !activeProject) return;
-    setPreparing(true);
     setError('');
-    setAgentResult(null);
     try {
-      const res = await fetch('/api/prepare-generation', {
+      const res = await fetch('/api/jobs', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(buildBody()),
+        body: JSON.stringify({
+          projectId: activeProject.id,
+          type: 'video',
+          ...buildBody(),
+        }),
       });
       const data = await res.json();
       if (data.error) throw new Error(data.error);
-      setAgentResult({
-        prompt: data.prompt || '',
-        selectedModel: data.model || '',
-        selectedModelLabel: data.modelLabel || '',
-        params: { duration: desiredDuration },
-        reasoning: data.reasoning || '',
-        estimatedCost: data.estimatedCost || undefined,
-      });
-      setEditPrompt(data.prompt || '');
-      setEditModel(data.model || '');
-      setStep('review');
+      jobIdRef.current = data.id;
+      completedRef.current = null;
+      setJob(data);
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Preparation failed');
-    } finally {
-      setPreparing(false);
+      setError(e instanceof Error ? e.message : 'Failed to start preparation');
     }
   }
 
   function handleBack() {
-    setStep('input');
+    if (job && job.status === 'prepared') {
+      job.status = 'error';
+      job.error = 'Cancelled by user';
+    }
+    jobIdRef.current = null;
+    setJob(null);
   }
 
   async function handleGenerate() {
-    if (!editPrompt.trim() || !activeProject) return;
-    setGenerating(true);
-    setStep('generating');
+    if (!editPrompt.trim() || !jobIdRef.current) return;
     setError('');
     try {
-      const genBody = buildBody();
-      genBody.instruction = editPrompt.trim();
-      genBody.model = editModel;
-
-      const res = await fetch('/api/generate', {
+      const res = await fetch(`/api/jobs/${jobIdRef.current}/confirm`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(genBody),
+        body: JSON.stringify({ prompt: editPrompt.trim(), model: editModel }),
       });
       const data = await res.json();
       if (data.error) throw new Error(data.error);
-      if (data.video) {
-        setResults(prev => [data.video, ...prev]);
-
-        const allRefUrls = [
-          ...(sourceImage ? [sourceImage] : []),
-          ...(sourceVideo ? [sourceVideo.url] : []),
-          ...(audioRef ? [audioRef.url] : []),
-          ...(endImage ? [endImage] : []),
-          ...multiRefs.map(r => r.url),
-        ];
-        await fetch('/api/generations', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            projectId: activeProject.id,
-            type: 'video',
-            modelId: editModel || modelPref,
-            modelLabel: agentResult?.selectedModelLabel || modelPref,
-            prompt: editPrompt.trim(),
-            params: {
-              duration: desiredDuration, typeFilter,
-              instruction: instruction.trim(),
-              agentReasoning: agentResult?.reasoning,
-              sourceImage: sourceImage || undefined,
-              sourceVideo: sourceVideo?.url,
-              audioUrl: audioRef?.url,
-              endImage: endImage || undefined,
-              referenceImages: multiRefs.length > 0 ? multiRefs.map(r => r.url) : undefined,
-            },
-            referenceUrls: allRefUrls,
-            resultUrls: [data.video.url],
-            status: 'completed',
-            estimatedCost: agentResult?.estimatedCost || undefined,
-            actualCost: data.cost || undefined,
-          }),
-        });
-        loadHistory();
-        setStep('input');
-      }
+      setJob(data);
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Generation failed');
-      setStep('input');
-    } finally {
-      setGenerating(false);
+      setError(e instanceof Error ? e.message : 'Failed to start generation');
     }
   }
 
@@ -284,7 +321,6 @@ export default function GenerateVideoPage() {
 
       {step === 'input' && (
         <div className="space-y-5">
-          {/* Context-aware reference inputs */}
           {(selectedType as string) !== 'text-to-video' && (
             <div className="space-y-3 p-4 rounded-xl" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
               <p className="text-sm font-medium" style={{ color: 'var(--text1)' }}>References</p>
@@ -337,7 +373,6 @@ export default function GenerateVideoPage() {
             </div>
           )}
 
-          {/* Model preference + Type filter */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm mb-1.5" style={{ color: 'var(--text2)' }}>Model</label>
@@ -369,7 +404,6 @@ export default function GenerateVideoPage() {
             </div>
           </div>
 
-          {/* Duration */}
           <div>
             <label className="block text-sm mb-1.5" style={{ color: 'var(--text2)' }}>Duration (seconds)</label>
             <select value={desiredDuration} onChange={e => setDesiredDuration(Number(e.target.value))} className="w-full" style={{ maxWidth: '200px' }}>
@@ -379,7 +413,6 @@ export default function GenerateVideoPage() {
             </select>
           </div>
 
-          {/* Instruction */}
           <div>
             <label className="block text-sm mb-1.5" style={{ color: 'var(--text2)' }}>Instruction</label>
             <textarea
@@ -393,18 +426,17 @@ export default function GenerateVideoPage() {
             </div>
           </div>
 
-          {/* Prepare button */}
           <div className="flex flex-col-reverse sm:flex-row items-start sm:items-center justify-between gap-3 pt-2">
             <p className="text-xs" style={{ color: 'var(--text3)' }}>
               AI agent will craft the prompt and select the best model
             </p>
             <button
               onClick={handlePrepare}
-              disabled={preparing || !instruction.trim() || !user?.hasFalKey}
+              disabled={isPreparing || !instruction.trim() || !user?.hasFalKey}
               className="w-full sm:w-auto px-6 py-2.5 rounded-lg text-sm font-semibold text-white disabled:opacity-50"
-              style={{ background: preparing ? 'var(--text3)' : 'var(--accent)' }}
+              style={{ background: isPreparing ? 'var(--text3)' : 'var(--accent)' }}
             >
-              {preparing ? (
+              {isPreparing ? (
                 <span className="flex items-center gap-2">
                   <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                   Preparing...
@@ -421,32 +453,30 @@ export default function GenerateVideoPage() {
         </div>
       )}
 
-      {step === 'review' && agentResult && (
+      {step === 'review' && job?.prepareResult && (
         <div className="space-y-5">
-          {/* Agent reasoning */}
           <div className="p-4 rounded-xl" style={{ background: 'rgba(76,175,80,0.08)', border: '1px solid rgba(76,175,80,0.2)' }}>
             <div className="flex items-start justify-between gap-3">
               <div>
                 <p className="text-xs font-medium mb-1" style={{ color: 'var(--green)' }}>
-                  Agent selected: {agentResult.selectedModelLabel || agentResult.selectedModel}
+                  Agent selected: {job.prepareResult.modelLabel || job.prepareResult.model}
                 </p>
-                <p className="text-sm" style={{ color: 'var(--text2)' }}>{agentResult.reasoning}</p>
+                <p className="text-sm" style={{ color: 'var(--text2)' }}>{job.prepareResult.reasoning}</p>
               </div>
-              {agentResult.estimatedCost && (
+              {job.prepareResult.estimatedCost && (
                 <div className="flex-shrink-0 text-right">
                   <p className="text-xs font-medium" style={{ color: 'var(--text3)' }}>Est. cost</p>
                   <p className="text-lg font-bold" style={{ color: 'var(--accent)' }}>
-                    ${agentResult.estimatedCost.amount.toFixed(2)}
+                    ${job.prepareResult.estimatedCost.amount.toFixed(2)}
                   </p>
-                  {agentResult.estimatedCost.details && (
-                    <p className="text-xs" style={{ color: 'var(--text3)' }}>{agentResult.estimatedCost.details}</p>
+                  {job.prepareResult.estimatedCost.details && (
+                    <p className="text-xs" style={{ color: 'var(--text3)' }}>{job.prepareResult.estimatedCost.details}</p>
                   )}
                 </div>
               )}
             </div>
           </div>
 
-          {/* Editable prompt */}
           <div>
             <label className="block text-sm mb-1.5" style={{ color: 'var(--text2)' }}>Prompt</label>
             <textarea
@@ -456,7 +486,6 @@ export default function GenerateVideoPage() {
             />
           </div>
 
-          {/* Editable model */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm mb-1.5" style={{ color: 'var(--text2)' }}>Model</label>
@@ -468,7 +497,6 @@ export default function GenerateVideoPage() {
             </div>
           </div>
 
-          {/* Back + Generate buttons */}
           <div className="flex items-center justify-between gap-3 pt-2">
             <button
               onClick={handleBack}
@@ -479,7 +507,7 @@ export default function GenerateVideoPage() {
             </button>
             <button
               onClick={handleGenerate}
-              disabled={generating || !editPrompt.trim()}
+              disabled={!editPrompt.trim()}
               className="px-6 py-2.5 rounded-lg text-sm font-semibold text-white disabled:opacity-50"
               style={{ background: 'var(--accent)' }}
             >
@@ -493,7 +521,7 @@ export default function GenerateVideoPage() {
         <div className="text-center py-16">
           <div className="w-10 h-10 border-2 rounded-full animate-spin mx-auto mb-4" style={{ borderColor: 'var(--border)', borderTopColor: 'var(--accent)' }} />
           <p style={{ color: 'var(--text2)' }}>Generating video...</p>
-          <p className="text-sm mt-1" style={{ color: 'var(--text3)' }}>Using the approved prompt and model</p>
+          <p className="text-sm mt-1" style={{ color: 'var(--text3)' }}>You can navigate away — generation continues on the server</p>
         </div>
       )}
 
@@ -503,16 +531,16 @@ export default function GenerateVideoPage() {
         </div>
       )}
 
-      {agentResult && step === 'input' && (
+      {job?.prepareResult && step === 'input' && !isPreparing && (
         <div className="mt-6 p-4 rounded-xl" style={{ background: 'rgba(76,175,80,0.08)', border: '1px solid rgba(76,175,80,0.2)' }}>
           <p className="text-xs font-medium mb-1" style={{ color: 'var(--green)' }}>
-            Last generation: {agentResult.selectedModelLabel || agentResult.selectedModel}
+            Last generation: {job.prepareResult.modelLabel || job.prepareResult.model}
           </p>
-          <p className="text-sm mb-2" style={{ color: 'var(--text2)' }}>{agentResult.reasoning}</p>
-          {agentResult.prompt && (
+          <p className="text-sm mb-2" style={{ color: 'var(--text2)' }}>{job.prepareResult.reasoning}</p>
+          {job.prepareResult.prompt && (
             <details className="text-xs" style={{ color: 'var(--text3)' }}>
               <summary className="cursor-pointer">Generated prompt</summary>
-              <p className="mt-1 whitespace-pre-wrap">{agentResult.prompt}</p>
+              <p className="mt-1 whitespace-pre-wrap">{job.prepareResult.prompt}</p>
             </details>
           )}
         </div>

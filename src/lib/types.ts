@@ -131,3 +131,38 @@ export interface ProjectCacheData {
   video?: VideoFormCache;
   updatedAt: number;
 }
+
+// Server-side job types (shared between API and client)
+export type JobStatus = 'preparing' | 'prepared' | 'generating' | 'complete' | 'error';
+
+export interface JobPrepareResult {
+  prompt: string;
+  model: string;
+  modelLabel: string;
+  reasoning: string;
+  estimatedCost?: GenerationCost;
+}
+
+export interface JobResult {
+  images?: { url: string }[];
+  video?: { url: string };
+  prompt: string;
+  model: string;
+  modelLabel: string;
+  reasoning?: string;
+  cost?: GenerationCost;
+}
+
+export interface JobData {
+  id: string;
+  userId: string;
+  projectId: string;
+  type: 'image' | 'video';
+  status: JobStatus;
+  input: Record<string, unknown>;
+  prepareResult?: JobPrepareResult;
+  result?: JobResult;
+  error?: string;
+  createdAt: number;
+  updatedAt: number;
+}

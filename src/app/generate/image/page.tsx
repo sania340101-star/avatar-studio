@@ -5,7 +5,7 @@ import {
   IMAGE_MODEL_OPTIONS, IMAGE_MODEL_GROUPS, IMAGE_SIZE_OPTIONS, IMAGE_RESOLUTION_OPTIONS,
 } from '@/lib/models';
 import { useProject } from '@/lib/ProjectContext';
-import { Generation, GenerationCost } from '@/lib/types';
+import { Generation, GenerationCost, JobData } from '@/lib/types';
 import { useProjectCache } from '@/lib/useProjectCache';
 import { DEFAULT_SYSTEM_PROMPT } from '@/lib/constants';
 import VersionHistory from '@/components/VersionHistory';
@@ -15,39 +15,23 @@ interface GeneratedImage {
   seed?: number;
 }
 
-interface AgentResult {
-  prompt: string;
-  selectedModel: string;
-  selectedModelLabel: string;
-  params: { size: string; resolution: string };
-  reasoning: string;
-  paramNotes?: string[];
-  estimatedCost?: GenerationCost;
-}
-
 type Step = 'input' | 'review' | 'generating';
 
 export default function GenerateImagePage() {
   const { user, activeProject } = useProject();
 
-  // Step 1: User input
+  // User input
   const [references, setReferences] = useState<{ url: string; name: string }[]>([]);
   const [modelPref, setModelPref] = useState('auto');
   const [instruction, setInstruction] = useState('');
   const [desiredSize, setDesiredSize] = useState('portrait_16_9');
   const [desiredResolution, setDesiredResolution] = useState('1k');
 
-  // Agent result (shown after generation)
-  const [agentResult, setAgentResult] = useState<AgentResult | null>(null);
-
   // Editable fields for review step
   const [editPrompt, setEditPrompt] = useState('');
   const [editModel, setEditModel] = useState('');
 
   // State
-  const [step, setStep] = useState<Step>('input');
-  const [preparing, setPreparing] = useState(false);
-  const [generating, setGenerating] = useState(false);
   const [results, setResults] = useState<GeneratedImage[]>([]);
   const [error, setError] = useState('');
   const [history, setHistory] = useState<Generation[]>([]);
@@ -56,6 +40,11 @@ export default function GenerateImagePage() {
   // Dynamic pricing
   const [pricingLoading, setPricingLoading] = useState(false);
   const [dynamicCost, setDynamicCost] = useState<GenerationCost | null>(null);
+
+  // Job state
+  const [job, setJob] = useState<JobData | null>(null);
+  const jobIdRef = useRef<string | null>(null);
+  const completedRef = useRef<string | null>(null);
 
   // Per-project cache
   const { cache, loaded: cacheLoaded, saveCache } = useProjectCache(activeProject?.id, 'image');
@@ -66,7 +55,6 @@ export default function GenerateImagePage() {
     if (cache) {
       if (cache.references?.length) setReferences(cache.references);
       if (cache.instruction) setInstruction(cache.instruction);
-      // modelPref always starts as 'auto' — user can change manually
       if (cache.desiredSize) setDesiredSize(cache.desiredSize);
       if (cache.desiredResolution) setDesiredResolution(cache.desiredResolution);
     }
@@ -80,11 +68,14 @@ export default function GenerateImagePage() {
     setModelPref('auto');
     setDesiredSize('portrait_16_9');
     setDesiredResolution('1k');
-    setAgentResult(null);
     setResults([]);
     setError('');
-    setStep('input');
+    setEditPrompt('');
+    setEditModel('');
     setDynamicCost(null);
+    setJob(null);
+    jobIdRef.current = null;
+    completedRef.current = null;
     cacheRestoredRef.current = false;
   }, [activeProject?.id]);
 
@@ -92,6 +83,84 @@ export default function GenerateImagePage() {
     if (!cacheRestoredRef.current) return;
     saveCache({ references, instruction, modelPref, desiredSize, desiredResolution });
   }, [references, instruction, modelPref, desiredSize, desiredResolution, saveCache]);
+
+  // Check for active job on mount / project change
+  useEffect(() => {
+    if (!activeProject) return;
+    let cancelled = false;
+    fetch(`/api/jobs?projectId=${activeProject.id}&type=image`)
+      .then(r => r.json())
+      .then(data => {
+        if (cancelled || !data.active) return;
+        const j: JobData = data.active;
+        jobIdRef.current = j.id;
+        setJob(j);
+        if (j.status === 'prepared' && j.prepareResult) {
+          setEditPrompt(j.prepareResult.prompt);
+          setEditModel(j.prepareResult.model);
+        }
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [activeProject?.id]);
+
+  // Poll active job
+  useEffect(() => {
+    const id = jobIdRef.current;
+    if (!id) return;
+    if (job?.status === 'complete' || job?.status === 'error') return;
+
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch(`/api/jobs/${id}`);
+        if (!res.ok) return;
+        const data: JobData = await res.json();
+        setJob(data);
+        if (data.status === 'prepared' && data.prepareResult) {
+          setEditPrompt(data.prepareResult.prompt);
+          setEditModel(data.prepareResult.model);
+        }
+      } catch { /* ignore */ }
+    }, 1500);
+    return () => clearInterval(interval);
+  }, [job?.status]);
+
+  // Handle job completion
+  useEffect(() => {
+    if (!job || !activeProject) return;
+    if (job.status === 'complete' && job.result && completedRef.current !== job.id) {
+      completedRef.current = job.id;
+      const imgs = job.result.images || [];
+      setResults(prev => [...imgs, ...prev]);
+      const cost = dynamicCost || job.prepareResult?.estimatedCost;
+      fetch('/api/generations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          projectId: activeProject.id,
+          type: 'image',
+          modelId: job.result.model || editModel || modelPref,
+          modelLabel: job.result.modelLabel || job.prepareResult?.modelLabel || modelPref,
+          prompt: job.result.prompt || editPrompt,
+          params: {
+            size: desiredSize, count: 1,
+            instruction: instruction.trim(),
+            agentReasoning: job.prepareResult?.reasoning,
+          },
+          referenceUrls: references.map(r => r.url),
+          resultUrls: imgs.map(img => img.url),
+          status: 'completed',
+          estimatedCost: cost || undefined,
+          actualCost: job.result.cost || undefined,
+        }),
+      }).then(() => loadHistory()).catch(() => {});
+      jobIdRef.current = null;
+    }
+    if (job.status === 'error') {
+      setError(job.error || 'Unknown error');
+      jobIdRef.current = null;
+    }
+  }, [job?.status, job?.id]);
 
   const loadHistory = useCallback(async () => {
     if (!activeProject) return;
@@ -102,7 +171,7 @@ export default function GenerateImagePage() {
 
   useEffect(() => { loadHistory(); }, [loadHistory]);
 
-  // Fetch pricing for a specific model
+  // Pricing
   const fetchPricingRef = useRef(0);
   async function fetchPricing(modelId: string) {
     if (!user?.hasFalKey || !modelId || modelId === 'auto' || modelId.startsWith('group:')) {
@@ -131,7 +200,15 @@ export default function GenerateImagePage() {
     }
   }
 
-  // Fetch pricing when model changes on input step
+  const step: Step = (() => {
+    if (!job || job.status === 'complete' || job.status === 'error') return 'input';
+    if (job.status === 'prepared') return 'review';
+    if (job.status === 'generating') return 'generating';
+    return 'input'; // preparing shows spinner on input
+  })();
+
+  const isPreparing = job?.status === 'preparing';
+
   useEffect(() => {
     if (step !== 'input') return;
     if (modelPref === 'auto' || modelPref.startsWith('group:')) {
@@ -157,15 +234,14 @@ export default function GenerateImagePage() {
 
   async function handlePrepare() {
     if (!instruction.trim() || !activeProject) return;
-    setPreparing(true);
     setError('');
-    setAgentResult(null);
     setDynamicCost(null);
     try {
-      const res = await fetch('/api/prepare-generation', {
+      const res = await fetch('/api/jobs', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          projectId: activeProject.id,
           type: 'image',
           instruction: instruction.trim(),
           model: modelPref === 'auto' ? undefined : modelPref,
@@ -176,105 +252,66 @@ export default function GenerateImagePage() {
       });
       const data = await res.json();
       if (data.error) throw new Error(data.error);
-      setAgentResult({
-        prompt: data.prompt || '',
-        selectedModel: data.model || '',
-        selectedModelLabel: data.modelLabel || '',
-        params: { size: desiredSize, resolution: desiredResolution },
-        reasoning: data.reasoning || '',
-        estimatedCost: data.estimatedCost || undefined,
-      });
-      setEditPrompt(data.prompt || '');
-      setEditModel(data.model || '');
-      setStep('review');
+      jobIdRef.current = data.id;
+      completedRef.current = null;
+      setJob(data);
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Preparation failed');
-    } finally {
-      setPreparing(false);
+      setError(e instanceof Error ? e.message : 'Failed to start preparation');
     }
   }
 
   function handleBack() {
-    setStep('input');
+    if (job && job.status === 'prepared') {
+      job.status = 'error';
+      job.error = 'Cancelled by user';
+    }
+    jobIdRef.current = null;
+    setJob(null);
     setDynamicCost(null);
   }
 
   async function handleGenerate() {
-    if (!editPrompt.trim() || !activeProject) return;
-    setGenerating(true);
-    setStep('generating');
+    if (!editPrompt.trim() || !jobIdRef.current) return;
     setError('');
     try {
-      const res = await fetch('/api/generate', {
+      const res = await fetch(`/api/jobs/${jobIdRef.current}/confirm`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          type: 'image',
-          instruction: editPrompt.trim(),
-          model: editModel,
-          size: desiredSize,
-          references: references.map(r => r.url),
-          systemPrompt: user?.systemPrompt || DEFAULT_SYSTEM_PROMPT,
-        }),
+        body: JSON.stringify({ prompt: editPrompt.trim(), model: editModel }),
       });
       const data = await res.json();
       if (data.error) throw new Error(data.error);
-      const images: GeneratedImage[] = data.images || [];
-      setResults(prev => [...images, ...prev]);
-
-      const displayCost = dynamicCost || agentResult?.estimatedCost;
-
-      await fetch('/api/generations', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          projectId: activeProject.id,
-          type: 'image',
-          modelId: editModel || modelPref,
-          modelLabel: agentResult?.selectedModelLabel || modelPref,
-          prompt: editPrompt.trim(),
-          params: {
-            size: desiredSize, count: 1,
-            instruction: instruction.trim(),
-            agentReasoning: agentResult?.reasoning,
-          },
-          referenceUrls: references.map(r => r.url),
-          resultUrls: images.map(img => img.url),
-          status: 'completed',
-          estimatedCost: displayCost || undefined,
-          actualCost: data.cost || undefined,
-        }),
-      });
-      loadHistory();
-      setStep('input');
+      setJob(data);
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Generation failed');
-      setStep('input');
-    } finally {
-      setGenerating(false);
+      setError(e instanceof Error ? e.message : 'Failed to start generation');
     }
   }
 
   function handleSelectVersion(gen: Generation) {
     if (gen.params.instruction) setInstruction(gen.params.instruction as string);
     if (gen.params.size) setDesiredSize(gen.params.size as string);
-    // Keep model on auto so agent re-selects
-    // setModelPref(gen.modelId);
     setReferences((gen.referenceUrls || []).map((url, i) => ({ url, name: `Reference ${i + 1}` })));
     setResults(gen.resultUrls.map(url => ({ url })));
-
-    setAgentResult({
-      prompt: gen.prompt,
-      selectedModel: gen.modelId,
-      selectedModelLabel: gen.modelLabel,
-      params: { size: (gen.params.size as string) || desiredSize, resolution: desiredResolution },
-      reasoning: (gen.params.agentReasoning as string) || '',
-      estimatedCost: gen.estimatedCost || gen.actualCost || undefined,
-    });
     setEditPrompt(gen.prompt);
     setEditModel(gen.modelId);
     setDynamicCost(null);
-    setStep('review');
+    // Show review with previous generation data (no active job)
+    jobIdRef.current = null;
+    setJob({
+      id: 'review-' + gen.id,
+      userId: '', projectId: '', type: 'image',
+      status: 'prepared',
+      input: {},
+      prepareResult: {
+        prompt: gen.prompt,
+        model: gen.modelId,
+        modelLabel: gen.modelLabel,
+        reasoning: (gen.params.agentReasoning as string) || '',
+        estimatedCost: gen.estimatedCost || gen.actualCost || undefined,
+      },
+      createdAt: gen.createdAt,
+      updatedAt: gen.createdAt,
+    });
   }
 
   async function handleDeleteVersion(genId: string) {
@@ -283,8 +320,7 @@ export default function GenerateImagePage() {
     loadHistory();
   }
 
-  // Current cost to display (dynamic overrides agent estimate)
-  const displayCost = dynamicCost || agentResult?.estimatedCost || null;
+  const displayCost = dynamicCost || job?.prepareResult?.estimatedCost || null;
 
   if (!activeProject) {
     return (
@@ -302,7 +338,6 @@ export default function GenerateImagePage() {
 
       {step === 'input' && (
         <div className="space-y-5">
-          {/* References at top with numbering */}
           <div>
             <label className="block text-sm mb-1.5" style={{ color: 'var(--text2)' }}>
               References {references.length > 0 && <span style={{ color: 'var(--text3)' }}>({references.length})</span>}
@@ -337,7 +372,6 @@ export default function GenerateImagePage() {
             )}
           </div>
 
-          {/* Model preference */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm mb-1.5" style={{ color: 'var(--text2)' }}>Model</label>
@@ -374,7 +408,6 @@ export default function GenerateImagePage() {
             </select>
           </div>
 
-          {/* Estimated cost on input step */}
           {(dynamicCost || pricingLoading) && step === 'input' && (
             <div className="p-3 rounded-lg flex items-center gap-3" style={{ background: 'rgba(76,175,80,0.08)', border: '1px solid rgba(76,175,80,0.15)' }}>
               {pricingLoading ? (
@@ -391,7 +424,6 @@ export default function GenerateImagePage() {
             </div>
           )}
 
-          {/* Instruction */}
           <div>
             <label className="block text-sm mb-1.5" style={{ color: 'var(--text2)' }}>Instruction</label>
             <textarea
@@ -405,18 +437,17 @@ export default function GenerateImagePage() {
             </div>
           </div>
 
-          {/* Prepare button */}
           <div className="flex flex-col-reverse sm:flex-row items-start sm:items-center justify-between gap-3 pt-2">
             <p className="text-xs" style={{ color: 'var(--text3)' }}>
               AI agent will craft the prompt and select the best model
             </p>
             <button
               onClick={handlePrepare}
-              disabled={preparing || !instruction.trim() || !user?.hasFalKey}
+              disabled={isPreparing || !instruction.trim() || !user?.hasFalKey}
               className="w-full sm:w-auto px-6 py-2.5 rounded-lg text-sm font-semibold text-white disabled:opacity-50"
-              style={{ background: preparing ? 'var(--text3)' : 'var(--accent)' }}
+              style={{ background: isPreparing ? 'var(--text3)' : 'var(--accent)' }}
             >
-              {preparing ? (
+              {isPreparing ? (
                 <span className="flex items-center gap-2">
                   <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                   Preparing...
@@ -433,16 +464,15 @@ export default function GenerateImagePage() {
         </div>
       )}
 
-      {step === 'review' && agentResult && (
+      {step === 'review' && job?.prepareResult && (
         <div className="space-y-5">
-          {/* Agent reasoning + cost */}
           <div className="p-4 rounded-xl" style={{ background: 'rgba(76,175,80,0.08)', border: '1px solid rgba(76,175,80,0.2)' }}>
             <div className="flex items-start justify-between gap-3">
               <div>
                 <p className="text-xs font-medium mb-1" style={{ color: 'var(--green)' }}>
-                  Agent selected: {agentResult.selectedModelLabel || agentResult.selectedModel}
+                  Agent selected: {job.prepareResult.modelLabel || job.prepareResult.model}
                 </p>
-                <p className="text-sm" style={{ color: 'var(--text2)' }}>{agentResult.reasoning}</p>
+                <p className="text-sm" style={{ color: 'var(--text2)' }}>{job.prepareResult.reasoning}</p>
               </div>
               <div className="flex-shrink-0 text-right">
                 {pricingLoading ? (
@@ -465,7 +495,6 @@ export default function GenerateImagePage() {
             </div>
           </div>
 
-          {/* Editable prompt */}
           <div>
             <label className="block text-sm mb-1.5" style={{ color: 'var(--text2)' }}>Prompt</label>
             <textarea
@@ -475,7 +504,6 @@ export default function GenerateImagePage() {
             />
           </div>
 
-          {/* Editable model */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm mb-1.5" style={{ color: 'var(--text2)' }}>Model</label>
@@ -491,7 +519,6 @@ export default function GenerateImagePage() {
             </div>
           </div>
 
-          {/* Back + Generate buttons */}
           <div className="flex items-center justify-between gap-3 pt-2">
             <button
               onClick={handleBack}
@@ -502,7 +529,7 @@ export default function GenerateImagePage() {
             </button>
             <button
               onClick={handleGenerate}
-              disabled={generating || !editPrompt.trim()}
+              disabled={!editPrompt.trim()}
               className="px-6 py-2.5 rounded-lg text-sm font-semibold text-white disabled:opacity-50"
               style={{ background: 'var(--accent)' }}
             >
@@ -516,7 +543,7 @@ export default function GenerateImagePage() {
         <div className="text-center py-16">
           <div className="w-10 h-10 border-2 rounded-full animate-spin mx-auto mb-4" style={{ borderColor: 'var(--border)', borderTopColor: 'var(--accent)' }} />
           <p style={{ color: 'var(--text2)' }}>Generating image...</p>
-          <p className="text-sm mt-1" style={{ color: 'var(--text3)' }}>Using the approved prompt and model</p>
+          <p className="text-sm mt-1" style={{ color: 'var(--text3)' }}>You can navigate away — generation continues on the server</p>
         </div>
       )}
 
@@ -526,16 +553,16 @@ export default function GenerateImagePage() {
         </div>
       )}
 
-      {agentResult && step === 'input' && (
+      {job?.prepareResult && step === 'input' && !isPreparing && (
         <div className="mt-6 p-4 rounded-xl" style={{ background: 'rgba(76,175,80,0.08)', border: '1px solid rgba(76,175,80,0.2)' }}>
           <p className="text-xs font-medium mb-1" style={{ color: 'var(--green)' }}>
-            Last generation: {agentResult.selectedModelLabel || agentResult.selectedModel}
+            Last generation: {job.prepareResult.modelLabel || job.prepareResult.model}
           </p>
-          <p className="text-sm mb-2" style={{ color: 'var(--text2)' }}>{agentResult.reasoning}</p>
-          {agentResult.prompt && (
+          <p className="text-sm mb-2" style={{ color: 'var(--text2)' }}>{job.prepareResult.reasoning}</p>
+          {job.prepareResult.prompt && (
             <details className="text-xs" style={{ color: 'var(--text3)' }}>
               <summary className="cursor-pointer">Generated prompt</summary>
-              <p className="mt-1 whitespace-pre-wrap">{agentResult.prompt}</p>
+              <p className="mt-1 whitespace-pre-wrap">{job.prepareResult.prompt}</p>
             </details>
           )}
         </div>
