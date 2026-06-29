@@ -17,7 +17,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (job.status !== 'prepared') return NextResponse.json({ error: 'Job not in prepared state' }, { status: 400 });
 
   const body = await req.json();
-  confirmJob(job, body.prompt, body.model, falKey);
+  confirmJob(job, body.prompt, body.model, falKey, body.params);
 
   return NextResponse.json(job);
 }

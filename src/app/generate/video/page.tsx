@@ -47,6 +47,10 @@ export default function GenerateVideoPage() {
   // Editable fields for review step
   const [editPrompt, setEditPrompt] = useState('');
   const [editModel, setEditModel] = useState('');
+  const [editAspectRatio, setEditAspectRatio] = useState('');
+  const [editQuality, setEditQuality] = useState('');
+  const [editFps, setEditFps] = useState(0);
+  const [editDuration, setEditDuration] = useState(0);
 
   // State
   const [results, setResults] = useState<{ url: string }[]>([]);
@@ -128,6 +132,16 @@ export default function GenerateVideoPage() {
     });
   }, [instruction, modelPref, typeFilter, desiredDuration, aspectRatio, quality, fps, strategy, sourceImage, sourceVideo, audioRef, endImage, multiRefs, saveCache]);
 
+  function applyPrepareResult(pr: JobData['prepareResult']) {
+    if (!pr) return;
+    setEditPrompt(pr.prompt);
+    setEditModel(pr.model);
+    setEditAspectRatio(pr.params?.aspectRatio || aspectRatio);
+    setEditQuality(pr.params?.quality || quality);
+    setEditFps(pr.params?.fps || fps);
+    setEditDuration(pr.params?.duration || desiredDuration);
+  }
+
   // Check for active job on mount / project change
   useEffect(() => {
     if (!activeProject) return;
@@ -140,8 +154,7 @@ export default function GenerateVideoPage() {
         jobIdRef.current = j.id;
         setJob(j);
         if (j.status === 'prepared' && j.prepareResult) {
-          setEditPrompt(j.prepareResult.prompt);
-          setEditModel(j.prepareResult.model);
+          applyPrepareResult(j.prepareResult);
         }
       })
       .catch(() => {});
@@ -168,8 +181,7 @@ export default function GenerateVideoPage() {
         const data: JobData = await res.json();
         setJob(data);
         if (data.status === 'prepared' && data.prepareResult) {
-          setEditPrompt(data.prepareResult.prompt);
-          setEditModel(data.prepareResult.model);
+          applyPrepareResult(data.prepareResult);
         }
       } catch { /* ignore */ }
     }, 1500);
@@ -354,7 +366,16 @@ export default function GenerateVideoPage() {
       const res = await fetch(`/api/jobs/${jobIdRef.current}/confirm`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt: editPrompt.trim(), model: editModel }),
+        body: JSON.stringify({
+          prompt: editPrompt.trim(),
+          model: editModel,
+          params: {
+            aspectRatio: editAspectRatio,
+            quality: editQuality,
+            fps: editFps,
+            duration: editDuration,
+          },
+        }),
       });
       const data = await res.json();
       if (data.error) throw new Error(data.error);
@@ -659,6 +680,41 @@ export default function GenerateVideoPage() {
               <select value={editModel} onChange={e => { setEditModel(e.target.value); fetchPricing(e.target.value); }} className="w-full">
                 {filteredModels.map(m => (
                   <option key={m.id} value={m.id}>{m.label}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <div>
+              <label className="block text-sm mb-1.5" style={{ color: 'var(--text2)' }}>Duration</label>
+              <select value={editDuration} onChange={e => setEditDuration(Number(e.target.value))} className="w-full">
+                {[3, 4, 5, 6, 7, 8, 10, 12, 15, 20].map(d => (
+                  <option key={d} value={d}>{d}s</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm mb-1.5" style={{ color: 'var(--text2)' }}>Aspect Ratio</label>
+              <select value={editAspectRatio} onChange={e => setEditAspectRatio(e.target.value)} className="w-full">
+                {VIDEO_ASPECT_RATIO_OPTIONS.map(o => (
+                  <option key={o.id} value={o.id}>{o.label}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm mb-1.5" style={{ color: 'var(--text2)' }}>Quality</label>
+              <select value={editQuality} onChange={e => setEditQuality(e.target.value)} className="w-full">
+                {VIDEO_QUALITY_OPTIONS.map(o => (
+                  <option key={o.id} value={o.id}>{o.label}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm mb-1.5" style={{ color: 'var(--text2)' }}>FPS</label>
+              <select value={editFps} onChange={e => setEditFps(Number(e.target.value))} className="w-full">
+                {VIDEO_FPS_OPTIONS.map(o => (
+                  <option key={o.id} value={o.id}>{o.label}</option>
                 ))}
               </select>
             </div>

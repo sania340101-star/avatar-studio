@@ -86,7 +86,7 @@ export function createJob(
   return job;
 }
 
-export function confirmJob(job: JobData, editedPrompt: string, editedModel: string, falKey: string): void {
+export function confirmJob(job: JobData, editedPrompt: string, editedModel: string, falKey: string, editedParams?: Record<string, unknown>): void {
   if (job.status !== 'prepared') return;
 
   const budget = checkBudget(job.userId);
@@ -95,6 +95,10 @@ export function confirmJob(job: JobData, editedPrompt: string, editedModel: stri
     job.error = `Daily spending limit reached ($${budget.spent.toFixed(2)} / $${budget.limit.toFixed(2)}).`;
     job.updatedAt = Date.now();
     return;
+  }
+
+  if (editedParams) {
+    Object.assign(job.input, editedParams);
   }
 
   job.status = 'generating';
@@ -122,6 +126,7 @@ async function runPrepare(job: JobData, falKey: string) {
     modelLabel: data.modelLabel || '',
     reasoning: data.reasoning || '',
     estimatedCost: data.estimatedCost || undefined,
+    params: data.params || undefined,
   };
   job.status = 'prepared';
   job.updatedAt = Date.now();

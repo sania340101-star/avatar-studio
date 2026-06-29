@@ -139,12 +139,20 @@ export interface ProjectCacheData {
 // Server-side job types (shared between API and client)
 export type JobStatus = 'preparing' | 'prepared' | 'generating' | 'complete' | 'error';
 
+export interface VideoParams {
+  aspectRatio?: string;
+  quality?: string;
+  fps?: number;
+  duration?: number;
+}
+
 export interface JobPrepareResult {
   prompt: string;
   model: string;
   modelLabel: string;
   reasoning: string;
   estimatedCost?: GenerationCost;
+  params?: VideoParams;
 }
 
 export interface JobResult {
