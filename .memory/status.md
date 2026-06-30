@@ -1,18 +1,20 @@
-## 2026-06-29: Billing system deployed + Git workflow
+## 2026-06-29: Template v2 + Batch Generation deployed
 
 Done:
-- SQLite billing system: $5/day limit, budget check, cost recording, fal.ai balance
-- Sidebar UI: daily spend bar, fal balance, username
-- fal.ai balance fix: credits.current_balance (not credits.balance)
-- Bitbucket repo created (kinomoltd/avatar-studio), all code pushed
-- D30 source synced to local repo
+- Template v2: slots[] architecture, TemplateForm with slot cards, clone-and-add "+"
+- Batch generation: /api/jobs/batch, createBatchJobs (skips prepare/review)
+- BatchRunner UI: instruction, shared sources, 2s polling, per-slot results, lightbox + download
+- Gallery lightbox (in-page preview instead of new tab) + download buttons
+- Sidebar: email display, always-visible version, theme toggle removed
+- Server-side jobs: prepare → review → generate flow, in-memory job store
+- SQLite billing: $5/day limit, budget check, cost recording, fal.ai balance
+- Git pull-based deploy to D30 (path: /srv/workspaces/system/avatar-studio/prod/)
 
-Pending:
-- Set up git clone on D30 (replace SCP deploy with git pull)
-- D30 AppUser divergence: local types.ts has old AppUser (falKey/anthropicKey), D30 has hasFalKey
-- Need to fully sync local types.ts with D30 version
+Pending (waiting for Alex to test batch generation first):
+- Phase 5: Post-processing pipeline (video review, resize, reorder, export/concatenate)
 - Phase 4a: Mask preview with canvas overlay
 - Phase 4b: Export with FFmpeg
+- Generate Video page: template selector/shortcut (currently only from Templates page)
 
 ## 2026-06-26: MCP architecture deployed and tested
 

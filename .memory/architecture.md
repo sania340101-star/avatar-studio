@@ -1,3 +1,18 @@
+## 2026-06-29: Template v2 with batch generation
+
+- Templates redesigned: single model config → slots[] array (each slot = full generation config)
+- TemplateSlot: modelId, modelLabel, typeFilter, instruction, duration, aspectRatio, quality, fps, strategy, references[]
+- Templates are global (not tied to projects), slots cloneable via "+" button
+- Batch generation: POST /api/jobs/batch creates N jobs (one per slot), skips prepare/review
+- getBatchJobs polls all jobs by batchId, sorted by slotIndex
+- BatchRunner UI on Templates page: instruction input, shared sources, progress polling (2s), per-slot results
+- Budget check at batch creation time
+
+Key files:
+- `src/app/api/jobs/batch/route.ts` — batch create (POST) and poll (GET)
+- `src/lib/jobs.ts` — createBatchJobs, getBatchJobs
+- `src/app/templates/page.tsx` — TemplateForm (slot cards), TemplateList, BatchRunner
+
 ## 2026-06-29: SQLite billing system
 
 - SQLite `billing.db` in Docker volume (`/app/data/billing.db`, WAL mode)

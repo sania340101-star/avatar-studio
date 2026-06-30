@@ -27,16 +27,29 @@ interface BatchJob {
   error?: string;
 }
 
-export default function BatchRunner({ template, projectId, onBack }: {
+export default function BatchRunner({ template, projectId, onBack, inline, externalRefs }: {
   template: Template;
   projectId: string;
   onBack: () => void;
+  inline?: boolean;
+  externalRefs?: {
+    sourceImage?: string;
+    sourceVideo?: TemplateRef | null;
+    audioRef?: TemplateRef | null;
+    endImage?: string;
+  };
 }) {
   const [instruction, setInstruction] = useState(template.promptTemplate || '');
-  const [sourceImage, setSourceImage] = useState('');
-  const [sourceVideo, setSourceVideo] = useState<TemplateRef | null>(null);
-  const [audioRef, setAudioRef] = useState<TemplateRef | null>(null);
-  const [endImage, setEndImage] = useState('');
+  const [_sourceImage, _setSourceImage] = useState('');
+  const [_sourceVideo, _setSourceVideo] = useState<TemplateRef | null>(null);
+  const [_audioRef, _setAudioRef] = useState<TemplateRef | null>(null);
+  const [_endImage, _setEndImage] = useState('');
+
+  const hasExternalRefs = !!externalRefs;
+  const sourceImage = hasExternalRefs ? (externalRefs.sourceImage || '') : _sourceImage;
+  const sourceVideo = hasExternalRefs ? (externalRefs.sourceVideo || null) : _sourceVideo;
+  const audioRef = hasExternalRefs ? (externalRefs.audioRef || null) : _audioRef;
+  const endImage = hasExternalRefs ? (externalRefs.endImage || '') : _endImage;
   const [running, setRunning] = useState(false);
   const [batchId, setBatchId] = useState<string | null>(null);
   const [batchJobs, setBatchJobs] = useState<BatchJob[]>([]);
@@ -104,15 +117,17 @@ export default function BatchRunner({ template, projectId, onBack }: {
 
   return (
     <>
-      <div className="flex items-center gap-3 mb-6">
-        <button onClick={onBack} className="text-sm" style={{ color: 'var(--text3)' }}>← Back</button>
-        <div>
-          <h2 className="text-xl font-semibold">{template.name}</h2>
-          <p className="text-sm" style={{ color: 'var(--text3)' }}>
-            {slots.length} slot{slots.length !== 1 ? 's' : ''} | {template.device !== 'any' ? template.device.toUpperCase() : 'Any device'}
-          </p>
+      {!inline && (
+        <div className="flex items-center gap-3 mb-6">
+          <button onClick={onBack} className="text-sm" style={{ color: 'var(--text3)' }}>← Back</button>
+          <div>
+            <h2 className="text-xl font-semibold">{template.name}</h2>
+            <p className="text-sm" style={{ color: 'var(--text3)' }}>
+              {slots.length} slot{slots.length !== 1 ? 's' : ''} | {template.device !== 'any' ? template.device.toUpperCase() : 'Any device'}
+            </p>
+          </div>
         </div>
-      </div>
+      )}
 
       {!batchId && (
         <div className="space-y-5 max-w-2xl">
@@ -126,26 +141,28 @@ export default function BatchRunner({ template, projectId, onBack }: {
             />
           </div>
 
-          <div className="space-y-3 p-4 rounded-xl" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
-            <p className="text-sm font-medium" style={{ color: 'var(--text1)' }}>Source References</p>
-            <p className="text-xs" style={{ color: 'var(--text3)' }}>
-              These are shared across all slots. Each slot also has its own references defined in the template.
-            </p>
-            <ImagePicker value={sourceImage} onChange={setSourceImage} label="Source Image" />
-            <ImagePicker value={endImage} onChange={setEndImage} label="End Image (optional)" />
-            <ReferenceUpload
-              references={sourceVideo ? [sourceVideo] : []}
-              onChange={refs => setSourceVideo(refs[0] || null)}
-              accept="video/*"
-              label="Source Video (optional)"
-            />
-            <ReferenceUpload
-              references={audioRef ? [audioRef] : []}
-              onChange={refs => setAudioRef(refs[0] || null)}
-              accept="audio/*"
-              label="Audio File (optional)"
-            />
-          </div>
+          {!hasExternalRefs && (
+            <div className="space-y-3 p-4 rounded-xl" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+              <p className="text-sm font-medium" style={{ color: 'var(--text1)' }}>Source References</p>
+              <p className="text-xs" style={{ color: 'var(--text3)' }}>
+                These are shared across all slots. Each slot also has its own references defined in the template.
+              </p>
+              <ImagePicker value={sourceImage} onChange={_setSourceImage} label="Source Image" />
+              <ImagePicker value={endImage} onChange={_setEndImage} label="End Image (optional)" />
+              <ReferenceUpload
+                references={sourceVideo ? [sourceVideo] : []}
+                onChange={refs => _setSourceVideo(refs[0] || null)}
+                accept="video/*"
+                label="Source Video (optional)"
+              />
+              <ReferenceUpload
+                references={audioRef ? [audioRef] : []}
+                onChange={refs => _setAudioRef(refs[0] || null)}
+                accept="audio/*"
+                label="Audio File (optional)"
+              />
+            </div>
+          )}
 
           <div className="p-3 rounded-xl" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
             <p className="text-xs font-medium mb-2" style={{ color: 'var(--text3)' }}>Slots preview</p>

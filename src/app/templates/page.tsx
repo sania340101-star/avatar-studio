@@ -277,95 +277,8 @@ function SlotCard({ slot, index, total, onChange, onRemove }: {
 
       {!collapsed && (
         <div className="px-3 pb-3 space-y-3 border-t" style={{ borderColor: 'var(--border)' }}>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-3">
-            <div>
-              <label className="block text-xs mb-1" style={{ color: 'var(--text3)' }}>Video Type</label>
-              <select value={slot.typeFilter} onChange={e => handleTypeFilterChange(e.target.value)} className="w-full text-sm">
-                {VIDEO_MODEL_TYPE_FILTERS.map(f => (
-                  <option key={f.id} value={f.id}>{f.label}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs mb-1" style={{ color: 'var(--text3)' }}>Model</label>
-              <select value={slot.modelId} onChange={e => handleModelChange(e.target.value)} className="w-full text-sm">
-                <option value="auto">Auto (agent selects)</option>
-                <optgroup label="By Group">
-                  {VIDEO_MODEL_GROUPS.map(g => (
-                    <option key={g.id} value={`group:${g.id}`}>{g.label} ({g.modelIds.length})</option>
-                  ))}
-                </optgroup>
-                <optgroup label="Specific Model">
-                  {filteredModels.map(m => (
-                    <option key={m.id} value={m.id}>{m.label}</option>
-                  ))}
-                </optgroup>
-              </select>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <div>
-              <label className="block text-xs mb-1" style={{ color: 'var(--text3)' }}>Duration</label>
-              <select value={slot.duration} onChange={e => updateField('duration', Number(e.target.value))} className="w-full text-sm">
-                {[3, 4, 5, 6, 7, 8, 10].map(d => <option key={d} value={d}>{d}s</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs mb-1" style={{ color: 'var(--text3)' }}>Aspect Ratio</label>
-              <select value={slot.aspectRatio} onChange={e => updateField('aspectRatio', e.target.value)} className="w-full text-sm">
-                {VIDEO_ASPECT_RATIO_OPTIONS.map(o => <option key={o.id} value={o.id}>{o.label}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs mb-1" style={{ color: 'var(--text3)' }}>Quality</label>
-              <select value={slot.quality} onChange={e => updateField('quality', e.target.value)} className="w-full text-sm">
-                {VIDEO_QUALITY_OPTIONS.map(o => <option key={o.id} value={o.id}>{o.label}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs mb-1" style={{ color: 'var(--text3)' }}>FPS</label>
-              <select value={slot.fps} onChange={e => updateField('fps', Number(e.target.value))} className="w-full text-sm">
-                {VIDEO_FPS_OPTIONS.map(o => <option key={o.id} value={o.id}>{o.label}</option>)}
-              </select>
-            </div>
-          </div>
-
-          {showStrategy && (
-            <div>
-              <label className="block text-xs mb-1" style={{ color: 'var(--text3)' }}>Strategy</label>
-              <div className="grid grid-cols-3 gap-2">
-                {VIDEO_STRATEGY_OPTIONS.map(s => (
-                  <button
-                    key={s.id}
-                    onClick={() => updateField('strategy', s.id)}
-                    className="py-2 rounded-lg text-xs font-medium transition-colors text-center"
-                    style={{
-                      background: slot.strategy === s.id ? 'var(--accent)' : 'var(--bg-input)',
-                      color: slot.strategy === s.id ? 'white' : 'var(--text2)',
-                      border: `1px solid ${slot.strategy === s.id ? 'var(--accent)' : 'var(--border)'}`,
-                    }}
-                  >
-                    {s.label}
-                    <span className="block text-[10px] mt-0.5" style={{ opacity: 0.7 }}>{s.description}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          <div>
-            <label className="block text-xs mb-1" style={{ color: 'var(--text3)' }}>Instruction</label>
-            <textarea
-              value={slot.instruction}
-              onChange={e => updateField('instruction', e.target.value)}
-              placeholder="Describe what you want to generate..."
-              className="w-full h-24 resize-none text-sm"
-            />
-          </div>
-
           {modelType !== 'text-to-video' && (
-            <div className="space-y-2 p-3 rounded-lg" style={{ background: 'var(--bg)', border: '1px solid var(--border)' }}>
+            <div className="space-y-2 p-3 rounded-lg mt-3" style={{ background: 'var(--bg)', border: '1px solid var(--border)' }}>
               <p className="text-xs font-medium" style={{ color: 'var(--text3)' }}>References</p>
 
               {(modelType === 'image-to-video' || modelType === 'avatar' || modelType === 'motion-control' || modelType === 'start-end-frame') && (
@@ -420,6 +333,93 @@ function SlotCard({ slot, index, total, onChange, onRemove }: {
               )}
             </div>
           )}
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs mb-1" style={{ color: 'var(--text3)' }}>Model</label>
+              <select value={slot.modelId} onChange={e => handleModelChange(e.target.value)} className="w-full text-sm">
+                <option value="auto">Auto (agent selects)</option>
+                <optgroup label="By Group">
+                  {VIDEO_MODEL_GROUPS.map(g => (
+                    <option key={g.id} value={`group:${g.id}`}>{g.label} ({g.modelIds.length})</option>
+                  ))}
+                </optgroup>
+                <optgroup label="Specific Model">
+                  {filteredModels.map(m => (
+                    <option key={m.id} value={m.id}>{m.label}</option>
+                  ))}
+                </optgroup>
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs mb-1" style={{ color: 'var(--text3)' }}>Type Filter</label>
+              <select value={slot.typeFilter} onChange={e => handleTypeFilterChange(e.target.value)} className="w-full text-sm">
+                {VIDEO_MODEL_TYPE_FILTERS.map(f => (
+                  <option key={f.id} value={f.id}>{f.label}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div>
+              <label className="block text-xs mb-1" style={{ color: 'var(--text3)' }}>Duration</label>
+              <select value={slot.duration} onChange={e => updateField('duration', Number(e.target.value))} className="w-full text-sm">
+                {[3, 4, 5, 6, 7, 8, 10, 12, 15, 20].map(d => <option key={d} value={d}>{d}s</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs mb-1" style={{ color: 'var(--text3)' }}>Aspect Ratio</label>
+              <select value={slot.aspectRatio} onChange={e => updateField('aspectRatio', e.target.value)} className="w-full text-sm">
+                {VIDEO_ASPECT_RATIO_OPTIONS.map(o => <option key={o.id} value={o.id}>{o.label}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs mb-1" style={{ color: 'var(--text3)' }}>Quality</label>
+              <select value={slot.quality} onChange={e => updateField('quality', e.target.value)} className="w-full text-sm">
+                {VIDEO_QUALITY_OPTIONS.map(o => <option key={o.id} value={o.id}>{o.label}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs mb-1" style={{ color: 'var(--text3)' }}>FPS</label>
+              <select value={slot.fps} onChange={e => updateField('fps', Number(e.target.value))} className="w-full text-sm">
+                {VIDEO_FPS_OPTIONS.map(o => <option key={o.id} value={o.id}>{o.label}</option>)}
+              </select>
+            </div>
+          </div>
+
+          {showStrategy && (
+            <div>
+              <label className="block text-xs mb-1" style={{ color: 'var(--text3)' }}>Strategy</label>
+              <div className="grid grid-cols-3 gap-2">
+                {VIDEO_STRATEGY_OPTIONS.map(s => (
+                  <button
+                    key={s.id}
+                    onClick={() => updateField('strategy', s.id)}
+                    className="py-2 rounded-lg text-xs font-medium transition-colors text-center"
+                    style={{
+                      background: slot.strategy === s.id ? 'var(--accent)' : 'var(--bg-input)',
+                      color: slot.strategy === s.id ? 'white' : 'var(--text2)',
+                      border: `1px solid ${slot.strategy === s.id ? 'var(--accent)' : 'var(--border)'}`,
+                    }}
+                  >
+                    {s.label}
+                    <span className="block text-[10px] mt-0.5" style={{ opacity: 0.7 }}>{s.description}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div>
+            <label className="block text-xs mb-1" style={{ color: 'var(--text3)' }}>Instruction</label>
+            <textarea
+              value={slot.instruction}
+              onChange={e => updateField('instruction', e.target.value)}
+              placeholder="Describe what you want to generate..."
+              className="w-full h-24 resize-none text-sm"
+            />
+          </div>
         </div>
       )}
     </div>

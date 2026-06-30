@@ -445,18 +445,6 @@ export default function GenerateVideoPage() {
     );
   }
 
-  if (selectedTemplate && activeProject) {
-    return (
-      <div>
-        <BatchRunner
-          template={selectedTemplate}
-          projectId={activeProject.id}
-          onBack={() => setSelectedTemplate(null)}
-        />
-      </div>
-    );
-  }
-
   return (
     <div>
       <div className="flex items-center gap-3 flex-wrap mb-1">
@@ -467,18 +455,70 @@ export default function GenerateVideoPage() {
         </span>
       </div>
 
+      {/* References — always visible */}
+      <div className="space-y-3 p-4 rounded-xl mb-4 mt-3" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+        <p className="text-sm font-medium" style={{ color: 'var(--text1)' }}>References</p>
+
+        {!selectedTemplate && (selectedType as string) !== 'text-to-video' && (
+          <div className="p-2 rounded-lg text-xs" style={{ background: 'var(--accent-subtle)', color: 'var(--text2)' }}>
+            {selectedType === 'avatar' && 'Talking avatar: provide image + audio file'}
+            {selectedType === 'lip-sync' && 'Lip-sync: provide video + audio file'}
+            {selectedType === 'motion-control' && 'Motion control: image + reference video for motion transfer'}
+            {selectedType === 'start-end-frame' && 'Start/end frame: provide start image + optional end image'}
+            {selectedType === 'multi-reference' && 'Multi-reference: provide 2+ reference images'}
+            {selectedType === 'video-edit' && 'Video edit: provide source video + describe changes'}
+            {selectedType === 'utility' && 'Utility: provide source video for processing'}
+            {selectedType === 'image-to-video' && 'Image to video: provide source image + prompt'}
+          </div>
+        )}
+
+        {selectedTemplate && (
+          <div className="p-2 rounded-lg text-xs" style={{ background: 'var(--accent-subtle)', color: 'var(--text2)' }}>
+            Shared references for all {selectedTemplate.slots.length} slot{selectedTemplate.slots.length !== 1 ? 's' : ''} in template
+          </div>
+        )}
+
+        <ImagePicker value={sourceImage} onChange={setSourceImage} label="Source Image" refNumber={1} />
+        <ImagePicker value={endImage} onChange={setEndImage} label="End Image (optional)" refNumber={2} />
+
+        <ReferenceUpload
+          references={sourceVideo ? [sourceVideo] : []}
+          onChange={refs => setSourceVideo(refs[0] || null)}
+          accept="video/*"
+          label="Source Video (optional)"
+        />
+
+        <ReferenceUpload
+          references={audioRef ? [audioRef] : []}
+          onChange={refs => setAudioRef(refs[0] || null)}
+          accept="audio/*"
+          label="Audio File (optional)"
+        />
+
+        {!selectedTemplate && selectedType === 'multi-reference' && (
+          <ReferenceUpload
+            references={multiRefs}
+            onChange={setMultiRefs}
+            accept="image/*"
+            label="Reference Images (2+)"
+          />
+        )}
+      </div>
+
+      {/* Mode selector: Manual or Template */}
       {templates.length > 0 && (
         <div className="mb-4 p-3 rounded-xl flex items-center gap-3" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
-          <span className="text-sm" style={{ color: 'var(--text2)' }}>Template:</span>
+          <span className="text-sm font-medium" style={{ color: 'var(--text2)' }}>Mode:</span>
           <select
-            value=""
+            value={selectedTemplate?.id || ''}
             onChange={e => {
+              if (!e.target.value) { setSelectedTemplate(null); return; }
               const tmpl = templates.find(t => t.id === e.target.value);
               if (tmpl) setSelectedTemplate(tmpl);
             }}
             className="flex-1 text-sm"
           >
-            <option value="">Single generation (manual)</option>
+            <option value="">Manual — set parameters yourself</option>
             {templates.map(t => (
               <option key={t.id} value={t.id}>
                 {t.name} ({t.slots.length} slot{t.slots.length !== 1 ? 's' : ''})
@@ -488,6 +528,20 @@ export default function GenerateVideoPage() {
         </div>
       )}
 
+      {/* Template mode — inline BatchRunner */}
+      {selectedTemplate && (
+        <BatchRunner
+          template={selectedTemplate}
+          projectId={activeProject.id}
+          onBack={() => setSelectedTemplate(null)}
+          inline
+          externalRefs={{ sourceImage, sourceVideo, audioRef, endImage }}
+        />
+      )}
+
+      {/* Manual mode */}
+      {!selectedTemplate && (
+        <>
       <StepBar
         current={effectiveView}
         hasPrepared={hasPrepared}
@@ -497,58 +551,6 @@ export default function GenerateVideoPage() {
 
       {effectiveView === 'input' && (
         <div className="space-y-5">
-          {(selectedType as string) !== 'text-to-video' && (
-            <div className="space-y-3 p-4 rounded-xl" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
-              <p className="text-sm font-medium" style={{ color: 'var(--text1)' }}>References</p>
-
-              <div className="p-2 rounded-lg text-xs" style={{ background: 'var(--accent-subtle)', color: 'var(--text2)' }}>
-                {selectedType === 'avatar' && 'Talking avatar: provide image + audio file'}
-                {selectedType === 'lip-sync' && 'Lip-sync: provide video + audio file'}
-                {selectedType === 'motion-control' && 'Motion control: image + reference video for motion transfer'}
-                {selectedType === 'start-end-frame' && 'Start/end frame: provide start image + optional end image'}
-                {selectedType === 'multi-reference' && 'Multi-reference: provide 2+ reference images'}
-                {selectedType === 'video-edit' && 'Video edit: provide source video + describe changes'}
-                {selectedType === 'utility' && 'Utility: provide source video for processing'}
-                {selectedType === 'image-to-video' && 'Image to video: provide source image + prompt'}
-              </div>
-
-              {(selectedType === 'image-to-video' || selectedType === 'avatar' || selectedType === 'motion-control' || selectedType === 'start-end-frame') && (
-                <ImagePicker value={sourceImage} onChange={setSourceImage} label="Source Image" refNumber={1} />
-              )}
-
-              {selectedType === 'start-end-frame' && (
-                <ImagePicker value={endImage} onChange={setEndImage} label="End Image (optional)" refNumber={2} />
-              )}
-
-              {selectedType === 'multi-reference' && (
-                <ReferenceUpload
-                  references={multiRefs}
-                  onChange={setMultiRefs}
-                  accept="image/*"
-                  label="Reference Images (2+)"
-                />
-              )}
-
-              {(selectedType === 'video-edit' || selectedType === 'utility' || selectedType === 'lip-sync' || selectedType === 'motion-control') && (
-                <ReferenceUpload
-                  references={sourceVideo ? [sourceVideo] : []}
-                  onChange={refs => setSourceVideo(refs[0] || null)}
-                  accept="video/*"
-                  label={selectedType === 'motion-control' ? 'Motion Reference Video' : 'Source Video'}
-                />
-              )}
-
-              {(selectedType === 'avatar' || selectedType === 'lip-sync') && (
-                <ReferenceUpload
-                  references={audioRef ? [audioRef] : []}
-                  onChange={refs => setAudioRef(refs[0] || null)}
-                  accept="audio/*"
-                  label="Audio File"
-                />
-              )}
-            </div>
-          )}
-
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm mb-1.5" style={{ color: 'var(--text2)' }}>Model</label>
@@ -838,6 +840,8 @@ export default function GenerateVideoPage() {
       )}
 
       <VersionHistory generations={history} onSelect={handleSelectVersion} onDelete={handleDeleteVersion} />
+        </>
+      )}
     </div>
   );
 }
