@@ -489,7 +489,8 @@ async function getBestClaudeKey() {
 }
 
 function buildPrompt(body, imageFiles, falUploadedUrls, falMediaUrls) {
-  const { type, instruction, model, size, references, duration, aspectRatio } = body;
+  const { type, instruction, model, size, duration, aspectRatio } = body;
+  const references = [...(body.references || []), ...(body.referenceImages || [])];
   const parts = [];
   if (falUploadedUrls?.length) {
     const refList = falUploadedUrls.map((url, i) => `  ${i + 1}. ${url}`).join('\n');
@@ -599,7 +600,7 @@ const server = http.createServer(async (req, res) => {
   res.setHeader('Content-Type', 'application/json');
 
   if (req.method === 'GET' && req.url === '/health') {
-    res.end(JSON.stringify({ ok: true, version: '1.7.0' }));
+    res.end(JSON.stringify({ ok: true, version: '1.7.1' }));
     return;
   }
 
@@ -718,7 +719,7 @@ const server = http.createServer(async (req, res) => {
     }
 
     // Download and upload all references + media to fal CDN
-    const imageRefs = [...(body.references || [])];
+    const imageRefs = [...(body.references || []), ...(body.referenceImages || [])];
     if (body.sourceImage) imageRefs.push(body.sourceImage);
     const imageFiles = await downloadReferences(imageRefs);
     allDownloaded.push(...imageFiles);
@@ -804,5 +805,5 @@ const server = http.createServer(async (req, res) => {
 });
 
 server.listen(PORT, '0.0.0.0', () => {
-  console.log(`[agent] Avatar Studio agent wrapper v1.7.0 listening on :${PORT}`);
+  console.log(`[agent] Avatar Studio agent wrapper v1.7.1 listening on :${PORT}`);
 });
