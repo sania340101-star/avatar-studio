@@ -20,6 +20,20 @@ const TMP_DIR = path.join(__dirname, 'tmp');
 
 if (!existsSync(TMP_DIR)) mkdirSync(TMP_DIR);
 
+const { appendFileSync } = require('fs');
+const LOG_FILE = path.join(__dirname, 'agent.log');
+const origLog = console.log;
+const origErr = console.error;
+const origWarn = console.warn;
+function logToFile(...args) {
+  const line = args.map(a => typeof a === 'string' ? a : JSON.stringify(a)).join(' ');
+  try { appendFileSync(LOG_FILE, line + '\n'); } catch {}
+  origLog.apply(console, args);
+}
+console.log = logToFile;
+console.error = (...args) => { logToFile('[ERROR]', ...args); };
+console.warn = (...args) => { logToFile('[WARN]', ...args); };
+
 const PREPARE_TOOLS = [
   'Read',
   'mcp__fal-ai__search_models',
@@ -600,7 +614,7 @@ const server = http.createServer(async (req, res) => {
   res.setHeader('Content-Type', 'application/json');
 
   if (req.method === 'GET' && req.url === '/health') {
-    res.end(JSON.stringify({ ok: true, version: '1.7.1' }));
+    res.end(JSON.stringify({ ok: true, version: '1.7.2' }));
     return;
   }
 
@@ -781,7 +795,8 @@ const server = http.createServer(async (req, res) => {
     const claudeModel = 'sonnet';
     console.log(`[agent] ${type} ${action} started (${id}), model: ${body.model || 'auto'}, refs: ${imageFiles.length}, media: ${JSON.stringify(Object.keys(falMediaUrls))}, claude: ${claudeModel}`);
 
-    let result = await callClaude(claudeToken, mcpConfig, systemPrompt, userPrompt, tools, 15, claudeModel);
+    const maxTurns = isGenerate && type === 'video' ? 30 : 15;
+    let result = await callClaude(claudeToken, mcpConfig, systemPrompt, userPrompt, tools, maxTurns, claudeModel);
     console.log(`[agent] ${type} ${action} complete (${id}), raw keys: ${Object.keys(result).join(',')}`);
 
     if (isGenerate && type === 'image') {
@@ -805,5 +820,5 @@ const server = http.createServer(async (req, res) => {
 });
 
 server.listen(PORT, '0.0.0.0', () => {
-  console.log(`[agent] Avatar Studio agent wrapper v1.7.1 listening on :${PORT}`);
+  console.log(`[agent] Avatar Studio agent wrapper v1.7.2 listening on :${PORT}`);
 });
