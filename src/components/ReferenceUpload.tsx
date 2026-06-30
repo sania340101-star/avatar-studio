@@ -109,7 +109,7 @@ export default function ReferenceUpload({ references, onChange, accept, label = 
         className="w-full py-2.5 rounded-lg border-2 border-dashed text-sm"
         style={{ borderColor: 'var(--border)', color: 'var(--text3)' }}
       >
-        {uploading ? 'Uploading...' : '+ Add images, videos, or audio'}
+        {uploading ? 'Uploading...' : accept === 'video/*' ? '+ Add video' : accept === 'audio/*' ? '+ Add audio' : accept === 'image/*' ? '+ Add images' : '+ Add images, videos, or audio'}
       </button>
       <input
         ref={fileRef}
