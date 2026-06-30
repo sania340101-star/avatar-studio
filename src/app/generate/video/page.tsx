@@ -505,10 +505,10 @@ export default function GenerateVideoPage() {
         )}
       </div>
 
-      {/* Mode selector: Manual or Template */}
+      {/* Template selector */}
       {templates.length > 0 && (
         <div className="mb-4 p-3 rounded-xl flex items-center gap-3" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
-          <span className="text-sm font-medium" style={{ color: 'var(--text2)' }}>Mode:</span>
+          <span className="text-sm font-medium" style={{ color: 'var(--text2)' }}>Template:</span>
           <select
             value={selectedTemplate?.id || ''}
             onChange={e => {
@@ -518,12 +518,18 @@ export default function GenerateVideoPage() {
             }}
             className="flex-1 text-sm"
           >
-            <option value="">Manual — set parameters yourself</option>
-            {templates.map(t => (
-              <option key={t.id} value={t.id}>
-                {t.name} ({t.slots.length} slot{t.slots.length !== 1 ? 's' : ''})
-              </option>
-            ))}
+            <option value="">None — configure manually</option>
+            {templates.map(t => {
+              const imgCount = t.slots.reduce((n, s) => n + s.references.filter(r => r.type === 'image').length, 0);
+              const vidCount = t.slots.reduce((n, s) => n + s.references.filter(r => r.type === 'video').length, 0);
+              const audCount = t.slots.reduce((n, s) => n + s.references.filter(r => r.type === 'audio').length, 0);
+              const refParts = [imgCount && `${imgCount} img`, vidCount && `${vidCount} vid`, audCount && `${audCount} aud`].filter(Boolean).join(', ');
+              return (
+                <option key={t.id} value={t.id}>
+                  {t.name} — {t.slots.length} slot{t.slots.length !== 1 ? 's' : ''}{refParts ? ` (${refParts})` : ''}
+                </option>
+              );
+            })}
           </select>
         </div>
       )}

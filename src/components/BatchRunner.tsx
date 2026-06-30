@@ -39,7 +39,6 @@ export default function BatchRunner({ template, projectId, onBack, inline, exter
     endImage?: string;
   };
 }) {
-  const [instruction, setInstruction] = useState(template.promptTemplate || '');
   const [_sourceImage, _setSourceImage] = useState('');
   const [_sourceVideo, _setSourceVideo] = useState<TemplateRef | null>(null);
   const [_audioRef, _setAudioRef] = useState<TemplateRef | null>(null);
@@ -59,7 +58,6 @@ export default function BatchRunner({ template, projectId, onBack, inline, exter
   const slots = template.slots || [];
 
   useEffect(() => {
-    setInstruction(template.promptTemplate || '');
     setBatchId(null);
     setBatchJobs([]);
     setError('');
@@ -88,7 +86,6 @@ export default function BatchRunner({ template, projectId, onBack, inline, exter
       const body: Record<string, unknown> = {
         projectId,
         templateId: template.id,
-        instruction: instruction.trim(),
       };
       if (sourceImage) body.sourceImage = sourceImage;
       if (sourceVideo) body.sourceVideo = sourceVideo.url;
@@ -130,17 +127,7 @@ export default function BatchRunner({ template, projectId, onBack, inline, exter
       )}
 
       {!batchId && (
-        <div className="space-y-5 max-w-2xl">
-          <div>
-            <label className="block text-sm mb-1.5" style={{ color: 'var(--text2)' }}>Instruction</label>
-            <textarea
-              value={instruction}
-              onChange={e => setInstruction(e.target.value)}
-              placeholder="Describe what you want to generate..."
-              className="w-full h-28 resize-none"
-            />
-          </div>
-
+        <div className="space-y-5">
           {!hasExternalRefs && (
             <div className="space-y-3 p-4 rounded-xl" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
               <p className="text-sm font-medium" style={{ color: 'var(--text1)' }}>Source References</p>
@@ -165,16 +152,24 @@ export default function BatchRunner({ template, projectId, onBack, inline, exter
           )}
 
           <div className="p-3 rounded-xl" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
-            <p className="text-xs font-medium mb-2" style={{ color: 'var(--text3)' }}>Slots preview</p>
+            <p className="text-xs font-medium mb-2" style={{ color: 'var(--text3)' }}>Slots ({slots.length})</p>
             <div className="space-y-1.5">
-              {slots.map((slot, i) => (
-                <div key={slot.id} className="flex items-center gap-2 text-xs" style={{ color: 'var(--text2)' }}>
-                  <span className="font-medium px-1.5 py-0.5 rounded" style={{ background: 'var(--accent-subtle)', color: 'var(--accent)' }}>#{i + 1}</span>
-                  <span className="truncate">{slot.modelLabel}</span>
-                  <span style={{ color: 'var(--text3)' }}>{slot.duration}s</span>
-                  {slot.references.length > 0 && <span style={{ color: 'var(--text3)' }}>{slot.references.length} refs</span>}
-                </div>
-              ))}
+              {slots.map((slot, i) => {
+                const imgRefs = slot.references.filter(r => r.type === 'image').length;
+                const vidRefs = slot.references.filter(r => r.type === 'video').length;
+                const audRefs = slot.references.filter(r => r.type === 'audio').length;
+                return (
+                  <div key={slot.id} className="flex items-center gap-2 text-xs p-2 rounded-lg" style={{ background: 'var(--bg)', color: 'var(--text2)' }}>
+                    <span className="font-medium px-1.5 py-0.5 rounded" style={{ background: 'var(--accent-subtle)', color: 'var(--accent)' }}>#{i + 1}</span>
+                    <span className="font-medium truncate">{slot.modelLabel}</span>
+                    <span style={{ color: 'var(--text3)' }}>{slot.duration}s</span>
+                    <span style={{ color: 'var(--text3)' }}>{slot.aspectRatio}</span>
+                    {imgRefs > 0 && <span style={{ color: 'var(--text3)' }}>{imgRefs} img</span>}
+                    {vidRefs > 0 && <span style={{ color: 'var(--text3)' }}>{vidRefs} vid</span>}
+                    {audRefs > 0 && <span style={{ color: 'var(--text3)' }}>{audRefs} aud</span>}
+                  </div>
+                );
+              })}
             </div>
           </div>
 
@@ -186,7 +181,7 @@ export default function BatchRunner({ template, projectId, onBack, inline, exter
 
           <button
             onClick={handleRun}
-            disabled={running || !instruction.trim()}
+            disabled={running}
             className="w-full py-3 rounded-lg text-sm font-semibold text-white disabled:opacity-50"
             style={{ background: running ? 'var(--text3)' : 'var(--accent)' }}
           >

@@ -242,16 +242,31 @@ function SlotCard({ slot, index, total, onChange, onRemove }: {
         <span className="text-xs font-semibold px-2 py-0.5 rounded" style={{ background: 'var(--accent-subtle)', color: 'var(--accent)' }}>
           #{index + 1}
         </span>
-        <span className="text-sm font-medium truncate flex-1" style={{ color: 'var(--text1)' }}>
+        <span className="text-sm font-medium truncate" style={{ color: 'var(--text1)' }}>
           {slot.modelId === 'auto' ? 'Auto' : slot.modelLabel}
         </span>
-        <div className="flex items-center gap-1.5">
-          {slot.references.length > 0 && (
+        <div className="flex items-center gap-1.5 flex-shrink-0">
+          <span className="text-xs px-1.5 py-0.5 rounded" style={{ background: 'var(--bg-input)', color: 'var(--text3)' }}>
+            {slot.duration}s
+          </span>
+          <span className="text-xs px-1.5 py-0.5 rounded" style={{ background: 'var(--bg-input)', color: 'var(--text3)' }}>
+            {slot.aspectRatio}
+          </span>
+          {slot.references.filter(r => r.type === 'image').length > 0 && (
             <span className="text-xs px-1.5 py-0.5 rounded" style={{ background: 'var(--bg-input)', color: 'var(--text3)' }}>
-              {slot.references.length} ref{slot.references.length !== 1 ? 's' : ''}
+              {slot.references.filter(r => r.type === 'image').length} img
             </span>
           )}
-          <span className="text-xs" style={{ color: 'var(--text3)' }}>{slot.duration}s</span>
+          {slot.references.filter(r => r.type === 'video').length > 0 && (
+            <span className="text-xs px-1.5 py-0.5 rounded" style={{ background: 'var(--bg-input)', color: 'var(--text3)' }}>
+              {slot.references.filter(r => r.type === 'video').length} vid
+            </span>
+          )}
+          {slot.references.filter(r => r.type === 'audio').length > 0 && (
+            <span className="text-xs px-1.5 py-0.5 rounded" style={{ background: 'var(--bg-input)', color: 'var(--text3)' }}>
+              {slot.references.filter(r => r.type === 'audio').length} aud
+            </span>
+          )}
           {total > 1 && (
             <button
               onClick={e => { e.stopPropagation(); onRemove(); }}
@@ -467,7 +482,7 @@ function TemplateForm({ userId, existing, onSave, onCancel }: {
         <h2 className="text-xl font-semibold">{existing ? 'Edit Template' : 'New Template'}</h2>
       </div>
 
-      <div className="space-y-5 max-w-3xl">
+      <div className="space-y-5">
         <div>
           <label className="block text-sm mb-1.5" style={{ color: 'var(--text2)' }}>Template Name</label>
           <input value={name} onChange={e => setName(e.target.value)} placeholder="Corporate Avatar HH" className="w-full" />
