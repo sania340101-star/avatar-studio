@@ -6,7 +6,7 @@ import { useProject } from '@/lib/ProjectContext';
 import { Template, TemplateSlot, TemplateRef, VideoModelTypeFilter } from '@/lib/types';
 import {
   VIDEO_MODEL_OPTIONS, VIDEO_MODEL_GROUPS,
-  VIDEO_MODEL_TYPE_FILTERS, filterVideoModelsByType, getVideoModelType,
+  VIDEO_MODEL_TYPE_FILTERS, filterVideoModelsByType,
   VIDEO_ASPECT_RATIO_OPTIONS, VIDEO_QUALITY_OPTIONS, VIDEO_FPS_OPTIONS,
   VIDEO_STRATEGY_OPTIONS, isVideoModelGroupId,
 } from '@/lib/models';
@@ -193,12 +193,6 @@ function SlotCard({ slot, index, total, onChange, onRemove }: {
   const [collapsed, setCollapsed] = useState(false);
 
   const filteredModels = filterVideoModelsByType(slot.typeFilter as VideoModelTypeFilter);
-  const isSpecificModel = slot.modelId !== 'auto' && !isVideoModelGroupId(slot.modelId);
-  const selectedModel = isSpecificModel ? VIDEO_MODEL_OPTIONS.find(m => m.id === slot.modelId) : null;
-  const modelType: VideoModelTypeFilter = selectedModel
-    ? getVideoModelType(selectedModel)
-    : slot.typeFilter !== 'all' ? slot.typeFilter as VideoModelTypeFilter : 'image-to-video';
-
   function updateField<K extends keyof TemplateSlot>(key: K, value: TemplateSlot[K]) {
     onChange({ ...slot, [key]: value });
   }
@@ -277,62 +271,43 @@ function SlotCard({ slot, index, total, onChange, onRemove }: {
 
       {!collapsed && (
         <div className="px-3 pb-3 space-y-3 border-t" style={{ borderColor: 'var(--border)' }}>
-          {modelType !== 'text-to-video' && (
-            <div className="space-y-2 p-3 rounded-lg mt-3" style={{ background: 'var(--bg)', border: '1px solid var(--border)' }}>
-              <p className="text-xs font-medium" style={{ color: 'var(--text3)' }}>References</p>
+          <div className="space-y-2 p-3 rounded-lg mt-3" style={{ background: 'var(--bg)', border: '1px solid var(--border)' }}>
+            <p className="text-xs font-medium" style={{ color: 'var(--text3)' }}>References</p>
 
-              {(modelType === 'image-to-video' || modelType === 'avatar' || modelType === 'motion-control' || modelType === 'start-end-frame') && (
-                <ImagePicker
-                  value={imageRefs[0]?.url || ''}
-                  onChange={url => {
-                    const rest = imageRefs.slice(1);
-                    const newRefs = url ? [{ url, type: 'image' as const, name: 'Source image' }, ...rest] : rest;
-                    setRefsByType('image', newRefs);
-                  }}
-                  label="Source Image"
-                />
-              )}
+            <ImagePicker
+              value={imageRefs[0]?.url || ''}
+              onChange={url => {
+                const rest = imageRefs.slice(1);
+                const newRefs = url ? [{ url, type: 'image' as const, name: 'Source image' }, ...rest] : rest;
+                setRefsByType('image', newRefs);
+              }}
+              label="Source Image"
+            />
 
-              {modelType === 'start-end-frame' && (
-                <ImagePicker
-                  value={imageRefs[1]?.url || ''}
-                  onChange={url => {
-                    const first = imageRefs[0] ? [imageRefs[0]] : [];
-                    const newRefs = url ? [...first, { url, type: 'image' as const, name: 'End image' }] : first;
-                    setRefsByType('image', newRefs);
-                  }}
-                  label="End Image"
-                />
-              )}
+            <ImagePicker
+              value={imageRefs[1]?.url || ''}
+              onChange={url => {
+                const first = imageRefs[0] ? [imageRefs[0]] : [];
+                const newRefs = url ? [...first, { url, type: 'image' as const, name: 'End image' }] : first;
+                setRefsByType('image', newRefs);
+              }}
+              label="End Image (optional)"
+            />
 
-              {modelType === 'multi-reference' && (
-                <ReferenceUpload
-                  references={imageRefs}
-                  onChange={refs => setRefsByType('image', refs)}
-                  accept="image/*"
-                  label="Reference Images (2+)"
-                />
-              )}
+            <ReferenceUpload
+              references={videoRefs}
+              onChange={refs => setRefsByType('video', refs)}
+              accept="video/*"
+              label="Source Video (optional)"
+            />
 
-              {(modelType === 'video-edit' || modelType === 'utility' || modelType === 'lip-sync' || modelType === 'motion-control') && (
-                <ReferenceUpload
-                  references={videoRefs}
-                  onChange={refs => setRefsByType('video', refs)}
-                  accept="video/*"
-                  label={modelType === 'motion-control' ? 'Motion Reference Video' : 'Source Video'}
-                />
-              )}
-
-              {(modelType === 'avatar' || modelType === 'lip-sync') && (
-                <ReferenceUpload
-                  references={audioRefs}
-                  onChange={refs => setRefsByType('audio', refs)}
-                  accept="audio/*"
-                  label="Audio File"
-                />
-              )}
-            </div>
-          )}
+            <ReferenceUpload
+              references={audioRefs}
+              onChange={refs => setRefsByType('audio', refs)}
+              accept="audio/*"
+              label="Audio File (optional)"
+            />
+          </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
