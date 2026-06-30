@@ -158,7 +158,8 @@ export default function Sidebar({ open, onClose, user }: { open?: boolean; onClo
                       background: isActive ? 'var(--accent-subtle)' : 'transparent',
                     }}
                   >
-                    <button
+                    <Link
+                      href="/generate"
                       onClick={() => { setActiveProjectId(p.id); onClose?.(); }}
                       className="flex-1 text-left text-sm px-3 py-2 flex items-center gap-2 min-w-0"
                       style={{ color: isActive ? 'var(--accent)' : 'var(--text2)' }}
@@ -167,7 +168,7 @@ export default function Sidebar({ open, onClose, user }: { open?: boolean; onClo
                         <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
                       </svg>
                       <span className="truncate">{p.title}</span>
-                    </button>
+                    </Link>
                     <button
                       onClick={e => { e.stopPropagation(); setConfirmDelete(true); setActiveProjectId(p.id); }}
                       className="md:opacity-0 md:group-hover:opacity-100 transition-opacity px-2 py-2 flex-shrink-0"
@@ -180,25 +181,6 @@ export default function Sidebar({ open, onClose, user }: { open?: boolean; onClo
                     </button>
                   </div>
 
-                  {/* Generate link nested under active project */}
-                  {isActive && (
-                    <div className="ml-4 mt-0.5 mb-1">
-                      <Link
-                        href="/generate"
-                        onClick={onClose}
-                        className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs transition-colors"
-                        style={{
-                          background: pathname.startsWith('/generate') ? 'var(--accent)' : 'transparent',
-                          color: pathname.startsWith('/generate') ? 'white' : 'var(--text3)',
-                        }}
-                      >
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
-                          <path d="M12 5v14M5 12h14" />
-                        </svg>
-                        Generate
-                      </Link>
-                    </div>
-                  )}
                 </div>
               );
             })}
