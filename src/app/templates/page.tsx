@@ -8,7 +8,7 @@ import {
   VIDEO_MODEL_OPTIONS, VIDEO_MODEL_GROUPS,
   VIDEO_MODEL_TYPE_FILTERS, filterVideoModelsByType, getVideoModelType,
   VIDEO_ASPECT_RATIO_OPTIONS, VIDEO_QUALITY_OPTIONS, VIDEO_FPS_OPTIONS,
-  DEVICE_PRESETS,
+  VIDEO_STRATEGY_OPTIONS, isVideoModelGroupId,
 } from '@/lib/models';
 import ImagePicker from '@/components/ImagePicker';
 import ReferenceUpload from '@/components/ReferenceUpload';
@@ -22,8 +22,8 @@ function makeSlotId(): string {
 function defaultSlot(): TemplateSlot {
   return {
     id: makeSlotId(),
-    modelId: VIDEO_MODEL_OPTIONS[0]?.id || '',
-    modelLabel: VIDEO_MODEL_OPTIONS[0]?.label || '',
+    modelId: 'auto',
+    modelLabel: 'Auto (agent selects)',
     typeFilter: 'all',
     instruction: '',
     duration: 5,
@@ -129,14 +129,9 @@ function TemplateList({ templates, onEdit, onDelete, onCreate }: {
                     <h3 className="font-semibold">{tmpl.name}</h3>
                     {tmpl.description && <p className="text-sm mt-0.5" style={{ color: 'var(--text2)' }}>{tmpl.description}</p>}
                   </div>
-                  <div className="flex gap-1">
-                    <span className="text-xs px-2 py-0.5 rounded" style={{ background: 'var(--accent-subtle)', color: 'var(--accent)' }}>
-                      {slotCount} slot{slotCount !== 1 ? 's' : ''}
-                    </span>
-                    {tmpl.device !== 'any' && (
-                      <span className="text-xs px-2 py-0.5 rounded" style={{ background: 'var(--bg-input)', color: 'var(--text3)' }}>{tmpl.device.toUpperCase()}</span>
-                    )}
-                  </div>
+                  <span className="text-xs px-2 py-0.5 rounded" style={{ background: 'var(--accent-subtle)', color: 'var(--accent)' }}>
+                    {slotCount} slot{slotCount !== 1 ? 's' : ''}
+                  </span>
                 </div>
 
                 <div className="flex flex-wrap gap-1.5 mb-2">
@@ -198,24 +193,41 @@ function SlotCard({ slot, index, total, onChange, onRemove }: {
   const [collapsed, setCollapsed] = useState(false);
 
   const filteredModels = filterVideoModelsByType(slot.typeFilter as VideoModelTypeFilter);
-  const selectedModel = VIDEO_MODEL_OPTIONS.find(m => m.id === slot.modelId);
-  const modelType = selectedModel ? getVideoModelType(selectedModel) : 'image-to-video';
+  const isSpecificModel = slot.modelId !== 'auto' && !isVideoModelGroupId(slot.modelId);
+  const selectedModel = isSpecificModel ? VIDEO_MODEL_OPTIONS.find(m => m.id === slot.modelId) : null;
+  const modelType: VideoModelTypeFilter = selectedModel
+    ? getVideoModelType(selectedModel)
+    : slot.typeFilter !== 'all' ? slot.typeFilter as VideoModelTypeFilter : 'image-to-video';
 
   function updateField<K extends keyof TemplateSlot>(key: K, value: TemplateSlot[K]) {
     onChange({ ...slot, [key]: value });
   }
 
   function handleModelChange(modelId: string) {
-    const opt = VIDEO_MODEL_OPTIONS.find(m => m.id === modelId);
-    onChange({ ...slot, modelId, modelLabel: opt?.label || modelId });
+    let label = modelId;
+    if (modelId === 'auto') label = 'Auto (agent selects)';
+    else if (isVideoModelGroupId(modelId)) {
+      const g = VIDEO_MODEL_GROUPS.find(g => `group:${g.id}` === modelId);
+      label = g ? g.label : modelId;
+    } else {
+      const opt = VIDEO_MODEL_OPTIONS.find(m => m.id === modelId);
+      label = opt?.label || modelId;
+    }
+    onChange({ ...slot, modelId, modelLabel: label });
   }
 
   function handleTypeFilterChange(tf: string) {
-    const models = filterVideoModelsByType(tf as VideoModelTypeFilter);
-    const newModelId = models.find(m => m.id === slot.modelId) ? slot.modelId : (models[0]?.id || '');
-    const opt = VIDEO_MODEL_OPTIONS.find(m => m.id === newModelId);
-    onChange({ ...slot, typeFilter: tf, modelId: newModelId, modelLabel: opt?.label || newModelId });
+    if (slot.modelId !== 'auto' && !isVideoModelGroupId(slot.modelId)) {
+      const models = filterVideoModelsByType(tf as VideoModelTypeFilter);
+      if (!models.find(m => m.id === slot.modelId)) {
+        onChange({ ...slot, typeFilter: tf, modelId: 'auto', modelLabel: 'Auto (agent selects)' });
+        return;
+      }
+    }
+    onChange({ ...slot, typeFilter: tf });
   }
+
+  const showStrategy = slot.modelId === 'auto' || isVideoModelGroupId(slot.modelId);
 
   // Split references by type for the UI
   const imageRefs = slot.references.filter(r => r.type === 'image');
@@ -237,7 +249,7 @@ function SlotCard({ slot, index, total, onChange, onRemove }: {
           #{index + 1}
         </span>
         <span className="text-sm font-medium truncate flex-1" style={{ color: 'var(--text1)' }}>
-          {slot.modelLabel}
+          {slot.modelId === 'auto' ? 'Auto' : slot.modelLabel}
         </span>
         <div className="flex items-center gap-1.5">
           {slot.references.length > 0 && (
@@ -275,39 +287,19 @@ function SlotCard({ slot, index, total, onChange, onRemove }: {
               </select>
             </div>
             <div>
-              <label className="block text-xs mb-1" style={{ color: 'var(--text3)' }}>Model ({filteredModels.length})</label>
+              <label className="block text-xs mb-1" style={{ color: 'var(--text3)' }}>Model</label>
               <select value={slot.modelId} onChange={e => handleModelChange(e.target.value)} className="w-full text-sm">
-                {(() => {
-                  const avatarModels = filteredModels.filter(m => m.avatarAudio || m.avatarText || m.avatarVideoAudio);
-                  const utilityModels = filteredModels.filter(m => m.utilityVideo);
-                  const generalModels = filteredModels.filter(m => !m.avatarAudio && !m.avatarText && !m.avatarVideoAudio && !m.utilityVideo);
-                  const generalByGroup: Record<string, typeof generalModels> = {};
-                  for (const m of generalModels) {
-                    const group = VIDEO_MODEL_GROUPS.find(g => g.modelIds.includes(m.id));
-                    const key = group?.label ?? 'Other';
-                    if (!generalByGroup[key]) generalByGroup[key] = [];
-                    generalByGroup[key].push(m);
-                  }
-                  return (
-                    <>
-                      {Object.entries(generalByGroup).map(([groupLabel, models]) => (
-                        <optgroup key={groupLabel} label={groupLabel}>
-                          {models.map(m => <option key={m.id} value={m.id}>{m.label}</option>)}
-                        </optgroup>
-                      ))}
-                      {avatarModels.length > 0 && (
-                        <optgroup label="Avatar / Lip-sync">
-                          {avatarModels.map(m => <option key={m.id} value={m.id}>{m.label}</option>)}
-                        </optgroup>
-                      )}
-                      {utilityModels.length > 0 && (
-                        <optgroup label="Utility">
-                          {utilityModels.map(m => <option key={m.id} value={m.id}>{m.label}</option>)}
-                        </optgroup>
-                      )}
-                    </>
-                  );
-                })()}
+                <option value="auto">Auto (agent selects)</option>
+                <optgroup label="By Group">
+                  {VIDEO_MODEL_GROUPS.map(g => (
+                    <option key={g.id} value={`group:${g.id}`}>{g.label} ({g.modelIds.length})</option>
+                  ))}
+                </optgroup>
+                <optgroup label="Specific Model">
+                  {filteredModels.map(m => (
+                    <option key={m.id} value={m.id}>{m.label}</option>
+                  ))}
+                </optgroup>
               </select>
             </div>
           </div>
@@ -339,13 +331,36 @@ function SlotCard({ slot, index, total, onChange, onRemove }: {
             </div>
           </div>
 
+          {showStrategy && (
+            <div>
+              <label className="block text-xs mb-1" style={{ color: 'var(--text3)' }}>Strategy</label>
+              <div className="grid grid-cols-3 gap-2">
+                {VIDEO_STRATEGY_OPTIONS.map(s => (
+                  <button
+                    key={s.id}
+                    onClick={() => updateField('strategy', s.id)}
+                    className="py-2 rounded-lg text-xs font-medium transition-colors text-center"
+                    style={{
+                      background: slot.strategy === s.id ? 'var(--accent)' : 'var(--bg-input)',
+                      color: slot.strategy === s.id ? 'white' : 'var(--text2)',
+                      border: `1px solid ${slot.strategy === s.id ? 'var(--accent)' : 'var(--border)'}`,
+                    }}
+                  >
+                    {s.label}
+                    <span className="block text-[10px] mt-0.5" style={{ opacity: 0.7 }}>{s.description}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div>
-            <label className="block text-xs mb-1" style={{ color: 'var(--text3)' }}>Instruction Override (optional)</label>
+            <label className="block text-xs mb-1" style={{ color: 'var(--text3)' }}>Instruction</label>
             <textarea
               value={slot.instruction}
               onChange={e => updateField('instruction', e.target.value)}
-              placeholder="Leave empty to use the shared instruction above"
-              className="w-full h-16 resize-none text-sm"
+              placeholder="Describe what you want to generate..."
+              className="w-full h-24 resize-none text-sm"
             />
           </div>
 
@@ -419,8 +434,6 @@ function TemplateForm({ userId, existing, onSave, onCancel }: {
 }) {
   const [name, setName] = useState(existing?.name || '');
   const [description, setDescription] = useState(existing?.description || '');
-  const [device, setDevice] = useState<string>(existing?.device || 'any');
-  const [promptTemplate, setPromptTemplate] = useState(existing?.promptTemplate || '');
   const [slots, setSlots] = useState<TemplateSlot[]>(() => {
     if (existing?.slots?.length) return existing.slots;
     return [defaultSlot()];
@@ -449,8 +462,8 @@ function TemplateForm({ userId, existing, onSave, onCancel }: {
       name: name.trim(),
       description: description.trim(),
       type: 'video' as const,
-      device,
-      promptTemplate: promptTemplate.trim(),
+      device: 'any',
+      promptTemplate: '',
       slots,
       createdBy: userId,
     };
@@ -480,35 +493,14 @@ function TemplateForm({ userId, existing, onSave, onCancel }: {
       </div>
 
       <div className="space-y-5 max-w-3xl">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm mb-1.5" style={{ color: 'var(--text2)' }}>Template Name</label>
-            <input value={name} onChange={e => setName(e.target.value)} placeholder="Corporate Avatar HH" className="w-full" />
-          </div>
-          <div>
-            <label className="block text-sm mb-1.5" style={{ color: 'var(--text2)' }}>Device</label>
-            <select value={device} onChange={e => setDevice(e.target.value)} className="w-full">
-              <option value="any">Any</option>
-              {Object.entries(DEVICE_PRESETS).map(([key, preset]) => (
-                <option key={key} value={key}>{preset.name} ({preset.width}x{preset.height})</option>
-              ))}
-            </select>
-          </div>
+        <div>
+          <label className="block text-sm mb-1.5" style={{ color: 'var(--text2)' }}>Template Name</label>
+          <input value={name} onChange={e => setName(e.target.value)} placeholder="Corporate Avatar HH" className="w-full" />
         </div>
 
         <div>
           <label className="block text-sm mb-1.5" style={{ color: 'var(--text2)' }}>Description</label>
           <input value={description} onChange={e => setDescription(e.target.value)} placeholder="Short description..." className="w-full" />
-        </div>
-
-        <div>
-          <label className="block text-sm mb-1.5" style={{ color: 'var(--text2)' }}>Shared Instruction</label>
-          <textarea
-            value={promptTemplate}
-            onChange={e => setPromptTemplate(e.target.value)}
-            placeholder="Instruction that applies to all slots (each slot can override)..."
-            className="w-full h-24 resize-none"
-          />
         </div>
 
         <div>
