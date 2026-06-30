@@ -1,13 +1,23 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import GenerateImagePage from './image/page';
 import GenerateVideoPage from './video/page';
 
 type Mode = 'image' | 'video';
+const MODE_KEY = 'avatar-studio:generate-mode';
 
 export default function GeneratePage() {
-  const [mode, setMode] = useState<Mode>('video');
+  const [mode, setMode] = useState<Mode>(() => {
+    if (typeof window !== 'undefined') {
+      return (sessionStorage.getItem(MODE_KEY) as Mode) || 'video';
+    }
+    return 'video';
+  });
+
+  useEffect(() => {
+    sessionStorage.setItem(MODE_KEY, mode);
+  }, [mode]);
 
   return (
     <div>
