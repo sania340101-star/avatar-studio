@@ -17,6 +17,7 @@ export default function ImagePicker({ value, onChange, label = 'Source Image', r
   const [projectImages, setProjectImages] = useState<Generation[]>([]);
   const [pickerProjectId, setPickerProjectId] = useState<string>('');
   const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -38,6 +39,7 @@ export default function ImagePicker({ value, onChange, label = 'Source Image', r
     const file = e.target.files?.[0];
     if (!file) return;
     setUploading(true);
+    setUploadError('');
     try {
       const formData = new FormData();
       formData.append('file', file);
@@ -46,7 +48,11 @@ export default function ImagePicker({ value, onChange, label = 'Source Image', r
       if (data.url) {
         onChange(data.url);
         setShowPicker(false);
+      } else if (data.error) {
+        setUploadError(data.error);
       }
+    } catch {
+      setUploadError('Upload failed. Check file size and format.');
     } finally {
       setUploading(false);
       e.target.value = '';
@@ -107,6 +113,7 @@ export default function ImagePicker({ value, onChange, label = 'Source Image', r
                 {uploading ? 'Uploading...' : 'Upload from computer'}
               </button>
               <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleUpload} />
+              {uploadError && <p className="text-xs mt-1" style={{ color: 'var(--red, #ef4444)' }}>{uploadError}</p>}
             </div>
 
             {projects.length > 1 && (

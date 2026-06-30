@@ -19,11 +19,13 @@ function getRefType(file: File): TemplateRef['type'] {
 export default function ReferenceUpload({ references, onChange, accept, label = 'References' }: Props) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState('');
 
   async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const files = e.target.files;
     if (!files) return;
     setUploading(true);
+    setError('');
     const newRefs: TemplateRef[] = [];
     for (const file of Array.from(files)) {
       const formData = new FormData();
@@ -33,8 +35,12 @@ export default function ReferenceUpload({ references, onChange, accept, label = 
         const data = await res.json();
         if (data.url) {
           newRefs.push({ url: data.url, type: getRefType(file), name: file.name });
+        } else if (data.error) {
+          setError(data.error);
         }
-      } catch {}
+      } catch {
+        setError('Upload failed. Check file size and format.');
+      }
     }
     onChange([...references, ...newRefs]);
     setUploading(false);
@@ -119,6 +125,10 @@ export default function ReferenceUpload({ references, onChange, accept, label = 
         className="hidden"
         onChange={handleUpload}
       />
+
+      {error && (
+        <p className="text-xs mt-1" style={{ color: 'var(--red, #ef4444)' }}>{error}</p>
+      )}
 
       {references.length > 0 && (
         <p className="text-xs mt-1" style={{ color: 'var(--text3)' }}>
