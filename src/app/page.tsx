@@ -6,5 +6,5 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
   if (token) {
     redirect(`/api/auth/sso?token=${encodeURIComponent(token)}`);
   }
-  redirect('/generate/image');
+  redirect('/generate');
 }
