@@ -133,50 +133,55 @@ function GalleryContent() {
       {/* Bulk action toolbar */}
       {hasSelection && (
         <div
-          className="sticky top-0 z-20 flex flex-wrap items-center gap-3 px-4 py-3 mb-4 rounded-xl shadow-lg"
+          className="sticky top-0 z-20 px-4 py-3 mb-4 rounded-xl shadow-lg"
           style={{ background: 'var(--bg-card)', border: '1px solid var(--accent)' }}
         >
-          <span className="text-sm font-medium" style={{ color: 'var(--text1)' }}>
-            {selectedIds.size} selected
-          </span>
-          <button
-            onClick={allSelected ? () => setSelectedIds(new Set()) : selectAll}
-            className="text-xs px-3 py-1.5 rounded-lg font-medium"
-            style={{ background: 'var(--bg-input)', color: 'var(--text2)' }}
-          >
-            {allSelected ? 'Deselect All' : 'Select All'}
-          </button>
-          <div className="flex-1" />
-          <button
-            onClick={handleBulkDownload}
-            className="text-xs px-3 py-1.5 rounded-lg font-medium flex items-center gap-1.5"
-            style={{ background: 'var(--accent)', color: 'white' }}
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" />
-            </svg>
-            Download
-          </button>
-          <button
-            onClick={() => setConfirmBulkDelete(true)}
-            className="text-xs px-3 py-1.5 rounded-lg font-medium flex items-center gap-1.5 text-white"
-            style={{ background: 'var(--red, #ef4444)' }}
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
-              <polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-            </svg>
-            Delete
-          </button>
-          <button
-            onClick={() => setSelectedIds(new Set())}
-            className="text-xs px-1.5 py-1.5"
-            style={{ color: 'var(--text3)' }}
-            title="Clear selection"
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
-              <path d="M18 6L6 18M6 6l12 12" />
-            </svg>
-          </button>
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium" style={{ color: 'var(--text1)' }}>
+                {selectedIds.size} selected
+              </span>
+              <button
+                onClick={allSelected ? () => setSelectedIds(new Set()) : selectAll}
+                className="text-xs px-3 py-1.5 rounded-lg font-medium"
+                style={{ background: 'var(--bg-input)', color: 'var(--text2)' }}
+              >
+                {allSelected ? 'Deselect' : 'All'}
+              </button>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleBulkDownload}
+                className="text-xs px-3 py-1.5 rounded-lg font-medium flex items-center gap-1.5"
+                style={{ background: 'var(--accent)', color: 'white' }}
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" />
+                </svg>
+                <span className="hidden sm:inline">Download</span>
+              </button>
+              <button
+                onClick={() => setConfirmBulkDelete(true)}
+                className="text-xs px-3 py-1.5 rounded-lg font-medium flex items-center gap-1.5 text-white"
+                style={{ background: 'var(--red, #ef4444)' }}
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
+                  <polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                </svg>
+                <span className="hidden sm:inline">Delete</span>
+              </button>
+              <button
+                onClick={() => setSelectedIds(new Set())}
+                className="text-xs px-1.5 py-1.5"
+                style={{ color: 'var(--text3)' }}
+                title="Clear selection"
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
+                  <path d="M18 6L6 18M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
