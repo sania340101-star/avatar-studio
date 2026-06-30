@@ -149,7 +149,7 @@ export default function Sidebar({ open, onClose, user }: { open?: boolean; onClo
 
           <div className="space-y-0.5">
             {filteredProjects.map(p => {
-              const isActive = p.id === activeProject?.id;
+              const isActive = p.id === activeProject?.id && pathname.startsWith('/generate');
               return (
                 <div key={p.id}>
                   <div
