@@ -6,26 +6,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useProject } from '@/lib/ProjectContext';
 import { AppUser } from '@/lib/types';
 
-const NAV_ITEMS = [
-  {
-    label: 'Generate Image',
-    href: '/generate/image',
-    icon: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5">
-        <rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="8.5" cy="8.5" r="1.5" /><path d="m21 15-5-5L5 21" />
-      </svg>
-    ),
-  },
-  {
-    label: 'Generate Video',
-    href: '/generate/video',
-    icon: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5">
-        <polygon points="5 3 19 12 5 21 5 3" />
-      </svg>
-    ),
-  },
-  { type: 'separator' as const },
+const GLOBAL_NAV = [
   {
     label: 'Templates',
     href: '/templates',
@@ -68,7 +49,6 @@ export default function Sidebar({ open, onClose, user }: { open?: boolean; onClo
   const [creating, setCreating] = useState(false);
   const [newTitle, setNewTitle] = useState('');
   const [projectSearch, setProjectSearch] = useState('');
-  const [projectDropdownOpen, setProjectDropdownOpen] = useState(false);
   const [spending, setSpending] = useState<SpendingData | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
 
@@ -107,127 +87,156 @@ export default function Sidebar({ open, onClose, user }: { open?: boolean; onClo
         />
       )}
       <aside className={`
-        w-56 flex-shrink-0 h-full flex flex-col border-r
+        w-60 flex-shrink-0 h-full flex flex-col border-r
         fixed inset-y-0 left-0 z-40 transition-transform duration-200
         md:static md:translate-x-0
         ${open ? 'translate-x-0' : '-translate-x-full'}
       `} style={{ borderColor: 'var(--border)', background: 'var(--bg-card)' }}>
+
+      {/* Header */}
       <div className="p-4 border-b" style={{ borderColor: 'var(--border)' }}>
         <h1 className="text-lg font-semibold" style={{ color: 'var(--accent)' }}>Avatar Studio</h1>
         <p className="text-xs mt-0.5" style={{ color: 'var(--text3)' }}>HYPERVSN</p>
       </div>
 
-      <div className="p-3 border-b" style={{ borderColor: 'var(--border)' }}>
-        <label className="block text-xs mb-1 font-medium" style={{ color: 'var(--text3)' }}>PROJECT</label>
-        {projects.length > 0 ? (
-          <div className="relative">
+      {/* Projects section */}
+      <div className="flex-1 flex flex-col overflow-hidden">
+        <div className="px-3 pt-3 pb-2">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: 'var(--text3)' }}>Projects</p>
             <button
-              onClick={() => setProjectDropdownOpen(!projectDropdownOpen)}
-              className="w-full text-sm text-left px-2 py-1.5 rounded border flex items-center justify-between"
-              style={{ borderColor: 'var(--border)', background: 'var(--bg-input)', color: 'var(--text1)' }}
+              onClick={() => setCreating(true)}
+              className="text-xs px-1.5 py-0.5 rounded"
+              style={{ color: 'var(--accent)' }}
+              title="New project"
             >
-              <span className="truncate">{activeProject?.title || 'Select...'}</span>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5 flex-shrink-0" style={{ color: 'var(--text3)' }}>
-                <path d="m6 9 6 6 6-6" />
-              </svg>
+              +
             </button>
-            {projectDropdownOpen && (
-              <div className="absolute left-0 right-0 top-full mt-1 z-20 rounded-lg border shadow-lg overflow-hidden" style={{ borderColor: 'var(--border)', background: 'var(--bg-card)' }}>
-                {projects.length > 5 && (
-                  <div className="p-1.5">
-                    <input
-                      autoFocus
-                      value={projectSearch}
-                      onChange={e => setProjectSearch(e.target.value)}
-                      placeholder="Search projects..."
-                      className="w-full text-xs !py-1 !px-2"
-                    />
-                  </div>
-                )}
-                <div className="max-h-48 overflow-auto">
-                  {filteredProjects.map(p => (
-                    <button
-                      key={p.id}
-                      onClick={() => { setActiveProjectId(p.id); setProjectDropdownOpen(false); setProjectSearch(''); }}
-                      className="w-full text-left text-xs px-3 py-2 hover:opacity-80 transition-opacity"
-                      style={{
-                        background: p.id === activeProject?.id ? 'var(--accent-subtle)' : 'transparent',
-                        color: p.id === activeProject?.id ? 'var(--accent)' : 'var(--text2)',
-                      }}
-                    >
-                      {p.title}
-                    </button>
-                  ))}
-                  {filteredProjects.length === 0 && (
-                    <p className="text-xs px-3 py-2" style={{ color: 'var(--text3)' }}>No projects found</p>
+          </div>
+
+          {projects.length > 3 && (
+            <input
+              value={projectSearch}
+              onChange={e => setProjectSearch(e.target.value)}
+              placeholder="Search..."
+              className="w-full text-xs !py-1.5 !px-2 mb-2"
+            />
+          )}
+
+          {creating && (
+            <div className="flex gap-1 mb-2">
+              <input
+                autoFocus
+                value={newTitle}
+                onChange={e => setNewTitle(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') handleCreate(); if (e.key === 'Escape') setCreating(false); }}
+                placeholder="Project name"
+                className="flex-1 text-xs !py-1 !px-2"
+              />
+              <button onClick={handleCreate} className="text-xs px-2 py-1 rounded" style={{ background: 'var(--accent)', color: 'white' }}>+</button>
+              <button onClick={() => setCreating(false)} className="text-xs px-1" style={{ color: 'var(--text3)' }}>×</button>
+            </div>
+          )}
+        </div>
+
+        <div className="flex-1 overflow-auto px-2">
+          {projects.length === 0 && !creating && (
+            <button
+              onClick={() => setCreating(true)}
+              className="w-full py-6 rounded-lg border border-dashed text-xs text-center"
+              style={{ borderColor: 'var(--border)', color: 'var(--text3)' }}
+            >
+              Create your first project
+            </button>
+          )}
+
+          <div className="space-y-0.5">
+            {filteredProjects.map(p => {
+              const isActive = p.id === activeProject?.id;
+              return (
+                <div key={p.id}>
+                  <button
+                    onClick={() => { setActiveProjectId(p.id); onClose?.(); }}
+                    className="w-full text-left text-sm px-3 py-2 rounded-lg transition-colors group flex items-center gap-2"
+                    style={{
+                      background: isActive ? 'var(--accent-subtle)' : 'transparent',
+                      color: isActive ? 'var(--accent)' : 'var(--text2)',
+                    }}
+                  >
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4 flex-shrink-0" style={{ opacity: 0.5 }}>
+                      <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+                    </svg>
+                    <span className="truncate">{p.title}</span>
+                  </button>
+
+                  {/* Generate options nested under active project */}
+                  {isActive && (
+                    <div className="ml-4 mt-0.5 mb-1 space-y-0.5">
+                      <Link
+                        href="/generate/image"
+                        onClick={onClose}
+                        className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs transition-colors"
+                        style={{
+                          background: pathname === '/generate/image' ? 'var(--accent)' : 'transparent',
+                          color: pathname === '/generate/image' ? 'white' : 'var(--text3)',
+                        }}
+                      >
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
+                          <rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="8.5" cy="8.5" r="1.5" /><path d="m21 15-5-5L5 21" />
+                        </svg>
+                        Generate Image
+                      </Link>
+                      <Link
+                        href="/generate/video"
+                        onClick={onClose}
+                        className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs transition-colors"
+                        style={{
+                          background: pathname === '/generate/video' ? 'var(--accent)' : 'transparent',
+                          color: pathname === '/generate/video' ? 'white' : 'var(--text3)',
+                        }}
+                      >
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
+                          <polygon points="5 3 19 12 5 21 5 3" />
+                        </svg>
+                        Generate Video
+                      </Link>
+                    </div>
                   )}
                 </div>
-              </div>
-            )}
+              );
+            })}
           </div>
-        ) : (
-          <p className="text-xs" style={{ color: 'var(--text3)' }}>No projects yet</p>
-        )}
+        </div>
 
-        {creating ? (
-          <div className="mt-2 flex gap-1">
-            <input
-              autoFocus
-              value={newTitle}
-              onChange={e => setNewTitle(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && handleCreate()}
-              placeholder="Project name"
-              className="flex-1 text-xs !py-1 !px-2"
-            />
-            <button onClick={handleCreate} className="text-xs px-2 py-1 rounded" style={{ background: 'var(--accent)', color: 'white' }}>+</button>
-            <button onClick={() => setCreating(false)} className="text-xs px-1" style={{ color: 'var(--text3)' }}>x</button>
+        {/* Global nav */}
+        <div className="px-2 py-2 border-t" style={{ borderColor: 'var(--border)' }}>
+          <p className="text-[10px] font-semibold uppercase tracking-wider px-3 mb-1" style={{ color: 'var(--text3)' }}>Global</p>
+          <div className="space-y-0.5">
+            {GLOBAL_NAV.map(item => {
+              const active = pathname.startsWith(item.href);
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  onClick={onClose}
+                  className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors"
+                  style={{
+                    background: active ? 'var(--accent-subtle)' : 'transparent',
+                    color: active ? 'var(--accent)' : 'var(--text2)',
+                  }}
+                >
+                  {item.icon}
+                  {item.label}
+                </Link>
+              );
+            })}
           </div>
-        ) : (
-          <button
-            onClick={() => setCreating(true)}
-            className="mt-2 w-full py-1.5 rounded-lg border border-dashed text-xs"
-            style={{ borderColor: 'var(--border)', color: 'var(--text3)' }}
-          >
-            + New Project
-          </button>
-        )}
+        </div>
       </div>
 
-      <nav className="flex-1 p-3 overflow-auto">
-        <p className="text-[10px] font-semibold uppercase tracking-wider px-3 mb-1" style={{ color: 'var(--text3)' }}>Project</p>
-        <div className="space-y-1">
-        {NAV_ITEMS.map((item, i) => {
-          if ('type' in item && item.type === 'separator') {
-            return (
-              <div key={i}>
-                <div className="my-3 border-t" style={{ borderColor: 'var(--border)' }} />
-                <p className="text-[10px] font-semibold uppercase tracking-wider px-3 mb-1" style={{ color: 'var(--text3)' }}>Global</p>
-              </div>
-            );
-          }
-          if (!('href' in item)) return null;
-          const active = pathname.startsWith(item.href);
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              onClick={onClose}
-              className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors"
-              style={{
-                background: active ? 'var(--accent-subtle)' : 'transparent',
-                color: active ? 'var(--accent)' : 'var(--text2)',
-              }}
-            >
-              {item.icon}
-              {item.label}
-            </Link>
-          );
-        })}
-        </div>
-      </nav>
-
+      {/* Delete project */}
       {activeProject && (
-        <div className="p-3 border-t" style={{ borderColor: 'var(--border)' }}>
+        <div className="px-3 py-2 border-t" style={{ borderColor: 'var(--border)' }}>
           <button
             onClick={() => setConfirmDelete(true)}
             className="w-full py-1.5 rounded-lg text-xs"
@@ -275,8 +284,9 @@ export default function Sidebar({ open, onClose, user }: { open?: boolean; onClo
         </div>
       )}
 
+      {/* Spending */}
       {spending && (
-        <div className="px-3 pt-3 pb-1 border-t" style={{ borderColor: 'var(--border)' }}>
+        <div className="px-3 pt-2 pb-1 border-t" style={{ borderColor: 'var(--border)' }}>
           <div className="flex items-center justify-between mb-1.5">
             <span className="text-xs font-medium" style={{ color: 'var(--text2)' }}>Daily spend</span>
             <span className="text-xs" style={{ color: 'var(--text3)' }}>
@@ -303,6 +313,7 @@ export default function Sidebar({ open, onClose, user }: { open?: boolean; onClo
         </div>
       )}
 
+      {/* Footer */}
       <div className="p-3 border-t text-xs" style={{ borderColor: 'var(--border)', color: 'var(--text3)' }}>
         {user && (
           <div className="truncate mb-1" title={user.email || user.userName || user.userId}>
