@@ -505,11 +505,13 @@ export const VIDEO_FPS_OPTIONS = [
   { id: 60, label: '60 fps' },
 ];
 
-export const VIDEO_STRATEGY_OPTIONS = [
+export const STRATEGY_OPTIONS = [
   { id: 'economy', label: 'Economy', description: 'Cheapest models' },
   { id: 'balance', label: 'Balance', description: 'Cost vs quality' },
   { id: 'quality', label: 'Quality', description: 'Best results' },
 ];
+
+export const VIDEO_STRATEGY_OPTIONS = STRATEGY_OPTIONS;
 
 export function aspectRatioToNumeric(ar: string): number {
   const [w, h] = ar.split(':').map(Number);

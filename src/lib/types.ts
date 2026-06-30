@@ -132,6 +132,7 @@ export interface ImageFormCache {
   modelPref: string;
   desiredSize: string;
   desiredResolution: string;
+  strategy: string;
 }
 
 export interface VideoFormCache {

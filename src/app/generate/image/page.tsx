@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import {
   IMAGE_MODEL_OPTIONS, IMAGE_MODEL_GROUPS, IMAGE_SIZE_OPTIONS, IMAGE_RESOLUTION_OPTIONS,
+  STRATEGY_OPTIONS, isImageModelGroupId,
 } from '@/lib/models';
 import { useProject } from '@/lib/ProjectContext';
 import { Generation, GenerationCost, JobData } from '@/lib/types';
@@ -27,6 +28,7 @@ export default function GenerateImagePage() {
   const [instruction, setInstruction] = useState('');
   const [desiredSize, setDesiredSize] = useState('portrait_16_9');
   const [desiredResolution, setDesiredResolution] = useState('1k');
+  const [strategy, setStrategy] = useState('balance');
 
   // Editable fields for review step
   const [editPrompt, setEditPrompt] = useState('');
@@ -59,6 +61,7 @@ export default function GenerateImagePage() {
       if (cache.instruction) setInstruction(cache.instruction);
       if (cache.desiredSize) setDesiredSize(cache.desiredSize);
       if (cache.desiredResolution) setDesiredResolution(cache.desiredResolution);
+      if (cache.strategy) setStrategy(cache.strategy);
     }
     cacheRestoredRef.current = true;
   }, [cacheLoaded, cache]);
@@ -70,6 +73,7 @@ export default function GenerateImagePage() {
     setModelPref('auto');
     setDesiredSize('portrait_16_9');
     setDesiredResolution('1k');
+    setStrategy('balance');
     setResults([]);
     setError('');
     setEditPrompt('');
@@ -84,8 +88,8 @@ export default function GenerateImagePage() {
 
   useEffect(() => {
     if (!cacheRestoredRef.current) return;
-    saveCache({ references, instruction, modelPref, desiredSize, desiredResolution });
-  }, [references, instruction, modelPref, desiredSize, desiredResolution, saveCache]);
+    saveCache({ references, instruction, modelPref, desiredSize, desiredResolution, strategy });
+  }, [references, instruction, modelPref, desiredSize, desiredResolution, strategy, saveCache]);
 
   // Check for active job on mount / project change
   useEffect(() => {
@@ -153,7 +157,7 @@ export default function GenerateImagePage() {
           modelLabel: job.result.modelLabel || job.prepareResult?.modelLabel || modelPref,
           prompt: job.result.prompt || editPrompt,
           params: {
-            size: desiredSize, count: 1,
+            size: desiredSize, count: 1, strategy,
             instruction: instruction.trim(),
             agentReasoning: job.prepareResult?.reasoning,
           },
@@ -266,6 +270,7 @@ export default function GenerateImagePage() {
           instruction: instruction.trim(),
           model: modelPref === 'auto' ? undefined : modelPref,
           size: desiredSize,
+          strategy,
           references: references.map(r => r.url),
           systemPrompt: user?.systemPrompt || DEFAULT_SYSTEM_PROMPT,
         }),
@@ -304,6 +309,7 @@ export default function GenerateImagePage() {
   function handleSelectVersion(gen: Generation) {
     if (gen.params.instruction) setInstruction(gen.params.instruction as string);
     if (gen.params.size) setDesiredSize(gen.params.size as string);
+    if (gen.params.strategy) setStrategy(gen.params.strategy as string);
     setReferences((gen.referenceUrls || []).map((url, i) => ({ url, name: `Reference ${i + 1}` })));
     setResults(gen.resultUrls.map(url => ({ url })));
     setEditPrompt(gen.prompt);
@@ -433,6 +439,29 @@ export default function GenerateImagePage() {
               ))}
             </select>
           </div>
+
+          {isImageModelGroupId(modelPref) && (
+            <div>
+              <label className="block text-sm mb-1.5" style={{ color: 'var(--text2)' }}>Strategy</label>
+              <div className="grid grid-cols-3 gap-2">
+                {STRATEGY_OPTIONS.map(s => (
+                  <button
+                    key={s.id}
+                    onClick={() => setStrategy(s.id)}
+                    className="py-2.5 rounded-lg text-sm font-medium transition-colors text-center"
+                    style={{
+                      background: strategy === s.id ? 'var(--accent)' : 'var(--bg-input)',
+                      color: strategy === s.id ? 'white' : 'var(--text2)',
+                      border: `1px solid ${strategy === s.id ? 'var(--accent)' : 'var(--border)'}`,
+                    }}
+                  >
+                    {s.label}
+                    <span className="block text-[10px] mt-0.5" style={{ opacity: 0.7 }}>{s.description}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
 
           {(dynamicCost || pricingLoading) && effectiveView === 'input' && (
             <div className="p-3 rounded-lg flex items-center gap-3" style={{ background: 'rgba(76,175,80,0.08)', border: '1px solid rgba(76,175,80,0.15)' }}>
