@@ -83,7 +83,7 @@ Your job: generate an image using the given prompt and model via fal-ai MCP tool
 
 Steps:
 1. Use run_model with the specified model and prompt
-2. If reference images are provided, pass them to the model as image_url or reference inputs (check model schema for the correct parameter name)
+2. If reference images are provided, pass their URLs directly to the model as image_url or reference inputs (check model schema for the correct parameter name). All URLs are already uploaded to fal.ai CDN — do NOT try to re-upload them.
 3. Return the result — include any cost/billing info from the fal.ai response if available
 
 Return ONLY a JSON object:
@@ -138,7 +138,7 @@ Your job: generate a video using the given prompt and model via fal-ai MCP tools
 
 Steps:
 1. Use submit_job with the specified model and prompt
-2. If source images/videos are provided, pass them to the model as the appropriate input parameters
+2. If source images/videos/audio are provided, pass their URLs directly to the model as the appropriate input parameters. All URLs are already uploaded to fal.ai CDN — do NOT try to re-upload them.
 3. Use check_job to poll until complete
 4. Use get_job_result to get the result
 5. Return the result — include any cost/billing info from the fal.ai response if available
@@ -199,6 +199,54 @@ async function downloadReferences(refs) {
     }
   }
   return results;
+}
+
+const MIME_BY_EXT = {
+  '.mp4': 'video/mp4', '.webm': 'video/webm', '.mov': 'video/quicktime',
+  '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png',
+  '.webp': 'image/webp', '.gif': 'image/gif',
+  '.mp3': 'audio/mpeg', '.wav': 'audio/wav', '.m4a': 'audio/mp4',
+  '.ogg': 'audio/ogg', '.aac': 'audio/aac',
+};
+
+async function uploadToFalCDN(filePath, falKey) {
+  const fileName = path.basename(filePath);
+  const ext = path.extname(filePath).toLowerCase();
+  const contentType = MIME_BY_EXT[ext] || 'application/octet-stream';
+  const fileBuffer = readFileSync(filePath);
+
+  const initRes = await fetch('https://rest.alpha.fal.ai/storage/upload/initiate', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Key ${falKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ file_name: fileName, content_type: contentType }),
+  });
+  if (!initRes.ok) throw new Error(`fal CDN initiate failed: ${initRes.status}`);
+  const { upload_url, file_url } = await initRes.json();
+
+  const putRes = await fetch(upload_url, {
+    method: 'PUT',
+    headers: { 'Content-Type': contentType },
+    body: fileBuffer,
+  });
+  if (!putRes.ok) throw new Error(`fal CDN upload failed: ${putRes.status}`);
+
+  return file_url;
+}
+
+function isLocalUrl(url) {
+  return url && (url.startsWith('/') || url.includes('localhost'));
+}
+
+async function uploadLocalMedia(url, falKey, tmpFiles) {
+  if (!url || !isLocalUrl(url)) return url;
+  const f = await downloadFile(url);
+  tmpFiles.push(f);
+  const cdnUrl = await uploadToFalCDN(f, falKey);
+  console.log(`[agent] Uploaded to fal CDN: ${url} → ${cdnUrl}`);
+  return cdnUrl;
 }
 
 async function getBestClaudeKey() {
@@ -362,6 +410,19 @@ const server = http.createServer(async (req, res) => {
     const allRefs = [...(body.references || [])];
     if (body.sourceImage) allRefs.push(body.sourceImage);
     imageFiles = await downloadReferences(allRefs);
+
+    // For generate: upload all local media to fal CDN so the model can access them
+    if (isGenerate) {
+      if (body.references?.length) {
+        for (let i = 0; i < body.references.length; i++) {
+          body.references[i] = await uploadLocalMedia(body.references[i], falKey, imageFiles);
+        }
+      }
+      if (body.sourceImage) body.sourceImage = await uploadLocalMedia(body.sourceImage, falKey, imageFiles);
+      if (body.sourceVideo) body.sourceVideo = await uploadLocalMedia(body.sourceVideo, falKey, imageFiles);
+      if (body.audioUrl) body.audioUrl = await uploadLocalMedia(body.audioUrl, falKey, imageFiles);
+      if (body.endImage) body.endImage = await uploadLocalMedia(body.endImage, falKey, imageFiles);
+    }
 
     const userPrompt = buildPrompt(body, imageFiles);
     const action = isPrepare ? 'prepare' : 'generate';

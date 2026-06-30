@@ -845,9 +845,10 @@ export default function GenerateVideoPage() {
         </div>
       )}
 
-      <VersionHistory generations={history} onSelect={handleSelectVersion} onDelete={handleDeleteVersion} />
         </>
       )}
+
+      <VersionHistory generations={history} onSelect={handleSelectVersion} onDelete={handleDeleteVersion} />
     </div>
   );
 }

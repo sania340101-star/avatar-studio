@@ -59,6 +59,7 @@ export default function GenerateImagePage() {
     if (cache) {
       if (cache.references?.length) setReferences(cache.references);
       if (cache.instruction) setInstruction(cache.instruction);
+      if (cache.modelPref) setModelPref(cache.modelPref);
       if (cache.desiredSize) setDesiredSize(cache.desiredSize);
       if (cache.desiredResolution) setDesiredResolution(cache.desiredResolution);
       if (cache.strategy) setStrategy(cache.strategy);
