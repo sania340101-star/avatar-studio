@@ -170,7 +170,7 @@ export default function Sidebar({ open, onClose, user }: { open?: boolean; onClo
                     </button>
                     <button
                       onClick={e => { e.stopPropagation(); setConfirmDelete(true); setActiveProjectId(p.id); }}
-                      className="opacity-0 group-hover:opacity-100 transition-opacity px-2 py-2 flex-shrink-0"
+                      className="md:opacity-0 md:group-hover:opacity-100 transition-opacity px-2 py-2 flex-shrink-0"
                       style={{ color: 'var(--text3)' }}
                       title="Delete project"
                     >
