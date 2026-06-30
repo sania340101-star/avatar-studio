@@ -218,10 +218,24 @@ async function runGenerate(job: JobData, prompt: string, model: string, falKey: 
   if (costUsd > 0) recordSpending(job.userId, costUsd, data.model || '', job.type);
 
   if (job.type === 'video') {
-    const videoUrl = data.video?.url;
+    let videoUrl = data.video?.url
+      || data.output?.url
+      || data.result?.video?.url;
+    if (!videoUrl && typeof data.text === 'string') {
+      const m = data.text.match(/https?:\/\/[^\s"'\\]+\.(?:mp4|webm|mov)/i);
+      if (m) videoUrl = m[0];
+    }
+    if (!videoUrl) {
+      const json = JSON.stringify(data);
+      const m = json.match(/https?:\/\/[^\s"'\\]+\.(?:mp4|webm|mov)/i);
+      if (m) videoUrl = m[0];
+    }
     const localUrl = videoUrl ? await proxyResultUrl(videoUrl) : undefined;
+    if (!localUrl && !videoUrl) {
+      throw new Error('Generation completed but no video URL in response');
+    }
     job.result = {
-      video: localUrl ? { url: localUrl } : data.video,
+      video: { url: localUrl || videoUrl! },
       prompt: data.prompt, model: data.model, modelLabel: data.modelLabel,
       reasoning: data.reasoning, cost: data.cost || undefined,
     };

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Template, TemplateRef } from '@/lib/types';
 import ImagePicker from '@/components/ImagePicker';
 import ReferenceUpload from '@/components/ReferenceUpload';
@@ -54,6 +54,7 @@ export default function BatchRunner({ template, projectId, onBack, inline, exter
   const [batchJobs, setBatchJobs] = useState<BatchJob[]>([]);
   const [error, setError] = useState('');
   const [lightbox, setLightbox] = useState<{ url: string; type: 'image' | 'video' } | null>(null);
+  const savedBatchRef = useRef<string | null>(null);
 
   const slots = template.slots || [];
 
@@ -78,6 +79,33 @@ export default function BatchRunner({ template, projectId, onBack, inline, exter
     }, 2000);
     return () => clearInterval(interval);
   }, [batchId, batchJobs]);
+
+  useEffect(() => {
+    if (!batchId || savedBatchRef.current === batchId) return;
+    const allDone = batchJobs.length > 0 && batchJobs.every(j => j.status === 'complete' || j.status === 'error');
+    if (!allDone) return;
+    savedBatchRef.current = batchId;
+    const completed = batchJobs.filter(j => j.status === 'complete' && j.result?.video?.url);
+    for (const job of completed) {
+      const slot = slots[job.slotIndex ?? 0];
+      fetch('/api/generations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          projectId,
+          type: 'video',
+          modelId: job.result?.model || slot?.modelId,
+          modelLabel: job.result?.modelLabel || slot?.modelLabel,
+          prompt: job.result?.prompt || slot?.instruction || '',
+          params: { templateId: template.id, templateName: template.name, slotIndex: job.slotIndex },
+          referenceUrls: sourceImage ? [sourceImage] : [],
+          resultUrls: job.result?.video?.url ? [job.result.video.url] : [],
+          status: 'completed',
+          actualCost: job.result?.cost || undefined,
+        }),
+      }).catch(() => {});
+    }
+  }, [batchId, batchJobs, projectId, template, slots, sourceImage]);
 
   async function handleRun() {
     setRunning(true);
