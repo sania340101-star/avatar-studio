@@ -103,25 +103,22 @@ export default function Sidebar({ open, onClose, user }: { open?: boolean; onClo
       <div className="flex-1 flex flex-col overflow-hidden">
         <div className="px-3 pt-3 pb-2">
           <div className="flex items-center justify-between mb-2">
-            <p className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: 'var(--text3)' }}>Projects</p>
+            <h3 className="text-sm font-semibold" style={{ color: 'var(--text1)' }}>Projects</h3>
             <button
               onClick={() => setCreating(true)}
-              className="text-xs px-1.5 py-0.5 rounded"
-              style={{ color: 'var(--accent)' }}
-              title="New project"
+              className="text-xs px-2.5 py-1 rounded-md font-medium"
+              style={{ background: 'var(--accent)', color: 'white' }}
             >
-              +
+              + New
             </button>
           </div>
 
-          {projects.length > 3 && (
-            <input
-              value={projectSearch}
-              onChange={e => setProjectSearch(e.target.value)}
-              placeholder="Search..."
-              className="w-full text-xs !py-1.5 !px-2 mb-2"
-            />
-          )}
+          <input
+            value={projectSearch}
+            onChange={e => setProjectSearch(e.target.value)}
+            placeholder="Search projects..."
+            className="w-full text-xs !py-1.5 !px-2 mb-2"
+          />
 
           {creating && (
             <div className="flex gap-1 mb-2">
@@ -155,19 +152,33 @@ export default function Sidebar({ open, onClose, user }: { open?: boolean; onClo
               const isActive = p.id === activeProject?.id;
               return (
                 <div key={p.id}>
-                  <button
-                    onClick={() => { setActiveProjectId(p.id); onClose?.(); }}
-                    className="w-full text-left text-sm px-3 py-2 rounded-lg transition-colors group flex items-center gap-2"
+                  <div
+                    className="flex items-center gap-1 group rounded-lg transition-colors"
                     style={{
                       background: isActive ? 'var(--accent-subtle)' : 'transparent',
-                      color: isActive ? 'var(--accent)' : 'var(--text2)',
                     }}
                   >
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4 flex-shrink-0" style={{ opacity: 0.5 }}>
-                      <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-                    </svg>
-                    <span className="truncate">{p.title}</span>
-                  </button>
+                    <button
+                      onClick={() => { setActiveProjectId(p.id); onClose?.(); }}
+                      className="flex-1 text-left text-sm px-3 py-2 flex items-center gap-2 min-w-0"
+                      style={{ color: isActive ? 'var(--accent)' : 'var(--text2)' }}
+                    >
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4 flex-shrink-0" style={{ opacity: 0.5 }}>
+                        <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+                      </svg>
+                      <span className="truncate">{p.title}</span>
+                    </button>
+                    <button
+                      onClick={e => { e.stopPropagation(); setConfirmDelete(true); setActiveProjectId(p.id); }}
+                      className="opacity-0 group-hover:opacity-100 transition-opacity px-2 py-2 flex-shrink-0"
+                      style={{ color: 'var(--text3)' }}
+                      title="Delete project"
+                    >
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
+                        <path d="M18 6L6 18M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
 
                   {/* Generate options nested under active project */}
                   {isActive && (
@@ -233,19 +244,6 @@ export default function Sidebar({ open, onClose, user }: { open?: boolean; onClo
           </div>
         </div>
       </div>
-
-      {/* Delete project */}
-      {activeProject && (
-        <div className="px-3 py-2 border-t" style={{ borderColor: 'var(--border)' }}>
-          <button
-            onClick={() => setConfirmDelete(true)}
-            className="w-full py-1.5 rounded-lg text-xs"
-            style={{ color: 'var(--red)', background: 'rgba(239,68,68,0.08)' }}
-          >
-            Delete Project
-          </button>
-        </div>
-      )}
 
       {confirmDelete && activeProject && (
         <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => setConfirmDelete(false)}>
@@ -314,13 +312,13 @@ export default function Sidebar({ open, onClose, user }: { open?: boolean; onClo
       )}
 
       {/* Footer */}
-      <div className="p-3 border-t text-xs" style={{ borderColor: 'var(--border)', color: 'var(--text3)' }}>
+      <div className="px-3 py-2 border-t flex items-center justify-between text-xs" style={{ borderColor: 'var(--border)', color: 'var(--text3)' }}>
         {user && (
-          <div className="truncate mb-1" title={user.email || user.userName || user.userId}>
+          <span className="truncate" title={user.email || user.userName || user.userId}>
             {user.email || user.userName || user.userId}
-          </div>
+          </span>
         )}
-        <span>v1.4.0</span>
+        <span className="flex-shrink-0 ml-2">v1.4.0</span>
       </div>
     </aside>
     </>
