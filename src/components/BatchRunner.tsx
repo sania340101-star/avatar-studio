@@ -23,7 +23,7 @@ interface BatchJob {
   id: string;
   status: string;
   slotIndex?: number;
-  result?: { video?: { url: string }; model?: string; modelLabel?: string; cost?: { amount?: number } };
+  result?: { video?: { url: string }; prompt?: string; model?: string; modelLabel?: string; cost?: { amount?: number } };
   error?: string;
 }
 
