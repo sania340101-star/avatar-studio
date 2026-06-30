@@ -84,7 +84,7 @@ export async function GET(request: NextRequest) {
 
   const host = request.headers.get('host') || request.nextUrl.host;
   const proto = request.headers.get('x-forwarded-proto') || 'http';
-  const redirectUrl = `${proto}://${host}/generate/image`;
+  const redirectUrl = `${proto}://${host}/generate`;
 
   const response = NextResponse.redirect(redirectUrl);
   response.cookies.set('session', sessionToken, {
