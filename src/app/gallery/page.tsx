@@ -28,6 +28,7 @@ function GalleryContent() {
   const [generations, setGenerations] = useState<Generation[]>([]);
   const [lightbox, setLightbox] = useState<{ url: string; type: 'image' | 'video' } | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
   const [bulkDeleting, setBulkDeleting] = useState(false);
@@ -237,10 +238,11 @@ function GalleryContent() {
           </p>
         </div>
       ) : (
-        <div className="space-y-4">
+        <div className="space-y-3">
           {galleryEntries.map(entry => {
             if (entry.kind === 'batch') {
               const batchSelected = isBatchSelected(entry);
+              const isExpanded = expandedId === entry.batchId;
               let totalCost = 0;
               let hasCost = false;
               for (const g of entry.gens) {
@@ -251,16 +253,16 @@ function GalleryContent() {
               return (
                 <div
                   key={entry.batchId}
-                  className="rounded-xl border p-4 transition-colors"
+                  className="rounded-xl border transition-colors"
                   style={{
-                    borderColor: batchSelected ? 'var(--accent)' : 'var(--border)',
+                    borderColor: isExpanded ? 'var(--accent)' : batchSelected ? 'var(--accent)' : 'var(--border)',
                     background: batchSelected ? 'var(--accent-subtle)' : 'var(--bg-card)',
                     borderLeft: '3px solid var(--accent)',
                   }}
                 >
-                  <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-3">
+                  <div className="flex items-center gap-3 p-3">
                     <button
-                      onClick={() => toggleBatchSelect(entry)}
+                      onClick={(e) => { e.stopPropagation(); toggleBatchSelect(entry); }}
                       className="w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 transition-colors"
                       style={{
                         borderColor: batchSelected ? 'var(--accent)' : 'var(--border)',
@@ -273,108 +275,148 @@ function GalleryContent() {
                         </svg>
                       )}
                     </button>
-                    <span className="text-xs font-medium px-2 py-0.5 rounded" style={{ background: 'rgba(108,60,224,0.15)', color: 'var(--accent)' }}>
-                      template
-                    </span>
-                    <span className="text-xs font-medium px-2 py-0.5 rounded" style={{ background: 'rgba(76,175,80,0.12)', color: 'var(--green)' }}>
-                      {entry.gens.length} slots
-                    </span>
-                    <span className="text-sm font-medium truncate">{entry.templateName}</span>
-                    {projectMap[entry.gens[0].projectId] && (
-                      <span className="text-xs font-medium px-2 py-0.5 rounded flex items-center gap-1" style={{ background: 'rgba(59,130,246,0.12)', color: 'var(--blue, #3b82f6)' }}>
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3 h-3 flex-shrink-0">
-                          <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-                        </svg>
-                        {projectMap[entry.gens[0].projectId]}
-                      </span>
-                    )}
-                    <span className="text-xs" style={{ color: 'var(--text3)' }}>
-                      {new Date(Math.max(...entry.gens.map(g => g.createdAt))).toLocaleString()}
-                    </span>
-                    {hasCost && (
-                      <span className="text-xs font-medium px-2 py-0.5 rounded" style={{ background: 'rgba(108,60,224,0.1)', color: 'var(--accent)' }}>
-                        ${totalCost.toFixed(2)}
-                      </span>
-                    )}
-                    {models.length <= 2 && (
-                      <span className="text-xs ml-auto hidden sm:inline" style={{ color: 'var(--text3)' }}>{models.join(', ')}</span>
-                    )}
-                  </div>
 
-                  <div className="border-t mb-3" style={{ borderColor: 'var(--border)' }} />
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {entry.gens.map((gen, j) => {
-                      const slotIdx = (gen.params.slotIndex as number) ?? j;
-                      const slotCost = gen.actualCost?.amount != null
-                        ? `$${gen.actualCost.amount.toFixed(2)}`
-                        : gen.estimatedCost?.amount != null ? `~$${gen.estimatedCost.amount.toFixed(2)}` : null;
-                      return (
-                        <div key={gen.id} className="rounded-lg border p-2 space-y-2" style={{ borderColor: 'var(--border)', background: 'var(--bg)' }}>
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs font-medium px-1.5 py-0.5 rounded" style={{ background: 'var(--accent-subtle)', color: 'var(--accent)' }}>
-                              #{slotIdx + 1}
-                            </span>
-                            <span className="text-xs truncate" style={{ color: 'var(--text3)' }}>{gen.modelLabel}</span>
-                            {gen.params.duration != null && (
-                              <span className="text-xs" style={{ color: 'var(--text3)' }}>{String(gen.params.duration)}s</span>
-                            )}
-                            {slotCost && (
-                              <span className="text-xs font-medium ml-auto px-1.5 py-0.5 rounded" style={{ background: 'rgba(108,60,224,0.1)', color: 'var(--accent)' }}>
-                                {slotCost}
-                              </span>
-                            )}
-                          </div>
-
-                          {gen.resultUrls[0] && (
-                            <div className="relative group rounded-lg overflow-hidden border hover:border-[var(--accent)] transition-colors" style={{ borderColor: 'var(--border)' }}>
-                              <button onClick={() => setLightbox({ url: gen.resultUrls[0], type: gen.type })} className="w-full cursor-zoom-in">
-                                {gen.type === 'video' ? (
-                                  <video src={gen.resultUrls[0]} className="w-full pointer-events-none" />
-                                ) : (
-                                  <img src={gen.resultUrls[0]} alt="" className="w-full aspect-video object-cover" />
-                                )}
-                              </button>
-                              <div className="absolute bottom-0 left-0 right-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex justify-center p-2 pointer-events-none">
-                                <button
-                                  onClick={(e) => { e.stopPropagation(); downloadUrl(gen.resultUrls[0], `batch-slot-${slotIdx + 1}.${gen.type === 'video' ? 'mp4' : 'png'}`); }}
-                                  className="pointer-events-auto px-3 py-1 rounded text-xs text-white font-medium"
-                                  style={{ background: 'var(--accent)' }}
-                                >
-                                  Download
-                                </button>
+                    <div
+                      className="w-14 h-14 rounded-lg flex-shrink-0 overflow-hidden flex items-center justify-center cursor-pointer"
+                      style={{ background: 'var(--accent-subtle)' }}
+                      onClick={() => setExpandedId(isExpanded ? null : entry.batchId)}
+                    >
+                      <div className="grid grid-cols-2 gap-0.5 w-12 h-12 p-1">
+                        {entry.gens.slice(0, 4).map((g, j) => (
+                          g.resultUrls[0]
+                            ? <div key={j} className="rounded-sm overflow-hidden">
+                                {g.type === 'video'
+                                  ? <video src={g.resultUrls[0]} className="w-full h-full object-cover" muted />
+                                  : <img src={g.resultUrls[0]} alt="" className="w-full h-full object-cover" />
+                                }
                               </div>
-                            </div>
-                          )}
+                            : <div key={j} className="rounded-sm" style={{ background: 'var(--border)' }} />
+                        ))}
+                      </div>
+                    </div>
 
-                          {gen.params.instruction != null && (
-                            <p className="text-xs" style={{ color: 'var(--text2)' }}>{String(gen.params.instruction)}</p>
-                          )}
+                    <div
+                      className="flex-1 min-w-0 cursor-pointer"
+                      onClick={() => setExpandedId(isExpanded ? null : entry.batchId)}
+                    >
+                      <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 mb-1">
+                        <span className="text-xs font-medium px-2 py-0.5 rounded" style={{ background: 'rgba(108,60,224,0.15)', color: 'var(--accent)' }}>
+                          template
+                        </span>
+                        <span className="text-xs font-medium px-1.5 py-0.5 rounded" style={{ background: 'rgba(76,175,80,0.12)', color: 'var(--green)' }}>
+                          {entry.gens.length} slots
+                        </span>
+                        {projectMap[entry.gens[0].projectId] && (
+                          <span className="text-xs font-medium px-2 py-0.5 rounded flex items-center gap-1" style={{ background: 'rgba(59,130,246,0.12)', color: 'var(--blue, #3b82f6)' }}>
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3 h-3 flex-shrink-0">
+                              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+                            </svg>
+                            {projectMap[entry.gens[0].projectId]}
+                          </span>
+                        )}
+                        <span className="text-xs hidden sm:inline" style={{ color: 'var(--text3)' }}>
+                          {new Date(Math.max(...entry.gens.map(g => g.createdAt))).toLocaleString()}
+                        </span>
+                        {hasCost && (
+                          <span className="text-xs font-medium px-1.5 py-0.5 rounded" style={{ background: 'rgba(108,60,224,0.1)', color: 'var(--accent)' }}>
+                            ${totalCost.toFixed(2)}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-sm truncate font-medium" style={{ color: 'var(--text1)' }}>{entry.templateName}</p>
+                      {models.length <= 2 && (
+                        <p className="text-xs truncate" style={{ color: 'var(--text3)' }}>{models.join(', ')}</p>
+                      )}
+                    </div>
 
-                          <div className="flex flex-wrap gap-1">
-                            {gen.params.aspectRatio != null && (
-                              <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: 'var(--bg-input)', color: 'var(--text3)' }}>{String(gen.params.aspectRatio)}</span>
-                            )}
-                            {gen.params.quality != null && (
-                              <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: 'var(--bg-input)', color: 'var(--text3)' }}>{String(gen.params.quality)}</span>
-                            )}
-                            {gen.params.fps != null && (
-                              <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: 'var(--bg-input)', color: 'var(--text3)' }}>{String(gen.params.fps)}fps</span>
-                            )}
-                            {gen.params.strategy != null && (
-                              <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: 'var(--bg-input)', color: 'var(--text3)' }}>{String(gen.params.strategy)}</span>
-                            )}
-                          </div>
-
-                          <p className="text-xs line-clamp-2" style={{ color: 'var(--text3)' }}>{gen.prompt}</p>
-                        </div>
-                      );
-                    })}
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+                      className={`w-4 h-4 flex-shrink-0 transition-transform cursor-pointer ${isExpanded ? 'rotate-90' : ''}`}
+                      style={{ color: 'var(--text3)' }}
+                      onClick={() => setExpandedId(isExpanded ? null : entry.batchId)}
+                    >
+                      <path d="M9 18l6-6-6-6" />
+                    </svg>
                   </div>
 
-                  {hasCost && (
-                    <div className="flex items-center justify-between text-xs mt-3 pt-2 border-t" style={{ borderColor: 'var(--border)' }}>
-                      <span style={{ color: 'var(--text3)' }}>Total cost</span>
-                      <span className="font-semibold" style={{ color: 'var(--accent)' }}>${totalCost.toFixed(2)}</span>
+                  {isExpanded && (
+                    <div className="px-3 pb-3">
+                      <div className="pt-3 border-t space-y-3" style={{ borderColor: 'var(--border)' }}>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          {entry.gens.map((gen, j) => {
+                            const slotIdx = (gen.params.slotIndex as number) ?? j;
+                            const slotCost = gen.actualCost?.amount != null
+                              ? `$${gen.actualCost.amount.toFixed(2)}`
+                              : gen.estimatedCost?.amount != null ? `~$${gen.estimatedCost.amount.toFixed(2)}` : null;
+                            return (
+                              <div key={gen.id} className="rounded-lg border p-2 space-y-2" style={{ borderColor: 'var(--border)', background: 'var(--bg)' }}>
+                                <div className="flex items-center gap-2">
+                                  <span className="text-xs font-medium px-1.5 py-0.5 rounded" style={{ background: 'var(--accent-subtle)', color: 'var(--accent)' }}>
+                                    #{slotIdx + 1}
+                                  </span>
+                                  <span className="text-xs truncate" style={{ color: 'var(--text3)' }}>{gen.modelLabel}</span>
+                                  {gen.params.duration != null && (
+                                    <span className="text-xs" style={{ color: 'var(--text3)' }}>{String(gen.params.duration)}s</span>
+                                  )}
+                                  {slotCost && (
+                                    <span className="text-xs font-medium ml-auto px-1.5 py-0.5 rounded" style={{ background: 'rgba(108,60,224,0.1)', color: 'var(--accent)' }}>
+                                      {slotCost}
+                                    </span>
+                                  )}
+                                </div>
+
+                                {gen.resultUrls[0] && (
+                                  <div className="relative group rounded-lg overflow-hidden border hover:border-[var(--accent)] transition-colors" style={{ borderColor: 'var(--border)' }}>
+                                    <button onClick={() => setLightbox({ url: gen.resultUrls[0], type: gen.type })} className="w-full cursor-zoom-in">
+                                      {gen.type === 'video' ? (
+                                        <video src={gen.resultUrls[0]} className="w-full pointer-events-none" muted />
+                                      ) : (
+                                        <img src={gen.resultUrls[0]} alt="" className="w-full aspect-video object-cover" />
+                                      )}
+                                    </button>
+                                    <div className="absolute bottom-0 left-0 right-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex justify-center p-2 pointer-events-none">
+                                      <button
+                                        onClick={(e) => { e.stopPropagation(); downloadUrl(gen.resultUrls[0], `batch-slot-${slotIdx + 1}.${gen.type === 'video' ? 'mp4' : 'png'}`); }}
+                                        className="pointer-events-auto px-3 py-1 rounded text-xs text-white font-medium"
+                                        style={{ background: 'var(--accent)' }}
+                                      >
+                                        Download
+                                      </button>
+                                    </div>
+                                  </div>
+                                )}
+
+                                {gen.params.instruction != null && (
+                                  <p className="text-xs" style={{ color: 'var(--text2)' }}>{String(gen.params.instruction)}</p>
+                                )}
+
+                                <div className="flex flex-wrap gap-1">
+                                  {gen.params.aspectRatio != null && (
+                                    <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: 'var(--bg-input)', color: 'var(--text3)' }}>{String(gen.params.aspectRatio)}</span>
+                                  )}
+                                  {gen.params.quality != null && (
+                                    <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: 'var(--bg-input)', color: 'var(--text3)' }}>{String(gen.params.quality)}</span>
+                                  )}
+                                  {gen.params.fps != null && (
+                                    <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: 'var(--bg-input)', color: 'var(--text3)' }}>{String(gen.params.fps)}fps</span>
+                                  )}
+                                  {gen.params.strategy != null && (
+                                    <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: 'var(--bg-input)', color: 'var(--text3)' }}>{String(gen.params.strategy)}</span>
+                                  )}
+                                </div>
+
+                                <p className="text-xs line-clamp-2" style={{ color: 'var(--text3)' }}>{gen.prompt}</p>
+                              </div>
+                            );
+                          })}
+                        </div>
+
+                        {hasCost && (
+                          <div className="flex items-center justify-between text-xs pt-1">
+                            <span style={{ color: 'var(--text3)' }}>Total cost</span>
+                            <span className="font-semibold" style={{ color: 'var(--accent)' }}>${totalCost.toFixed(2)}</span>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   )}
                 </div>
@@ -383,18 +425,23 @@ function GalleryContent() {
 
             const gen = entry.gen;
             const isSelected = selectedIds.has(gen.id);
+            const isExpanded = expandedId === gen.id;
+            const costLabel = gen.actualCost?.amount != null
+              ? `$${gen.actualCost.amount.toFixed(2)}`
+              : gen.estimatedCost?.amount != null ? `~$${gen.estimatedCost.amount.toFixed(2)}` : null;
+
             return (
               <div
                 key={gen.id}
-                className="rounded-xl border p-4 transition-colors"
+                className="rounded-xl border transition-colors"
                 style={{
-                  borderColor: isSelected ? 'var(--accent)' : 'var(--border)',
+                  borderColor: isExpanded ? 'var(--accent)' : isSelected ? 'var(--accent)' : 'var(--border)',
                   background: isSelected ? 'var(--accent-subtle)' : 'var(--bg-card)',
                 }}
               >
-                <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-3">
+                <div className="flex items-center gap-3 p-3">
                   <button
-                    onClick={() => toggleSelect(gen.id)}
+                    onClick={(e) => { e.stopPropagation(); toggleSelect(gen.id); }}
                     className="w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 transition-colors"
                     style={{
                       borderColor: isSelected ? 'var(--accent)' : 'var(--border)',
@@ -407,89 +454,153 @@ function GalleryContent() {
                       </svg>
                     )}
                   </button>
-                  <span className="text-xs font-medium px-2 py-0.5 rounded" style={{
-                    background: gen.type === 'image' ? 'rgba(76,175,80,0.15)' : 'rgba(108,60,224,0.15)',
-                    color: gen.type === 'image' ? 'var(--green)' : 'var(--accent)',
-                  }}>
-                    {gen.type}
-                  </span>
-                  <span className="text-sm font-medium truncate">{gen.modelLabel}</span>
-                  {projectMap[gen.projectId] && (
-                    <span className="text-xs font-medium px-2 py-0.5 rounded flex items-center gap-1" style={{ background: 'rgba(59,130,246,0.12)', color: 'var(--blue, #3b82f6)' }}>
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3 h-3 flex-shrink-0">
-                        <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-                      </svg>
-                      {projectMap[gen.projectId]}
-                    </span>
+
+                  {gen.resultUrls[0] && (
+                    <div
+                      className="w-14 h-14 rounded-lg flex-shrink-0 overflow-hidden cursor-pointer"
+                      onClick={() => setExpandedId(isExpanded ? null : gen.id)}
+                    >
+                      {gen.type === 'video' ? (
+                        <video src={gen.resultUrls[0]} className="w-full h-full object-cover" muted />
+                      ) : (
+                        <img src={gen.resultUrls[0]} alt="" className="w-full h-full object-cover" />
+                      )}
+                    </div>
                   )}
-                  <span className="text-xs" style={{ color: 'var(--text3)' }}>
-                    {new Date(gen.createdAt).toLocaleString()}
-                  </span>
-                  {(gen.actualCost?.amount != null || gen.estimatedCost?.amount != null) && (
-                    <span className="text-xs font-medium px-2 py-0.5 rounded" style={{ background: 'rgba(108,60,224,0.1)', color: 'var(--accent)' }}>
-                      {gen.actualCost?.amount != null ? `$${gen.actualCost.amount.toFixed(2)}` : `~$${gen.estimatedCost!.amount!.toFixed(2)}`}
-                    </span>
-                  )}
+
+                  <div
+                    className="flex-1 min-w-0 cursor-pointer"
+                    onClick={() => setExpandedId(isExpanded ? null : gen.id)}
+                  >
+                    <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 mb-1">
+                      <span className="text-xs font-medium px-2 py-0.5 rounded" style={{
+                        background: gen.type === 'image' ? 'rgba(76,175,80,0.15)' : 'rgba(108,60,224,0.15)',
+                        color: gen.type === 'image' ? 'var(--green)' : 'var(--accent)',
+                      }}>
+                        {gen.type}
+                      </span>
+                      <span className="text-xs truncate max-w-[120px] sm:max-w-none" style={{ color: 'var(--text3)' }}>
+                        {gen.modelLabel}
+                      </span>
+                      {projectMap[gen.projectId] && (
+                        <span className="text-xs font-medium px-2 py-0.5 rounded flex items-center gap-1" style={{ background: 'rgba(59,130,246,0.12)', color: 'var(--blue, #3b82f6)' }}>
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3 h-3 flex-shrink-0">
+                            <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+                          </svg>
+                          {projectMap[gen.projectId]}
+                        </span>
+                      )}
+                      <span className="text-xs hidden sm:inline" style={{ color: 'var(--text3)' }}>
+                        {new Date(gen.createdAt).toLocaleString()}
+                      </span>
+                      {costLabel && (
+                        <span className="text-xs font-medium px-1.5 py-0.5 rounded" style={{ background: 'rgba(108,60,224,0.1)', color: 'var(--accent)' }}>
+                          {costLabel}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-sm truncate" style={{ color: 'var(--text2)' }}>{gen.prompt}</p>
+                  </div>
+
                   <button
-                    onClick={() => setConfirmDeleteId(gen.id)}
-                    className="ml-auto text-xs px-2 py-1 rounded opacity-50 hover:opacity-100"
+                    onClick={(e) => { e.stopPropagation(); setConfirmDeleteId(gen.id); }}
+                    className="text-xs px-2 py-1 rounded opacity-50 hover:opacity-100 flex-shrink-0"
                     style={{ color: 'var(--red)' }}
                   >
-                    Delete
+                    Del
                   </button>
+
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+                    className={`w-4 h-4 flex-shrink-0 transition-transform cursor-pointer ${isExpanded ? 'rotate-90' : ''}`}
+                    style={{ color: 'var(--text3)' }}
+                    onClick={() => setExpandedId(isExpanded ? null : gen.id)}
+                  >
+                    <path d="M9 18l6-6-6-6" />
+                  </svg>
                 </div>
 
-                <p className="text-sm mb-3 line-clamp-3" style={{ color: 'var(--text2)' }}>{gen.prompt}</p>
-
-                {gen.type === 'image' ? (
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
-                    {gen.resultUrls.map((url, i) => (
-                      <div key={i} className="relative group rounded-lg overflow-hidden border hover:border-[var(--accent)] transition-colors"
-                        style={{ borderColor: 'var(--border)' }}>
-                        <button onClick={() => setLightbox({ url, type: 'image' })} className="w-full cursor-zoom-in">
-                          <img src={url} alt="" className="w-full aspect-square object-cover" />
-                        </button>
-                        <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-end justify-center p-2 pointer-events-none">
-                          <button
-                            onClick={(e) => { e.stopPropagation(); downloadUrl(url, `image-${i + 1}.png`); }}
-                            className="pointer-events-auto px-3 py-1 rounded text-xs text-white font-medium"
-                            style={{ background: 'var(--accent)' }}
-                          >
-                            Download
-                          </button>
-                        </div>
+                {isExpanded && (
+                  <div className="px-3 pb-3">
+                    <div className="pt-3 border-t space-y-3" style={{ borderColor: 'var(--border)' }}>
+                      <div>
+                        <p className="text-xs font-medium mb-1" style={{ color: 'var(--text3)' }}>Prompt</p>
+                        <p className="text-sm whitespace-pre-wrap" style={{ color: 'var(--text2)' }}>{gen.prompt}</p>
                       </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {gen.resultUrls.map((url, i) => (
-                      <div key={i} className="relative group rounded-lg overflow-hidden border hover:border-[var(--accent)] transition-colors"
-                        style={{ borderColor: 'var(--border)' }}>
-                        <button onClick={() => setLightbox({ url, type: 'video' })} className="w-full cursor-zoom-in">
-                          <video src={url} className="w-full pointer-events-none" />
-                        </button>
-                        <div className="absolute bottom-0 left-0 right-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex justify-center p-2 pointer-events-none">
-                          <button
-                            onClick={(e) => { e.stopPropagation(); downloadUrl(url, `video-${i + 1}.mp4`); }}
-                            className="pointer-events-auto px-3 py-1 rounded text-xs text-white font-medium"
-                            style={{ background: 'var(--accent)' }}
-                          >
-                            Download
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
 
-                {Object.keys(gen.params).length > 0 && (
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    {Object.entries(gen.params).map(([k, v]) => v != null && typeof v !== 'object' && (
-                      <span key={k} className="text-xs px-2 py-0.5 rounded" style={{ background: 'var(--bg-input)', color: 'var(--text3)' }}>
-                        {k}: {String(v)}
-                      </span>
-                    ))}
+                      {gen.params.instruction != null && (
+                        <div>
+                          <p className="text-xs font-medium mb-1" style={{ color: 'var(--text3)' }}>Instruction</p>
+                          <p className="text-sm whitespace-pre-wrap" style={{ color: 'var(--text2)' }}>{String(gen.params.instruction)}</p>
+                        </div>
+                      )}
+
+                      {gen.params.agentReasoning != null && (
+                        <div className="p-3 rounded-lg" style={{ background: 'rgba(76,175,80,0.08)' }}>
+                          <p className="text-xs font-medium mb-1" style={{ color: 'var(--green)' }}>Agent Reasoning</p>
+                          <p className="text-sm whitespace-pre-wrap" style={{ color: 'var(--text2)' }}>{String(gen.params.agentReasoning)}</p>
+                        </div>
+                      )}
+
+                      <div className="flex flex-wrap gap-2">
+                        {Object.entries(gen.params).map(([k, v]) => v != null && typeof v !== 'object' && !['instruction', 'agentReasoning', 'templateDefined'].includes(k) && (
+                          <span key={k} className="text-xs px-2 py-1 rounded" style={{ background: 'var(--bg-input)', color: 'var(--text3)' }}>
+                            {k}: {String(v)}
+                          </span>
+                        ))}
+                        <span className="text-xs px-2 py-1 rounded" style={{ background: 'var(--bg-input)', color: 'var(--text3)' }}>
+                          Model: {gen.modelLabel}
+                        </span>
+                        {costLabel && (
+                          <span className="text-xs px-2 py-1 rounded font-medium" style={{ background: 'rgba(108,60,224,0.1)', color: 'var(--accent)' }}>
+                            Cost: {costLabel}
+                          </span>
+                        )}
+                      </div>
+
+                      {gen.resultUrls.length > 0 && (
+                        <div>
+                          <p className="text-xs font-medium mb-1" style={{ color: 'var(--text3)' }}>
+                            Results ({gen.resultUrls.length})
+                          </p>
+                          <div className="flex flex-wrap gap-2">
+                            {gen.resultUrls.map((url, i) => {
+                              const ext = gen.type === 'video' ? 'mp4' : 'png';
+                              const fname = `${gen.type}-${i + 1}.${ext}`;
+                              return (
+                                <div key={i} className="flex flex-col items-center gap-1">
+                                  <button
+                                    onClick={() => setLightbox({ url, type: gen.type })}
+                                    className="group relative rounded-lg overflow-hidden cursor-zoom-in"
+                                  >
+                                    <div className={gen.type === 'image' ? 'w-24 h-24' : 'w-32 h-24'}>
+                                      {gen.type === 'video' ? (
+                                        <video src={url} className="w-full h-full object-cover" muted />
+                                      ) : (
+                                        <img src={url} alt="" className="w-full h-full object-cover" />
+                                      )}
+                                    </div>
+                                    <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                      <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" className="w-5 h-5">
+                                        <circle cx="11" cy="11" r="8" />
+                                        <path d="M21 21l-4.35-4.35" />
+                                        <path d="M11 8v6M8 11h6" />
+                                      </svg>
+                                    </div>
+                                  </button>
+                                  <button
+                                    onClick={() => downloadUrl(url, fname)}
+                                    className="text-xs px-2 py-0.5 rounded hover:opacity-80 transition-opacity"
+                                    style={{ background: 'var(--accent)', color: 'white' }}
+                                  >
+                                    Download
+                                  </button>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 )}
               </div>
