@@ -779,12 +779,37 @@ async function directFalGenerate(modelId, body, falKey, falUploadedUrls, falMedi
 
   console.log(`[agent] directFal: video URL: ${videoUrl.slice(0, 100)}`);
 
+  let cost = result.cost || undefined;
+  if (!cost) {
+    try {
+      let cached = pricingCache.get(modelId);
+      if (!cached) {
+        const pricingText = await callFalMcpTool(falKey, 'get_pricing', { endpoint_id: modelId });
+        const pricing = JSON.parse(pricingText);
+        const price = pricing.prices?.[0];
+        if (price) {
+          cached = { ts: Date.now(), data: { amount: price.unit_price, currency: price.currency || 'USD', details: price.unit ? `per ${price.unit}` : '' } };
+          pricingCache.set(modelId, cached);
+        }
+      }
+      if (cached) {
+        const dur = body.duration || 5;
+        const isPerSec = (cached.data.details || '').includes('second');
+        const amount = isPerSec ? cached.data.amount * dur : cached.data.amount;
+        cost = { amount, currency: cached.data.currency || 'USD', details: isPerSec ? `${dur}s × $${cached.data.amount}/s` : 'per run' };
+        console.log(`[agent] directFal: estimated cost $${amount.toFixed(4)} for ${modelId}`);
+      }
+    } catch (e) {
+      console.warn(`[agent] directFal: cost estimation failed:`, e.message);
+    }
+  }
+
   return {
     video: { url: videoUrl },
     prompt: body.instruction,
     model: modelId,
     modelLabel: body.modelLabel || modelId.split('/').pop(),
-    cost: result.cost || undefined,
+    cost,
   };
 }
 

@@ -286,7 +286,7 @@ export default function Sidebar({ open, onClose, user }: { open?: boolean; onClo
             {user.email || user.userName || user.userId}
           </span>
         )}
-        <span className="flex-shrink-0 ml-2">v1.4.0</span>
+        <span className="flex-shrink-0 ml-2">v{process.env.APP_VERSION || '?'}</span>
       </div>
     </aside>
     </>

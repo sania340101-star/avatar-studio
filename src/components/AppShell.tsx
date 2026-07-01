@@ -5,6 +5,7 @@ import { AppUser } from '@/lib/types';
 import { initAuth, setSessionUser } from '@/lib/auth';
 import { ProjectProvider } from '@/lib/ProjectContext';
 import Sidebar from './Sidebar';
+import UpdateBanner from './UpdateBanner';
 
 function OtpLogin({ onLogin }: { onLogin: (user: AppUser) => void }) {
   const [email, setEmail] = useState('');
@@ -242,6 +243,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <ProjectProvider>
+      <UpdateBanner />
       <div className="h-full flex flex-col md:flex-row">
         {/* Mobile header bar */}
         <div className="md:hidden flex items-center gap-3 px-4 py-3 border-b flex-shrink-0" style={{ borderColor: 'var(--border)', background: 'var(--bg-card)' }}>
