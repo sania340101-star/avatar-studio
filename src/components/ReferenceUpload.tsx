@@ -83,31 +83,52 @@ export default function ReferenceUpload({ references, onChange, accept, label = 
             </div>
           )}
 
-          {videos.map((ref, i) => {
-            const globalIdx = references.indexOf(ref);
-            return (
-              <div key={i} className="flex items-center gap-2 p-2 rounded-lg cursor-pointer hover:opacity-80 transition-opacity" style={{ background: 'var(--bg-input)', border: '1px solid var(--border)' }} onClick={() => setPreview(ref)}>
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--accent)' }}>
-                  <polygon points="5 3 19 12 5 21 5 3" />
-                </svg>
-                <span className="text-sm flex-1 truncate" style={{ color: 'var(--text2)' }}>{ref.name}</span>
-                <button onClick={e => { e.stopPropagation(); handleRemove(globalIdx); }} className="text-xs px-1" style={{ color: 'var(--red)' }}>x</button>
-              </div>
-            );
-          })}
+          {videos.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {videos.map((ref, i) => {
+                const globalIdx = references.indexOf(ref);
+                return (
+                  <div key={i} className="relative w-24 h-16 rounded-lg overflow-hidden border cursor-pointer" style={{ borderColor: 'var(--border)' }} onClick={() => setPreview(ref)}>
+                    <video src={ref.url} className="w-full h-full object-cover pointer-events-none" preload="metadata" />
+                    <div className="absolute inset-0 flex items-center justify-center bg-black/30">
+                      <svg viewBox="0 0 24 24" fill="white" className="w-6 h-6 opacity-80">
+                        <polygon points="5 3 19 12 5 21 5 3" />
+                      </svg>
+                    </div>
+                    <button
+                      onClick={e => { e.stopPropagation(); handleRemove(globalIdx); }}
+                      className="absolute top-0 right-0 w-5 h-5 flex items-center justify-center text-xs rounded-bl-lg"
+                      style={{ background: 'var(--red)', color: 'white' }}
+                    >x</button>
+                    <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-[10px] text-white px-1 truncate">{ref.name}</div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
 
-          {audios.map((ref, i) => {
-            const globalIdx = references.indexOf(ref);
-            return (
-              <div key={i} className="flex items-center gap-2 p-2 rounded-lg cursor-pointer hover:opacity-80 transition-opacity" style={{ background: 'var(--bg-input)', border: '1px solid var(--border)' }} onClick={() => setPreview(ref)}>
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--green)' }}>
-                  <path d="M9 18V5l12-2v13" /><circle cx="6" cy="18" r="3" /><circle cx="18" cy="16" r="3" />
-                </svg>
-                <span className="text-sm flex-1 truncate" style={{ color: 'var(--text2)' }}>{ref.name}</span>
-                <button onClick={e => { e.stopPropagation(); handleRemove(globalIdx); }} className="text-xs px-1" style={{ color: 'var(--red)' }}>x</button>
-              </div>
-            );
-          })}
+          {audios.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {audios.map((ref, i) => {
+                const globalIdx = references.indexOf(ref);
+                return (
+                  <div key={i} className="relative w-24 h-16 rounded-lg overflow-hidden border cursor-pointer" style={{ borderColor: 'var(--border)', background: 'var(--bg-input)' }} onClick={() => setPreview(ref)}>
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-7 h-7" style={{ color: 'var(--green)' }}>
+                        <path d="M9 18V5l12-2v13" /><circle cx="6" cy="18" r="3" /><circle cx="18" cy="16" r="3" />
+                      </svg>
+                    </div>
+                    <button
+                      onClick={e => { e.stopPropagation(); handleRemove(globalIdx); }}
+                      className="absolute top-0 right-0 w-5 h-5 flex items-center justify-center text-xs rounded-bl-lg"
+                      style={{ background: 'var(--red)', color: 'white' }}
+                    >x</button>
+                    <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-[10px] text-white px-1 truncate">{ref.name}</div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
 
