@@ -43,12 +43,6 @@ function ExportListContent() {
     load();
   }
 
-  const statusColors: Record<string, { bg: string; color: string }> = {
-    draft: { bg: 'rgba(59,130,246,0.12)', color: 'var(--blue, #3b82f6)' },
-    exporting: { bg: 'rgba(245,158,11,0.12)', color: '#f59e0b' },
-    done: { bg: 'rgba(76,175,80,0.12)', color: 'var(--green, #22c55e)' },
-    error: { bg: 'rgba(239,68,68,0.12)', color: 'var(--red, #ef4444)' },
-  };
 
   return (
     <div>
@@ -90,7 +84,6 @@ function ExportListContent() {
       ) : (
         <div className="space-y-3">
           {sessions.map(session => {
-            const sc = statusColors[session.status] || statusColors.draft;
             return (
               <div
                 key={session.id}
@@ -108,9 +101,11 @@ function ExportListContent() {
                     <div className="min-w-0">
                       <div className="flex items-center gap-2 mb-0.5">
                         <span className="text-sm font-medium truncate" style={{ color: 'var(--text1)' }}>{session.name}</span>
-                        <span className="text-xs font-medium px-2 py-0.5 rounded flex-shrink-0" style={{ background: sc.bg, color: sc.color }}>
-                          {session.status}
-                        </span>
+                        {session.exports && session.exports.length > 0 && (
+                          <span className="text-xs font-medium px-2 py-0.5 rounded flex-shrink-0" style={{ background: 'rgba(76,175,80,0.12)', color: 'var(--green, #22c55e)' }}>
+                            {session.exports.length} version{session.exports.length !== 1 ? 's' : ''}
+                          </span>
+                        )}
                       </div>
                       <div className="flex items-center gap-3 text-xs" style={{ color: 'var(--text3)' }}>
                         <span>{session.clips.length} clip{session.clips.length !== 1 ? 's' : ''}</span>
