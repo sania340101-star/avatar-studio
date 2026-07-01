@@ -32,7 +32,9 @@ function ExportEditorContent() {
   // Sequential player state
   const [activeClipIdx, setActiveClipIdx] = useState<number>(0);
   const [lockedClipIdx, setLockedClipIdx] = useState<number | null>(null);
+  const [exporting, setExporting] = useState(false);
   const saveTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const pollTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   const load = useCallback(async () => {
     const res = await fetch(`/api/exports?id=${sessionId}`);
@@ -191,6 +193,57 @@ function ExportEditorContent() {
       setLockedClipIdx(idx);
       setActiveClipIdx(idx);
     }
+  }
+
+  async function startExport() {
+    if (!session || session.clips.length === 0) return;
+    setExporting(true);
+    const res = await fetch('/api/exports/render', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: session.id }),
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      setExporting(false);
+      alert(err.error || 'Export failed');
+      return;
+    }
+    setSession({ ...session, status: 'exporting', updatedAt: Date.now() });
+    pollExportStatus();
+  }
+
+  function pollExportStatus() {
+    pollTimer.current = setTimeout(async () => {
+      const res = await fetch(`/api/exports?id=${sessionId}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (!data.transform) data.transform = { offsetX: 0, offsetY: 0, scale: 1 };
+        setSession(data);
+        if (data.status === 'exporting') {
+          pollExportStatus();
+        } else {
+          setExporting(false);
+        }
+      } else {
+        setExporting(false);
+      }
+    }, 2000);
+  }
+
+  useEffect(() => {
+    return () => { if (pollTimer.current) clearTimeout(pollTimer.current); };
+  }, []);
+
+  async function downloadExport() {
+    if (!session?.exportUrl) return;
+    const res = await fetch(session.exportUrl);
+    const blob = await res.blob();
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `${session.name.replace(/[^a-zA-Z0-9-_ ]/g, '')}.mp4`;
+    a.click();
+    URL.revokeObjectURL(a.href);
   }
 
   const projectMap = Object.fromEntries(projects.map(p => [p.id, p.title]));
@@ -466,6 +519,67 @@ function ExportEditorContent() {
             loop={isLocked}
             onVideoEnded={handleVideoEnded}
           />
+        </div>
+      )}
+
+      {/* Export Action */}
+      {session.clips.length > 0 && (
+        <div className="rounded-xl border p-4 mb-4" style={{ background: 'var(--bg-card)', borderColor: 'var(--border)' }}>
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs font-semibold mb-1" style={{ color: 'var(--text3)' }}>RENDER</p>
+              <p className="text-xs" style={{ color: 'var(--text3)' }}>
+                {preset.width}x{preset.height} @ 60fps &middot; {session.clips.length} clip{session.clips.length !== 1 ? 's' : ''}
+              </p>
+            </div>
+            <div className="flex items-center gap-3">
+              {session.status === 'done' && session.exportUrl && (
+                <button
+                  onClick={downloadExport}
+                  className="text-xs px-4 py-2 rounded-lg font-medium flex items-center gap-1.5"
+                  style={{ background: 'var(--bg-input)', color: 'var(--text1)' }}
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" />
+                  </svg>
+                  Download
+                </button>
+              )}
+              <button
+                onClick={startExport}
+                disabled={exporting || session.status === 'exporting'}
+                className="text-xs px-5 py-2 rounded-lg font-medium text-white disabled:opacity-50 flex items-center gap-1.5"
+                style={{ background: 'var(--accent)' }}
+              >
+                {exporting || session.status === 'exporting' ? (
+                  <>
+                    <div className="w-3.5 h-3.5 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: 'white', borderTopColor: 'transparent' }} />
+                    Exporting...
+                  </>
+                ) : (
+                  <>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
+                      <rect x="2" y="3" width="20" height="14" rx="2" /><polygon points="10 8 16 11 10 14 10 8" />
+                    </svg>
+                    Export
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+          {session.status === 'error' && session.error && (
+            <div className="mt-3 p-2 rounded-lg text-xs" style={{ background: 'rgba(239,68,68,0.1)', color: 'var(--red, #ef4444)' }}>
+              {session.error}
+            </div>
+          )}
+          {session.status === 'done' && session.exportUrl && (
+            <div className="mt-3 p-2 rounded-lg text-xs flex items-center gap-2" style={{ background: 'rgba(34,197,94,0.1)', color: 'var(--green, #22c55e)' }}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4 flex-shrink-0">
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+              Export ready
+            </div>
+          )}
         </div>
       )}
 

@@ -81,13 +81,13 @@ export function deleteProject(projectId: string): boolean {
 function genFile(projectId: string): string {
   return join(GENERATIONS_DIR, `${safeId(projectId)}.json`);
 }
-export function getGenerations(projectId: string, type?: 'image' | 'video'): Generation[] {
+export function getGenerations(projectId: string, type?: 'image' | 'video' | 'export'): Generation[] {
   ensureDirs();
   const all: Generation[] = readJson(genFile(projectId), []);
   const filtered = type ? all.filter(g => g.type === type) : all;
   return filtered.sort((a, b) => b.createdAt - a.createdAt);
 }
-export function getAllUserGenerations(userId: string, type?: 'image' | 'video', limit = 200): Generation[] {
+export function getAllUserGenerations(userId: string, type?: 'image' | 'video' | 'export', limit = 200): Generation[] {
   const projects = getProjects(userId);
   const all: Generation[] = [];
   for (const p of projects) {

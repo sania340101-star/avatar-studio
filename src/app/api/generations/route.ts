@@ -6,7 +6,7 @@ export async function GET(req: NextRequest) {
   if (!userId) return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
 
   const projectId = req.nextUrl.searchParams.get('projectId');
-  const type = req.nextUrl.searchParams.get('type') as 'image' | 'video' | null;
+  const type = req.nextUrl.searchParams.get('type') as 'image' | 'video' | 'export' | null;
 
   if (!projectId) {
     return NextResponse.json(getAllUserGenerations(userId, type || undefined));

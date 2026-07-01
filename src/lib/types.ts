@@ -111,7 +111,7 @@ export interface Generation {
   id: string;
   projectId: string;
   userId: string;
-  type: 'image' | 'video';
+  type: 'image' | 'video' | 'export';
   modelId: string;
   modelLabel: string;
   prompt: string;

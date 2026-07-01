@@ -6,7 +6,7 @@ import AppShell from '@/components/AppShell';
 import { useProject } from '@/lib/ProjectContext';
 import { Generation } from '@/lib/types';
 
-type TabFilter = 'all' | 'image' | 'video';
+type TabFilter = 'all' | 'image' | 'video' | 'export';
 
 async function downloadUrl(url: string, filename: string) {
   try {
@@ -28,7 +28,7 @@ function GalleryContent() {
   const [tab, setTab] = useState<TabFilter>('all');
   const [filterProjectId, setFilterProjectId] = useState<string>('all');
   const [generations, setGenerations] = useState<Generation[]>([]);
-  const [lightbox, setLightbox] = useState<{ url: string; type: 'image' | 'video' } | null>(null);
+  const [lightbox, setLightbox] = useState<{ url: string; type: 'image' | 'video' | 'export' } | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -116,6 +116,7 @@ function GalleryContent() {
     { id: 'all', label: 'All' },
     { id: 'image', label: 'Images' },
     { id: 'video', label: 'Videos' },
+    { id: 'export', label: 'Exports' },
   ];
 
   type GalleryEntry =
@@ -495,7 +496,7 @@ function GalleryContent() {
                       className="w-14 h-14 rounded-lg flex-shrink-0 overflow-hidden cursor-pointer"
                       onClick={() => setExpandedId(isExpanded ? null : gen.id)}
                     >
-                      {gen.type === 'video' ? (
+                      {gen.type !== 'image' ? (
                         <video src={gen.resultUrls[0]} className="w-full h-full object-cover" muted />
                       ) : (
                         <img src={gen.resultUrls[0]} alt="" className="w-full h-full object-cover" />
@@ -509,8 +510,8 @@ function GalleryContent() {
                   >
                     <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 mb-1">
                       <span className="text-xs font-medium px-2 py-0.5 rounded" style={{
-                        background: gen.type === 'image' ? 'rgba(76,175,80,0.15)' : 'rgba(108,60,224,0.15)',
-                        color: gen.type === 'image' ? 'var(--green)' : 'var(--accent)',
+                        background: gen.type === 'image' ? 'rgba(76,175,80,0.15)' : gen.type === 'export' ? 'rgba(245,158,11,0.15)' : 'rgba(108,60,224,0.15)',
+                        color: gen.type === 'image' ? 'var(--green)' : gen.type === 'export' ? 'var(--orange, #f59e0b)' : 'var(--accent)',
                       }}>
                         {gen.type}
                       </span>
@@ -599,7 +600,7 @@ function GalleryContent() {
                           </p>
                           <div className="flex flex-wrap gap-2">
                             {gen.resultUrls.map((url, i) => {
-                              const ext = gen.type === 'video' ? 'mp4' : 'png';
+                              const ext = gen.type === 'image' ? 'png' : 'mp4';
                               const fname = `${gen.type}-${i + 1}.${ext}`;
                               return (
                                 <div key={i} className="flex flex-col items-center gap-1">
@@ -608,7 +609,7 @@ function GalleryContent() {
                                     className="group relative rounded-lg overflow-hidden cursor-zoom-in"
                                   >
                                     <div className={gen.type === 'image' ? 'w-24 h-24' : 'w-32 h-24'}>
-                                      {gen.type === 'video' ? (
+                                      {gen.type !== 'image' ? (
                                         <video src={url} className="w-full h-full object-cover" muted />
                                       ) : (
                                         <img src={url} alt="" className="w-full h-full object-cover" />
@@ -734,7 +735,7 @@ function GalleryContent() {
         >
           <div className="absolute top-4 right-4 flex items-center gap-6 z-10">
             <button
-              onClick={(e) => { e.stopPropagation(); downloadUrl(lightbox.url, lightbox.type === 'image' ? 'image.png' : 'video.mp4'); }}
+              onClick={(e) => { e.stopPropagation(); downloadUrl(lightbox.url, lightbox.type === 'image' ? 'image.png' : `${lightbox.type}.mp4`); }}
               className="w-11 h-11 flex items-center justify-center rounded-full text-white/70 hover:text-white hover:bg-white/10 transition-colors"
               title="Download"
             >
