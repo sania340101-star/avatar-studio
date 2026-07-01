@@ -26,6 +26,15 @@ const GLOBAL_NAV = [
     ),
   },
   {
+    label: 'Export',
+    href: '/export',
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5">
+        <rect x="2" y="3" width="20" height="14" rx="2" /><path d="M8 21h8" /><path d="M12 17v4" /><polygon points="10 8 16 11 10 14 10 8" />
+      </svg>
+    ),
+  },
+  {
     label: 'Settings',
     href: '/settings',
     icon: (

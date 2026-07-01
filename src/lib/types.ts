@@ -203,3 +203,30 @@ export interface JobData {
   createdAt: number;
   updatedAt: number;
 }
+
+export interface ExportClip {
+  id: string;
+  generationId: string;
+  projectId: string;
+  url: string;
+  label: string;
+  duration?: number;
+  transform: {
+    offsetX: number;
+    offsetY: number;
+    scale: number;
+  };
+}
+
+export interface ExportSession {
+  id: string;
+  userId: string;
+  name: string;
+  device: 'hh1x3' | 'solo';
+  clips: ExportClip[];
+  status: 'draft' | 'exporting' | 'done' | 'error';
+  exportUrl?: string;
+  error?: string;
+  createdAt: number;
+  updatedAt: number;
+}

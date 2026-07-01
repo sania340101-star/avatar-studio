@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import AppShell from '@/components/AppShell';
 import { useProject } from '@/lib/ProjectContext';
 import { Generation } from '@/lib/types';
@@ -22,6 +23,7 @@ async function downloadUrl(url: string, filename: string) {
 }
 
 function GalleryContent() {
+  const router = useRouter();
   const { projects, activeProject } = useProject();
   const [tab, setTab] = useState<TabFilter>('all');
   const [filterProjectId, setFilterProjectId] = useState<string>('all');
@@ -83,6 +85,28 @@ function GalleryContent() {
         const ext = gen.type === 'image' ? 'png' : 'mp4';
         await downloadUrl(url, `${gen.type}-${fileIdx}.${ext}`);
       }
+    }
+  }
+
+  async function handleExportSelected() {
+    const selected = generations.filter(g => selectedIds.has(g.id) && g.type === 'video' && g.resultUrls.length > 0);
+    if (selected.length === 0) return;
+    const clips = selected.map((gen, i) => ({
+      id: `clip-${Date.now()}-${i}`,
+      generationId: gen.id,
+      projectId: gen.projectId,
+      url: gen.resultUrls[0],
+      label: gen.prompt.slice(0, 60) || `Clip ${i + 1}`,
+      transform: { offsetX: 0, offsetY: 0, scale: 1 },
+    }));
+    const res = await fetch('/api/exports', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: `Export ${new Date().toLocaleDateString()}`, clips }),
+    });
+    if (res.ok) {
+      const session = await res.json();
+      router.push(`/export/${session.id}`);
     }
   }
 
@@ -204,6 +228,17 @@ function GalleryContent() {
                   <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" />
                 </svg>
                 <span className="hidden sm:inline">Download</span>
+              </button>
+              <button
+                onClick={handleExportSelected}
+                className="text-xs px-3 py-1.5 rounded-lg font-medium flex items-center gap-1.5 text-white"
+                style={{ background: 'var(--green, #22c55e)' }}
+                title="Create export session from selected videos"
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
+                  <rect x="2" y="3" width="20" height="14" rx="2" /><polygon points="10 8 16 11 10 14 10 8" />
+                </svg>
+                <span className="hidden sm:inline">Export</span>
               </button>
               <button
                 onClick={() => setConfirmBulkDelete(true)}

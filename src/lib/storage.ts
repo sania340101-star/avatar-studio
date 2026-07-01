@@ -1,11 +1,12 @@
 import { readFileSync, writeFileSync, mkdirSync, existsSync, renameSync } from 'fs';
 import { join } from 'path';
-import { Project, Generation, Template, ProjectCacheData, ImageFormCache, VideoFormCache } from './types';
+import { Project, Generation, Template, ProjectCacheData, ImageFormCache, VideoFormCache, ExportSession } from './types';
 const DATA_DIR = process.env.DATA_DIR || join(/* turbopackIgnore: true */ process.cwd(), 'data');
 const PROJECTS_FILE = join(DATA_DIR, 'projects.json');
 const GENERATIONS_DIR = join(DATA_DIR, 'generations');
 const UPLOADS_DIR = join(DATA_DIR, 'uploads');
 const CACHE_DIR = join(DATA_DIR, 'cache');
+const EXPORTS_FILE = join(DATA_DIR, 'exports.json');
 const SAFE_ID = /^[a-zA-Z0-9_-]+$/;
 function safeId(id: string): string {
   const base = id.replace(/\.json$/, '');
@@ -179,4 +180,40 @@ export function saveProjectCache(projectId: string, type: 'image' | 'video', for
   data[type] = formData as ImageFormCache & VideoFormCache;
   data.updatedAt = Date.now();
   writeJson(file, data);
+}
+
+export function getExportSessions(userId: string): ExportSession[] {
+  ensureDirs();
+  const all: ExportSession[] = readJson(EXPORTS_FILE, []);
+  return all.filter(s => s.userId === userId).sort((a, b) => b.updatedAt - a.updatedAt);
+}
+export function getExportSession(id: string): ExportSession | null {
+  ensureDirs();
+  const all: ExportSession[] = readJson(EXPORTS_FILE, []);
+  return all.find(s => s.id === id) || null;
+}
+export function createExportSession(session: ExportSession): ExportSession {
+  ensureDirs();
+  const all: ExportSession[] = readJson(EXPORTS_FILE, []);
+  all.push(session);
+  writeJson(EXPORTS_FILE, all);
+  return session;
+}
+export function updateExportSession(id: string, updates: Partial<Omit<ExportSession, 'id' | 'userId' | 'createdAt'>>): ExportSession | null {
+  ensureDirs();
+  const all: ExportSession[] = readJson(EXPORTS_FILE, []);
+  const idx = all.findIndex(s => s.id === id);
+  if (idx === -1) return null;
+  Object.assign(all[idx], updates, { updatedAt: Date.now() });
+  writeJson(EXPORTS_FILE, all);
+  return all[idx];
+}
+export function deleteExportSession(id: string): boolean {
+  ensureDirs();
+  const all: ExportSession[] = readJson(EXPORTS_FILE, []);
+  const idx = all.findIndex(s => s.id === id);
+  if (idx === -1) return false;
+  all.splice(idx, 1);
+  writeJson(EXPORTS_FILE, all);
+  return true;
 }
