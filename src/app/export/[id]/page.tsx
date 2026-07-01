@@ -437,10 +437,17 @@ function ExportEditorContent() {
               )}
             </div>
 
-            <div className="p-4 border-t flex justify-end" style={{ borderColor: 'var(--border)' }}>
+            <div className="p-4 border-t flex justify-end gap-2" style={{ borderColor: 'var(--border)' }}>
               <button
                 onClick={() => setShowBrowser(false)}
-                className="px-6 py-2 rounded-lg text-sm font-medium text-white"
+                className="px-5 py-2 rounded-lg text-sm font-medium"
+                style={{ border: '1px solid var(--border)', color: 'var(--text2)' }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => setShowBrowser(false)}
+                className="px-5 py-2 rounded-lg text-sm font-medium text-white"
                 style={{ background: 'var(--accent)' }}
               >
                 Done

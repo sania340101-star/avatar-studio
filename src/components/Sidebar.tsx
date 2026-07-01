@@ -54,12 +54,14 @@ interface SpendingData {
 
 export default function Sidebar({ open, onClose, user }: { open?: boolean; onClose?: () => void; user?: AppUser | null }) {
   const pathname = usePathname();
-  const { projects, activeProject, setActiveProjectId, createProject, deleteProject } = useProject();
+  const { projects, activeProject, setActiveProjectId, createProject, deleteProject, renameProject } = useProject();
   const [creating, setCreating] = useState(false);
   const [newTitle, setNewTitle] = useState('');
   const [projectSearch, setProjectSearch] = useState('');
   const [spending, setSpending] = useState<SpendingData | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState('');
 
   const fetchSpending = useCallback(async () => {
     if (!user) return;
@@ -159,6 +161,7 @@ export default function Sidebar({ open, onClose, user }: { open?: boolean; onClo
           <div className="space-y-0.5">
             {filteredProjects.map(p => {
               const isActive = p.id === activeProject?.id && pathname.startsWith('/generate');
+              const isRenaming = renamingId === p.id;
               return (
                 <div key={p.id}>
                   <div
@@ -167,20 +170,46 @@ export default function Sidebar({ open, onClose, user }: { open?: boolean; onClo
                       background: isActive ? 'var(--accent-subtle)' : 'transparent',
                     }}
                   >
-                    <Link
-                      href="/generate"
-                      onClick={() => { setActiveProjectId(p.id); onClose?.(); }}
-                      className="flex-1 text-left text-sm px-3 py-2 flex items-center gap-2 min-w-0"
-                      style={{ color: isActive ? 'var(--accent)' : 'var(--text2)' }}
+                    {isRenaming ? (
+                      <div className="flex-1 px-2 py-1">
+                        <input
+                          autoFocus
+                          value={renameValue}
+                          onChange={e => setRenameValue(e.target.value)}
+                          onBlur={() => { if (renameValue.trim()) { renameProject(p.id, renameValue.trim()); } setRenamingId(null); }}
+                          onKeyDown={e => {
+                            if (e.key === 'Enter' && renameValue.trim()) { renameProject(p.id, renameValue.trim()); setRenamingId(null); }
+                            if (e.key === 'Escape') setRenamingId(null);
+                          }}
+                          className="w-full text-sm !py-1 !px-2"
+                        />
+                      </div>
+                    ) : (
+                      <Link
+                        href="/generate"
+                        onClick={() => { setActiveProjectId(p.id); onClose?.(); }}
+                        className="flex-1 text-left text-sm px-3 py-2 flex items-center gap-2 min-w-0"
+                        style={{ color: isActive ? 'var(--accent)' : 'var(--text2)' }}
+                      >
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4 flex-shrink-0" style={{ opacity: 0.5 }}>
+                          <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+                        </svg>
+                        <span className="truncate">{p.title}</span>
+                      </Link>
+                    )}
+                    <button
+                      onClick={e => { e.stopPropagation(); setRenamingId(p.id); setRenameValue(p.title); }}
+                      className="md:opacity-0 md:group-hover:opacity-100 transition-opacity px-1.5 py-2 flex-shrink-0"
+                      style={{ color: 'var(--text3)' }}
+                      title="Rename project"
                     >
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4 flex-shrink-0" style={{ opacity: 0.5 }}>
-                        <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3 h-3">
+                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
                       </svg>
-                      <span className="truncate">{p.title}</span>
-                    </Link>
+                    </button>
                     <button
                       onClick={e => { e.stopPropagation(); setConfirmDelete(true); setActiveProjectId(p.id); }}
-                      className="md:opacity-0 md:group-hover:opacity-100 transition-opacity px-2 py-2 flex-shrink-0"
+                      className="md:opacity-0 md:group-hover:opacity-100 transition-opacity px-1.5 py-2 flex-shrink-0"
                       style={{ color: 'var(--text3)' }}
                       title="Delete project"
                     >
