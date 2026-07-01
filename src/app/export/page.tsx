@@ -8,6 +8,8 @@ import { ExportSession } from '@/lib/types';
 function ExportListContent() {
   const router = useRouter();
   const [sessions, setSessions] = useState<ExportSession[]>([]);
+  const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [newName, setNewName] = useState('');
   const [creating, setCreating] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
@@ -19,14 +21,17 @@ function ExportListContent() {
   useEffect(() => { load(); }, [load]);
 
   async function handleCreate() {
+    if (!newName.trim()) return;
     setCreating(true);
     const res = await fetch('/api/exports', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: `Export ${new Date().toLocaleDateString()}` }),
+      body: JSON.stringify({ name: newName.trim() }),
     });
     if (res.ok) {
       const session = await res.json();
+      setShowCreateDialog(false);
+      setNewName('');
       router.push(`/export/${session.id}`);
     }
     setCreating(false);
@@ -53,7 +58,7 @@ function ExportListContent() {
           <p className="text-sm" style={{ color: 'var(--text3)' }}>Build playlists and export for HYPERVSN devices</p>
         </div>
         <button
-          onClick={handleCreate}
+          onClick={() => setShowCreateDialog(true)}
           disabled={creating}
           className="px-4 py-2 rounded-lg text-sm font-medium text-white disabled:opacity-50"
           style={{ background: 'var(--accent)' }}
@@ -127,6 +132,44 @@ function ExportListContent() {
               </div>
             );
           })}
+        </div>
+      )}
+
+      {showCreateDialog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => { setShowCreateDialog(false); setNewName(''); }}>
+          <div className="absolute inset-0 bg-black/50" />
+          <div
+            className="relative rounded-xl p-5 w-80 shadow-xl"
+            style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}
+            onClick={e => e.stopPropagation()}
+          >
+            <h3 className="text-sm font-semibold text-center mb-3" style={{ color: 'var(--text1)' }}>New Export Session</h3>
+            <input
+              autoFocus
+              value={newName}
+              onChange={e => setNewName(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') handleCreate(); if (e.key === 'Escape') { setShowCreateDialog(false); setNewName(''); } }}
+              placeholder="Export name..."
+              className="w-full text-sm !py-2 !px-3 mb-4"
+            />
+            <div className="flex gap-2">
+              <button
+                onClick={() => { setShowCreateDialog(false); setNewName(''); }}
+                className="flex-1 py-2 rounded-lg text-sm font-medium"
+                style={{ border: '1px solid var(--border)', color: 'var(--text2)' }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleCreate}
+                disabled={!newName.trim() || creating}
+                className="flex-1 py-2 rounded-lg text-sm font-medium text-white disabled:opacity-50"
+                style={{ background: 'var(--accent)' }}
+              >
+                {creating ? 'Creating...' : 'Create'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

@@ -199,11 +199,14 @@ function ExportEditorContent() {
             />
           ) : (
             <h2
-              className="text-xl font-semibold cursor-pointer hover:opacity-70 truncate"
+              className="text-xl font-semibold cursor-pointer hover:opacity-70 truncate flex items-center gap-2"
               onClick={() => setNameEditing(true)}
               title="Click to rename"
             >
               {session.name}
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4 flex-shrink-0 opacity-40">
+                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+              </svg>
             </h2>
           )}
           <div className="flex items-center gap-3 mt-0.5">
@@ -313,6 +316,28 @@ function ExportEditorContent() {
                 {/* Actions */}
                 <div className="flex items-center gap-1 flex-shrink-0">
                   <button
+                    onClick={() => moveClip(idx, idx - 1)}
+                    disabled={idx === 0}
+                    className="w-7 h-7 rounded flex items-center justify-center hover:bg-[var(--bg-input)] transition-colors disabled:opacity-20"
+                    style={{ color: 'var(--text3)' }}
+                    title="Move up"
+                  >
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
+                      <path d="M18 15l-6-6-6 6" />
+                    </svg>
+                  </button>
+                  <button
+                    onClick={() => moveClip(idx, idx + 1)}
+                    disabled={idx === session.clips.length - 1}
+                    className="w-7 h-7 rounded flex items-center justify-center hover:bg-[var(--bg-input)] transition-colors disabled:opacity-20"
+                    style={{ color: 'var(--text3)' }}
+                    title="Move down"
+                  >
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
+                      <path d="M6 9l6 6 6-6" />
+                    </svg>
+                  </button>
+                  <button
                     onClick={() => duplicateClip(idx)}
                     className="w-7 h-7 rounded flex items-center justify-center hover:bg-[var(--bg-input)] transition-colors"
                     style={{ color: 'var(--text3)' }}
@@ -410,6 +435,16 @@ function ExportEditorContent() {
                   })}
                 </div>
               )}
+            </div>
+
+            <div className="p-4 border-t flex justify-end" style={{ borderColor: 'var(--border)' }}>
+              <button
+                onClick={() => setShowBrowser(false)}
+                className="px-6 py-2 rounded-lg text-sm font-medium text-white"
+                style={{ background: 'var(--accent)' }}
+              >
+                Done
+              </button>
             </div>
           </div>
         </div>

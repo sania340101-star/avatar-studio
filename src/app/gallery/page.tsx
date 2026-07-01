@@ -288,7 +288,7 @@ function GalleryContent() {
               return (
                 <div
                   key={entry.batchId}
-                  className="rounded-xl border transition-colors"
+                  className="rounded-xl border transition-colors no-focus-ring"
                   style={{
                     borderColor: isExpanded ? 'var(--accent)' : batchSelected ? 'var(--accent)' : 'var(--border)',
                     background: batchSelected ? 'var(--accent-subtle)' : 'var(--bg-card)',
@@ -468,7 +468,7 @@ function GalleryContent() {
             return (
               <div
                 key={gen.id}
-                className="rounded-xl border transition-colors"
+                className="rounded-xl border transition-colors no-focus-ring"
                 style={{
                   borderColor: isExpanded ? 'var(--accent)' : isSelected ? 'var(--accent)' : 'var(--border)',
                   background: isSelected ? 'var(--accent-subtle)' : 'var(--bg-card)',

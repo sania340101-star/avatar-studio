@@ -72,6 +72,11 @@ button:focus-visible, a:focus-visible {
   outline-offset: 2px;
 }
 
+.no-focus-ring:focus-visible,
+.no-focus-ring button:focus-visible {
+  outline: none;
+}
+
 input:focus-visible, textarea:focus-visible, select:focus-visible {
   outline: none;
   border-color: var(--accent);
