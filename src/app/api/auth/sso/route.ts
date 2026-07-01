@@ -14,27 +14,26 @@ function fromBase64Url(s: string): Uint8Array {
 }
 
 async function verifyJwt(token: string): Promise<Record<string, unknown> | null> {
+  if (!SSO_JWT_SECRET) return null;
   try {
     const parts = token.split('.');
     if (parts.length !== 3) return null;
     const [headerB64, payloadB64, sigB64] = parts;
-    if (SSO_JWT_SECRET) {
-      const enc = new TextEncoder();
-      const key = await crypto.subtle.importKey(
-        'raw',
-        enc.encode(SSO_JWT_SECRET),
-        { name: 'HMAC', hash: 'SHA-256' },
-        false,
-        ['verify'],
-      );
-      const valid = await crypto.subtle.verify(
-        'HMAC',
-        key,
-        fromBase64Url(sigB64).buffer as ArrayBuffer,
-        enc.encode(`${headerB64}.${payloadB64}`),
-      );
-      if (!valid) return null;
-    }
+    const enc = new TextEncoder();
+    const key = await crypto.subtle.importKey(
+      'raw',
+      enc.encode(SSO_JWT_SECRET),
+      { name: 'HMAC', hash: 'SHA-256' },
+      false,
+      ['verify'],
+    );
+    const valid = await crypto.subtle.verify(
+      'HMAC',
+      key,
+      fromBase64Url(sigB64).buffer as ArrayBuffer,
+      enc.encode(`${headerB64}.${payloadB64}`),
+    );
+    if (!valid) return null;
     const json = new TextDecoder().decode(fromBase64Url(payloadB64));
     return JSON.parse(json) as Record<string, unknown>;
   } catch {
@@ -90,7 +89,7 @@ export async function GET(request: NextRequest) {
   const response = NextResponse.redirect(redirectUrl);
   response.cookies.set('session', sessionToken, {
     httpOnly: true,
-    secure: false,
+    secure: process.env.NODE_ENV === 'production',
     sameSite: 'lax',
     maxAge: 86400,
     path: '/',
@@ -103,7 +102,7 @@ export async function GET(request: NextRequest) {
     hasFalKey: !!falKey,
   }), {
     httpOnly: false,
-    secure: false,
+    secure: process.env.NODE_ENV === 'production',
     sameSite: 'lax',
     maxAge: 86400,
     path: '/',

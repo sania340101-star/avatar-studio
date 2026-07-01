@@ -1,5 +1,8 @@
 async function getKey(): Promise<CryptoKey> {
   const secret = process.env.JWT_SECRET ?? 'dev-secret-change-me';
+  if (secret === 'dev-secret-change-me') {
+    console.warn('[token] WARNING: Using default JWT_SECRET. Set JWT_SECRET env var in production.');
+  }
   const enc = new TextEncoder();
   return crypto.subtle.importKey(
     'raw',
@@ -47,10 +50,10 @@ export async function verifyToken(
     const [payloadB64, sigB64] = parts;
     const enc = new TextEncoder();
     const key = await getKey();
-    // Re-sign and compare (avoids Edge runtime cross-realm ArrayBuffer issue with SubtleCrypto.verify)
-    const expectedSig = await crypto.subtle.sign('HMAC', key, enc.encode(payloadB64));
-    const expectedSigB64 = toBase64Url(expectedSig);
-    if (expectedSigB64 !== sigB64) return null;
+    const valid = await crypto.subtle.verify(
+      'HMAC', key, fromBase64Url(sigB64).buffer as ArrayBuffer, enc.encode(payloadB64),
+    );
+    if (!valid) return null;
     const json = new TextDecoder().decode(fromBase64Url(payloadB64));
     const data = JSON.parse(json) as Record<string, unknown>;
     if (typeof data.exp === 'number' && data.exp < Math.floor(Date.now() / 1000)) {
