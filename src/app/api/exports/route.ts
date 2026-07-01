@@ -28,6 +28,7 @@ export async function POST(req: NextRequest) {
     name: body.name || 'Untitled Export',
     device: body.device || 'hh1x3',
     clips: body.clips || [],
+    transform: body.transform || { offsetX: 0, offsetY: 0, scale: 1 },
     status: 'draft',
     createdAt: Date.now(),
     updatedAt: Date.now(),

@@ -8,9 +8,11 @@ interface MaskPreviewProps {
   videoUrl: string;
   transform: { offsetX: number; offsetY: number; scale: number };
   onTransformChange: (t: { offsetX: number; offsetY: number; scale: number }) => void;
+  loop?: boolean;
+  onVideoEnded?: () => void;
 }
 
-export default function MaskPreview({ device, videoUrl, transform, onTransformChange }: MaskPreviewProps) {
+export default function MaskPreview({ device, videoUrl, transform, onTransformChange, loop = true, onVideoEnded }: MaskPreviewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [dragging, setDragging] = useState(false);
   const dragStart = useRef({ x: 0, y: 0, ox: 0, oy: 0 });
@@ -53,6 +55,11 @@ export default function MaskPreview({ device, videoUrl, transform, onTransformCh
   const handlePointerUp = useCallback(() => {
     setDragging(false);
   }, []);
+
+  const adjustScale = useCallback((delta: number) => {
+    const newScale = Math.max(0.5, Math.min(3, transform.scale + delta));
+    onTransformChange({ ...transform, scale: Math.round(newScale * 100) / 100 });
+  }, [transform, onTransformChange]);
 
   return (
     <div className="space-y-3">
@@ -101,9 +108,10 @@ export default function MaskPreview({ device, videoUrl, transform, onTransformCh
               <video
                 src={videoUrl}
                 autoPlay
-                loop
+                loop={loop}
                 muted
                 playsInline
+                onEnded={onVideoEnded}
                 style={{
                   position: 'absolute',
                   left: transform.offsetX,
@@ -116,15 +124,23 @@ export default function MaskPreview({ device, videoUrl, transform, onTransformCh
             </div>
           </foreignObject>
 
-          {/* Mask outline */}
+          {/* Mask outline — visible circles */}
           {mask.circles.map((c, i) => (
             <circle
               key={`outline-${i}`}
               cx={c.cx} cy={c.cy} r={c.r}
               fill="none"
-              stroke="rgba(255,255,0,0.4)"
-              strokeWidth="2"
+              stroke="rgba(255,255,0,0.8)"
+              strokeWidth="3"
             />
+          ))}
+
+          {/* Display center dots */}
+          {mask.circles.map((c, i) => (
+            <g key={`center-${i}`}>
+              <circle cx={c.cx} cy={c.cy} r="6" fill="rgba(255,255,255,0.9)" />
+              <circle cx={c.cx} cy={c.cy} r="2" fill="rgba(0,0,0,0.6)" />
+            </g>
           ))}
 
           {/* Dim area outside mask */}
@@ -144,26 +160,38 @@ export default function MaskPreview({ device, videoUrl, transform, onTransformCh
       </div>
 
       {/* Controls */}
-      <div className="flex items-center gap-4">
-        <div className="flex items-center gap-2 flex-1">
-          <span className="text-xs flex-shrink-0" style={{ color: 'var(--text3)' }}>Scale</span>
-          <input
-            type="range"
-            min="0.5"
-            max="3"
-            step="0.05"
-            value={transform.scale}
-            onChange={e => onTransformChange({ ...transform, scale: parseFloat(e.target.value) })}
-            className="flex-1 accent-[var(--accent)]"
-            style={{ background: 'transparent', border: 'none', padding: 0 }}
-          />
-          <span className="text-xs w-10 text-right" style={{ color: 'var(--text3)' }}>
-            {(transform.scale * 100).toFixed(0)}%
-          </span>
-        </div>
+      <div className="flex items-center gap-3">
+        <span className="text-xs flex-shrink-0" style={{ color: 'var(--text3)' }}>Scale</span>
+        <button
+          onClick={() => adjustScale(-0.01)}
+          className="w-7 h-7 rounded flex items-center justify-center flex-shrink-0 text-sm font-bold"
+          style={{ background: 'var(--bg-input)', color: 'var(--text2)' }}
+        >
+          −
+        </button>
+        <input
+          type="range"
+          min="0.5"
+          max="3"
+          step="0.01"
+          value={transform.scale}
+          onChange={e => onTransformChange({ ...transform, scale: parseFloat(e.target.value) })}
+          className="flex-1 accent-[var(--accent)]"
+          style={{ background: 'transparent', border: 'none', padding: 0 }}
+        />
+        <button
+          onClick={() => adjustScale(0.01)}
+          className="w-7 h-7 rounded flex items-center justify-center flex-shrink-0 text-sm font-bold"
+          style={{ background: 'var(--bg-input)', color: 'var(--text2)' }}
+        >
+          +
+        </button>
+        <span className="text-xs w-12 text-right flex-shrink-0" style={{ color: 'var(--text3)' }}>
+          {(transform.scale * 100).toFixed(0)}%
+        </span>
         <button
           onClick={() => onTransformChange({ offsetX: 0, offsetY: 0, scale: 1 })}
-          className="text-xs px-3 py-1.5 rounded-lg font-medium"
+          className="text-xs px-3 py-1.5 rounded-lg font-medium flex-shrink-0"
           style={{ background: 'var(--bg-input)', color: 'var(--text2)' }}
         >
           Reset

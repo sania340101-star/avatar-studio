@@ -224,6 +224,7 @@ export interface ExportSession {
   name: string;
   device: 'hh1x3' | 'solo';
   clips: ExportClip[];
+  transform: { offsetX: number; offsetY: number; scale: number };
   status: 'draft' | 'exporting' | 'done' | 'error';
   exportUrl?: string;
   error?: string;

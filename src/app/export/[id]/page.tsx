@@ -28,14 +28,17 @@ function ExportEditorContent() {
   const [dragIdx, setDragIdx] = useState<number | null>(null);
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const [previewClipIdx, setPreviewClipIdx] = useState<number>(0);
 
+  // Sequential player state
+  const [activeClipIdx, setActiveClipIdx] = useState<number>(0);
+  const [lockedClipIdx, setLockedClipIdx] = useState<number | null>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   const load = useCallback(async () => {
     const res = await fetch(`/api/exports?id=${sessionId}`);
     if (res.ok) {
       const data = await res.json();
+      if (!data.transform) data.transform = { offsetX: 0, offsetY: 0, scale: 1 };
       setSession(data);
       setNameValue(data.name);
     }
@@ -54,6 +57,7 @@ function ExportEditorContent() {
     });
     if (res.ok) {
       const updated = await res.json();
+      if (!updated.transform) updated.transform = { offsetX: 0, offsetY: 0, scale: 1 };
       setSession(updated);
     }
     setSaving(false);
@@ -108,6 +112,8 @@ function ExportEditorContent() {
     const clips = session.clips.filter((_, i) => i !== idx);
     setSession({ ...session, clips, updatedAt: Date.now() });
     debouncedSave({ clips });
+    if (activeClipIdx >= clips.length) setActiveClipIdx(Math.max(0, clips.length - 1));
+    if (lockedClipIdx !== null && lockedClipIdx >= clips.length) setLockedClipIdx(null);
   }
 
   function duplicateClip(idx: number) {
@@ -132,12 +138,10 @@ function ExportEditorContent() {
     debouncedSave({ clips });
   }
 
-  function updateClipTransform(idx: number, transform: { offsetX: number; offsetY: number; scale: number }) {
+  function updateTransform(transform: { offsetX: number; offsetY: number; scale: number }) {
     if (!session) return;
-    const clips = [...session.clips];
-    clips[idx] = { ...clips[idx], transform };
-    setSession({ ...session, clips, updatedAt: Date.now() });
-    debouncedSave({ clips });
+    setSession({ ...session, transform, updatedAt: Date.now() });
+    debouncedSave({ transform });
   }
 
   function setDevice(device: 'hh1x3' | 'solo') {
@@ -172,7 +176,27 @@ function ExportEditorContent() {
     setDragOverIdx(null);
   }
 
+  // Sequential player: advance to next clip when video ends
+  const handleVideoEnded = useCallback(() => {
+    if (!session || session.clips.length === 0) return;
+    if (lockedClipIdx !== null) return; // locked — just loop (video has loop attr when locked)
+    const next = (activeClipIdx + 1) % session.clips.length;
+    setActiveClipIdx(next);
+  }, [session, activeClipIdx, lockedClipIdx]);
+
+  function toggleLockClip(idx: number) {
+    if (lockedClipIdx === idx) {
+      setLockedClipIdx(null);
+    } else {
+      setLockedClipIdx(idx);
+      setActiveClipIdx(idx);
+    }
+  }
+
   const projectMap = Object.fromEntries(projects.map(p => [p.id, p.title]));
+
+  const currentClipUrl = session?.clips[activeClipIdx]?.url;
+  const isLocked = lockedClipIdx !== null;
 
   if (loading) {
     return (
@@ -301,8 +325,8 @@ function ExportEditorContent() {
                   dragOverIdx === idx ? 'border-[var(--accent)]' : ''
                 } ${dragIdx === idx ? 'opacity-40' : ''}`}
                 style={{
-                  borderColor: dragOverIdx === idx ? 'var(--accent)' : 'var(--border)',
-                  background: 'var(--bg)',
+                  borderColor: dragOverIdx === idx ? 'var(--accent)' : idx === activeClipIdx ? 'var(--accent)' : 'var(--border)',
+                  background: idx === activeClipIdx ? 'var(--bg-input)' : 'var(--bg)',
                 }}
               >
                 {/* Drag handle */}
@@ -393,47 +417,55 @@ function ExportEditorContent() {
         )}
       </div>
 
-      {/* Mask Preview */}
+      {/* Mask Preview with Sequential Player */}
       {session.clips.length > 0 && (
         <div className="rounded-xl border p-4 mb-4" style={{ background: 'var(--bg-card)', borderColor: 'var(--border)' }}>
           <div className="flex items-center justify-between mb-3">
             <p className="text-xs font-semibold" style={{ color: 'var(--text3)' }}>MASK PREVIEW</p>
-            {session.clips.length > 1 && (
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setPreviewClipIdx(Math.max(0, previewClipIdx - 1))}
-                  disabled={previewClipIdx === 0}
-                  className="w-7 h-7 rounded flex items-center justify-center disabled:opacity-20"
-                  style={{ background: 'var(--bg-input)', color: 'var(--text2)' }}
-                >
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
-                    <path d="M15 18l-6-6 6-6" />
-                  </svg>
-                </button>
-                <span className="text-xs font-medium" style={{ color: 'var(--text2)' }}>
-                  {previewClipIdx + 1} / {session.clips.length}
+            <div className="flex items-center gap-2">
+              {isLocked && (
+                <span className="text-[10px] px-2 py-0.5 rounded-full font-medium" style={{ background: 'var(--accent)', color: 'white' }}>
+                  🔒 Clip {lockedClipIdx! + 1} looped
                 </span>
-                <button
-                  onClick={() => setPreviewClipIdx(Math.min(session.clips.length - 1, previewClipIdx + 1))}
-                  disabled={previewClipIdx === session.clips.length - 1}
-                  className="w-7 h-7 rounded flex items-center justify-center disabled:opacity-20"
-                  style={{ background: 'var(--bg-input)', color: 'var(--text2)' }}
-                >
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
-                    <path d="M9 18l6-6-6-6" />
-                  </svg>
-                </button>
-              </div>
-            )}
+              )}
+            </div>
           </div>
+
+          {/* Clip segment bar */}
+          {session.clips.length > 1 && (
+            <div className="flex gap-1 mb-3">
+              {session.clips.map((clip, idx) => (
+                <button
+                  key={clip.id}
+                  onClick={() => toggleLockClip(idx)}
+                  className="flex-1 py-1.5 rounded text-[10px] font-medium transition-all truncate px-1"
+                  style={{
+                    background: idx === activeClipIdx
+                      ? lockedClipIdx === idx ? 'var(--accent)' : 'rgba(var(--accent-rgb, 99,102,241), 0.3)'
+                      : 'var(--bg-input)',
+                    color: idx === activeClipIdx ? 'white' : 'var(--text3)',
+                    border: lockedClipIdx === idx ? '2px solid var(--accent)' : '1px solid var(--border)',
+                  }}
+                  title={lockedClipIdx === idx ? 'Click to unlock' : 'Click to loop this clip'}
+                >
+                  {idx + 1}
+                </button>
+              ))}
+            </div>
+          )}
+
           <p className="text-xs mb-2 truncate" style={{ color: 'var(--text2)' }}>
-            {session.clips[previewClipIdx]?.label}
+            Clip {activeClipIdx + 1}: {session.clips[activeClipIdx]?.label}
           </p>
+
           <MaskPreview
             device={session.device}
-            videoUrl={session.clips[previewClipIdx]?.url}
-            transform={session.clips[previewClipIdx]?.transform || { offsetX: 0, offsetY: 0, scale: 1 }}
-            onTransformChange={(t) => updateClipTransform(previewClipIdx, t)}
+            videoUrl={currentClipUrl || ''}
+            transform={session.transform}
+            onTransformChange={updateTransform}
+            loop={isLocked}
+            onVideoEnded={handleVideoEnded}
+            key={activeClipIdx}
           />
         </div>
       )}
