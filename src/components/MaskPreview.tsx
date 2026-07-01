@@ -170,8 +170,7 @@ export default function MaskPreview({ device, videoUrl, transform, onTransformCh
       </div>
 
       {/* Controls */}
-      <div className="flex items-center gap-3">
-        <span className="text-xs flex-shrink-0" style={{ color: 'var(--text3)' }}>Scale</span>
+      <div className="flex items-center gap-2">
         <button
           onClick={() => adjustScale(-0.01)}
           className="w-7 h-7 rounded flex items-center justify-center flex-shrink-0 text-sm font-bold"
@@ -187,7 +186,7 @@ export default function MaskPreview({ device, videoUrl, transform, onTransformCh
           value={transform.scale}
           onChange={e => onTransformChange({ ...transform, scale: parseFloat(e.target.value) })}
           className="flex-1 accent-[var(--accent)]"
-          style={{ background: 'transparent', border: 'none', padding: 0 }}
+          style={{ background: 'transparent', border: 'none', padding: 0, minWidth: 0 }}
         />
         <button
           onClick={() => adjustScale(0.01)}
@@ -196,22 +195,24 @@ export default function MaskPreview({ device, videoUrl, transform, onTransformCh
         >
           +
         </button>
-        <span className="text-xs w-12 text-right flex-shrink-0" style={{ color: 'var(--text3)' }}>
+        <span className="text-xs w-10 text-right flex-shrink-0" style={{ color: 'var(--text3)' }}>
           {(transform.scale * 100).toFixed(0)}%
         </span>
+      </div>
+
+      <div className="flex items-center justify-between text-xs" style={{ color: 'var(--text3)' }}>
+        <div className="flex gap-3">
+          <span>X: {transform.offsetX}px</span>
+          <span>Y: {transform.offsetY}px</span>
+          <span>{preset.width}×{preset.height}</span>
+        </div>
         <button
           onClick={() => onTransformChange({ offsetX: 0, offsetY: 0, scale: 1 })}
-          className="text-xs px-3 py-1.5 rounded-lg font-medium flex-shrink-0"
+          className="text-xs px-3 py-1.5 rounded-lg font-medium"
           style={{ background: 'var(--bg-input)', color: 'var(--text2)' }}
         >
           Reset
         </button>
-      </div>
-
-      <div className="flex gap-4 text-xs" style={{ color: 'var(--text3)' }}>
-        <span>X: {transform.offsetX}px</span>
-        <span>Y: {transform.offsetY}px</span>
-        <span>{preset.width}×{preset.height} @ {preset.fps}fps</span>
       </div>
     </div>
   );
