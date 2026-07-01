@@ -2,6 +2,7 @@
 
 import { useRef, useState } from 'react';
 import { TemplateRef } from '@/lib/types';
+import MediaPreview from './MediaPreview';
 
 interface Props {
   references: TemplateRef[];
@@ -20,6 +21,7 @@ export default function ReferenceUpload({ references, onChange, accept, label = 
   const fileRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState('');
+  const [preview, setPreview] = useState<TemplateRef | null>(null);
 
   async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const files = e.target.files;
@@ -66,11 +68,11 @@ export default function ReferenceUpload({ references, onChange, accept, label = 
               {images.map((ref, i) => {
                 const globalIdx = references.indexOf(ref);
                 return (
-                  <div key={i} className="relative w-16 h-16 rounded-lg overflow-hidden border" style={{ borderColor: 'var(--border)' }}>
+                  <div key={i} className="relative w-16 h-16 rounded-lg overflow-hidden border cursor-pointer" style={{ borderColor: 'var(--border)' }} onClick={() => setPreview(ref)}>
                     <span className="absolute top-0 left-0 z-10 w-5 h-5 flex items-center justify-center rounded-br-lg text-[10px] font-bold" style={{ background: 'var(--accent)', color: 'white' }}>{i + 1}</span>
                     <img src={ref.url} alt={ref.name} className="w-full h-full object-cover" />
                     <button
-                      onClick={() => handleRemove(globalIdx)}
+                      onClick={e => { e.stopPropagation(); handleRemove(globalIdx); }}
                       className="absolute top-0 right-0 w-5 h-5 flex items-center justify-center text-xs rounded-bl-lg"
                       style={{ background: 'var(--red)', color: 'white' }}
                     >x</button>
@@ -84,12 +86,12 @@ export default function ReferenceUpload({ references, onChange, accept, label = 
           {videos.map((ref, i) => {
             const globalIdx = references.indexOf(ref);
             return (
-              <div key={i} className="flex items-center gap-2 p-2 rounded-lg" style={{ background: 'var(--bg-input)', border: '1px solid var(--border)' }}>
+              <div key={i} className="flex items-center gap-2 p-2 rounded-lg cursor-pointer hover:opacity-80 transition-opacity" style={{ background: 'var(--bg-input)', border: '1px solid var(--border)' }} onClick={() => setPreview(ref)}>
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--accent)' }}>
                   <polygon points="5 3 19 12 5 21 5 3" />
                 </svg>
                 <span className="text-sm flex-1 truncate" style={{ color: 'var(--text2)' }}>{ref.name}</span>
-                <button onClick={() => handleRemove(globalIdx)} className="text-xs px-1" style={{ color: 'var(--red)' }}>x</button>
+                <button onClick={e => { e.stopPropagation(); handleRemove(globalIdx); }} className="text-xs px-1" style={{ color: 'var(--red)' }}>x</button>
               </div>
             );
           })}
@@ -97,12 +99,12 @@ export default function ReferenceUpload({ references, onChange, accept, label = 
           {audios.map((ref, i) => {
             const globalIdx = references.indexOf(ref);
             return (
-              <div key={i} className="flex items-center gap-2 p-2 rounded-lg" style={{ background: 'var(--bg-input)', border: '1px solid var(--border)' }}>
+              <div key={i} className="flex items-center gap-2 p-2 rounded-lg cursor-pointer hover:opacity-80 transition-opacity" style={{ background: 'var(--bg-input)', border: '1px solid var(--border)' }} onClick={() => setPreview(ref)}>
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--green)' }}>
                   <path d="M9 18V5l12-2v13" /><circle cx="6" cy="18" r="3" /><circle cx="18" cy="16" r="3" />
                 </svg>
                 <span className="text-sm flex-1 truncate" style={{ color: 'var(--text2)' }}>{ref.name}</span>
-                <button onClick={() => handleRemove(globalIdx)} className="text-xs px-1" style={{ color: 'var(--red)' }}>x</button>
+                <button onClick={e => { e.stopPropagation(); handleRemove(globalIdx); }} className="text-xs px-1" style={{ color: 'var(--red)' }}>x</button>
               </div>
             );
           })}
@@ -137,6 +139,10 @@ export default function ReferenceUpload({ references, onChange, accept, label = 
           {audios.length > 0 && `${(images.length > 0 || videos.length > 0) ? ', ' : ''}${audios.length} audio`}
           {images.length > 1 && ' — reference by number: "image 1", "image 2", etc.'}
         </p>
+      )}
+
+      {preview && (
+        <MediaPreview url={preview.url} type={preview.type} name={preview.name} onClose={() => setPreview(null)} />
       )}
     </div>
   );

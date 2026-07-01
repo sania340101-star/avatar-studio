@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { Generation } from '@/lib/types';
 import { useProject } from '@/lib/ProjectContext';
+import MediaPreview from './MediaPreview';
 
 interface Props {
   value: string;
@@ -18,6 +19,7 @@ export default function ImagePicker({ value, onChange, label = 'Source Image', r
   const [pickerProjectId, setPickerProjectId] = useState<string>('');
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState('');
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -71,13 +73,13 @@ export default function ImagePicker({ value, onChange, label = 'Source Image', r
 
       <div className="flex flex-wrap gap-2">
         {value && (
-          <div className="relative w-20 h-20 rounded-lg overflow-hidden border" style={{ borderColor: 'var(--border)' }}>
+          <div className="relative w-20 h-20 rounded-lg overflow-hidden border cursor-pointer" style={{ borderColor: 'var(--border)' }} onClick={() => setPreviewUrl(value)}>
             {refNumber != null && (
               <span className="absolute top-0 left-0 z-10 w-6 h-6 flex items-center justify-center rounded-br-lg text-xs font-bold" style={{ background: 'var(--accent)', color: 'white' }}>{refNumber}</span>
             )}
             <img src={value} alt="" className="w-full h-full object-cover" />
             <button
-              onClick={() => onChange('')}
+              onClick={e => { e.stopPropagation(); onChange(''); }}
               className="absolute top-0 right-0 w-5 h-5 flex items-center justify-center text-xs rounded-bl-lg"
               style={{ background: 'var(--red)', color: 'white' }}
             >
@@ -94,6 +96,10 @@ export default function ImagePicker({ value, onChange, label = 'Source Image', r
           <span>{value ? 'Change' : 'Add'}</span>
         </button>
       </div>
+
+      {previewUrl && (
+        <MediaPreview url={previewUrl} type="image" onClose={() => setPreviewUrl(null)} />
+      )}
 
       {showPicker && (
         <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.7)' }}>
