@@ -484,6 +484,21 @@ export const DEVICE_PRESETS = {
   solo: { name: 'Solo', width: 880, height: 880, fps: 60 },
 };
 
+export const DEVICE_MASKS: Record<string, { circles: { cx: number; cy: number; r: number }[] }> = {
+  hh1x3: {
+    circles: [
+      { cx: 465, cy: 465, r: 445 },
+      { cx: 465, cy: 1087, r: 445 },
+      { cx: 465, cy: 1709, r: 445 },
+    ],
+  },
+  solo: {
+    circles: [
+      { cx: 440, cy: 440, r: 440 },
+    ],
+  },
+};
+
 export const VIDEO_ASPECT_RATIO_OPTIONS = [
   { id: '1:1', label: 'Square (1:1)' },
   { id: '3:4', label: 'Portrait 3:4' },

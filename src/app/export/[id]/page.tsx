@@ -6,6 +6,7 @@ import AppShell from '@/components/AppShell';
 import { useProject } from '@/lib/ProjectContext';
 import { ExportSession, ExportClip, Generation } from '@/lib/types';
 import { DEVICE_PRESETS } from '@/lib/models';
+import MaskPreview from '@/components/MaskPreview';
 
 function ExportEditorContent() {
   const params = useParams();
@@ -27,6 +28,7 @@ function ExportEditorContent() {
   const [dragIdx, setDragIdx] = useState<number | null>(null);
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [previewClipIdx, setPreviewClipIdx] = useState<number>(0);
 
   const saveTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
 
@@ -126,6 +128,14 @@ function ExportEditorContent() {
     const clips = [...session.clips];
     const [moved] = clips.splice(from, 1);
     clips.splice(to, 0, moved);
+    setSession({ ...session, clips, updatedAt: Date.now() });
+    debouncedSave({ clips });
+  }
+
+  function updateClipTransform(idx: number, transform: { offsetX: number; offsetY: number; scale: number }) {
+    if (!session) return;
+    const clips = [...session.clips];
+    clips[idx] = { ...clips[idx], transform };
     setSession({ ...session, clips, updatedAt: Date.now() });
     debouncedSave({ clips });
   }
@@ -382,6 +392,51 @@ function ExportEditorContent() {
           </div>
         )}
       </div>
+
+      {/* Mask Preview */}
+      {session.clips.length > 0 && (
+        <div className="rounded-xl border p-4 mb-4" style={{ background: 'var(--bg-card)', borderColor: 'var(--border)' }}>
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-xs font-semibold" style={{ color: 'var(--text3)' }}>MASK PREVIEW</p>
+            {session.clips.length > 1 && (
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setPreviewClipIdx(Math.max(0, previewClipIdx - 1))}
+                  disabled={previewClipIdx === 0}
+                  className="w-7 h-7 rounded flex items-center justify-center disabled:opacity-20"
+                  style={{ background: 'var(--bg-input)', color: 'var(--text2)' }}
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
+                    <path d="M15 18l-6-6 6-6" />
+                  </svg>
+                </button>
+                <span className="text-xs font-medium" style={{ color: 'var(--text2)' }}>
+                  {previewClipIdx + 1} / {session.clips.length}
+                </span>
+                <button
+                  onClick={() => setPreviewClipIdx(Math.min(session.clips.length - 1, previewClipIdx + 1))}
+                  disabled={previewClipIdx === session.clips.length - 1}
+                  className="w-7 h-7 rounded flex items-center justify-center disabled:opacity-20"
+                  style={{ background: 'var(--bg-input)', color: 'var(--text2)' }}
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
+                    <path d="M9 18l6-6-6-6" />
+                  </svg>
+                </button>
+              </div>
+            )}
+          </div>
+          <p className="text-xs mb-2 truncate" style={{ color: 'var(--text2)' }}>
+            {session.clips[previewClipIdx]?.label}
+          </p>
+          <MaskPreview
+            device={session.device}
+            videoUrl={session.clips[previewClipIdx]?.url}
+            transform={session.clips[previewClipIdx]?.transform || { offsetX: 0, offsetY: 0, scale: 1 }}
+            onTransformChange={(t) => updateClipTransform(previewClipIdx, t)}
+          />
+        </div>
+      )}
 
       {/* Video Browser Modal */}
       {showBrowser && (
