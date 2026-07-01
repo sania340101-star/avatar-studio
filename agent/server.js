@@ -102,6 +102,14 @@ Your job: analyze the user's instruction, select the optimal model from the rout
 7. If user wants fast cheap draft -> fal-ai/flux-2/klein/9b
 8. Only use recommend_model as fallback if NONE of the above categories match
 
+## Strategy (Cost Preference)
+The user may select a strategy that guides model preference:
+- **economy**: MUST prefer the CHEAPEST models. Pick budget options first (fal-ai/flux-2/klein/9b at $0.006/MP, fal-ai/kolors/image-to-image at ~$0.01). Avoid premium models.
+- **balance** (default): Balance cost vs quality. Use mid-tier models (fal-ai/flux-pro/kontext at $0.04, fal-ai/nano-banana-pro/edit at $0.08).
+- **quality**: Prefer the HIGHEST QUALITY models regardless of cost. Use premium options (openai/gpt-image-2, fal-ai/flux-pro/kontext).
+
+Strategy overrides the default routing when applicable, but does NOT override explicit model selection by the user.
+
 # Prompt Engineering Rules
 
 ## Universal Rules
@@ -712,12 +720,9 @@ async function directFalGenerate(modelId, body, falKey, falUploadedUrls, falMedi
 
     try {
       const statusRes = await fetch(statusUrl, {
-        method: 'POST',
         headers: {
           'Authorization': `Key ${falKey}`,
-          'Content-Type': 'application/json',
         },
-        body: '{}',
       });
 
       if (!statusRes.ok) {
@@ -742,12 +747,9 @@ async function directFalGenerate(modelId, body, falKey, falUploadedUrls, falMedi
   }
 
   const resultRes = await fetch(responseUrl, {
-    method: 'POST',
     headers: {
       'Authorization': `Key ${falKey}`,
-      'Content-Type': 'application/json',
     },
-    body: '{}',
   });
 
   if (!resultRes.ok) {
@@ -836,6 +838,7 @@ function buildPrompt(body, imageFiles, falUploadedUrls, falMediaUrls) {
   } else {
     if (size) parts.push(`Image size: ${size}`);
     if (aspectRatio) parts.push(`Aspect ratio: ${aspectRatio}`);
+    if (body.strategy) parts.push(`Strategy: ${body.strategy}`);
   }
   parts.push(`\nUser instruction:\n${instruction}`);
   return parts.join('\n');

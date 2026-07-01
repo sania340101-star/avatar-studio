@@ -14,6 +14,8 @@ import ImagePicker from '@/components/ImagePicker';
 import ReferenceUpload from '@/components/ReferenceUpload';
 
 type View = 'list' | 'create' | 'edit';
+const TEMPLATE_VIEW_KEY = 'avatar-studio:template-view';
+const TEMPLATE_FORM_KEY = 'avatar-studio:template-form';
 
 function makeSlotId(): string {
   return `slot-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -45,9 +47,21 @@ function cloneSlot(slot: TemplateSlot): TemplateSlot {
 
 function TemplatesContent() {
   const { user, activeProject } = useProject();
-  const [view, setView] = useState<View>('list');
+  const [view, setView] = useState<View>(() => {
+    try {
+      const s = sessionStorage.getItem(TEMPLATE_VIEW_KEY);
+      if (s) { const d = JSON.parse(s); if (d.view) return d.view; }
+    } catch {}
+    return 'list';
+  });
   const [templates, setTemplates] = useState<Template[]>([]);
-  const [editingTemplate, setEditingTemplate] = useState<Template | null>(null);
+  const [editingTemplate, setEditingTemplate] = useState<Template | null>(() => {
+    try {
+      const s = sessionStorage.getItem(TEMPLATE_VIEW_KEY);
+      if (s) { const d = JSON.parse(s); return d.editingTemplate || null; }
+    } catch {}
+    return null;
+  });
 
   const load = useCallback(async () => {
     const res = await fetch('/api/templates');
@@ -57,7 +71,17 @@ function TemplatesContent() {
 
   useEffect(() => { load(); }, [load]);
 
+  useEffect(() => {
+    if (view === 'list') {
+      sessionStorage.removeItem(TEMPLATE_VIEW_KEY);
+      sessionStorage.removeItem(TEMPLATE_FORM_KEY);
+    } else {
+      sessionStorage.setItem(TEMPLATE_VIEW_KEY, JSON.stringify({ view, editingTemplate }));
+    }
+  }, [view, editingTemplate]);
+
   function handleEdit(tmpl: Template) {
+    sessionStorage.removeItem(TEMPLATE_FORM_KEY);
     setEditingTemplate(tmpl);
     setView('edit');
   }
@@ -74,7 +98,7 @@ function TemplatesContent() {
           templates={templates}
           onEdit={handleEdit}
           onDelete={handleDelete}
-          onCreate={() => { setEditingTemplate(null); setView('create'); }}
+          onCreate={() => { sessionStorage.removeItem(TEMPLATE_FORM_KEY); setEditingTemplate(null); setView('create'); }}
         />
       )}
       {(view === 'create' || view === 'edit') && (
@@ -191,6 +215,26 @@ function SlotCard({ slot, index, total, onChange, onRemove }: {
   onRemove: () => void;
 }) {
   const [collapsed, setCollapsed] = useState(false);
+  const [pricing, setPricing] = useState<{ amount: number; currency: string } | null>(null);
+  const [pricingLoading, setPricingLoading] = useState(false);
+
+  useEffect(() => {
+    setPricing(null);
+    if (slot.modelId === 'auto' || isVideoModelGroupId(slot.modelId)) return;
+    setPricingLoading(true);
+    const ctrl = new AbortController();
+    fetch('/api/pricing', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ modelId: slot.modelId }),
+      signal: ctrl.signal,
+    })
+      .then(r => r.json())
+      .then(data => { if (data.amount != null) setPricing({ amount: data.amount, currency: data.currency || 'USD' }); })
+      .catch(() => {})
+      .finally(() => setPricingLoading(false));
+    return () => ctrl.abort();
+  }, [slot.modelId]);
 
   const filteredModels = filterVideoModelsByType(slot.typeFilter as VideoModelTypeFilter);
   function updateField<K extends keyof TemplateSlot>(key: K, value: TemplateSlot[K]) {
@@ -245,6 +289,14 @@ function SlotCard({ slot, index, total, onChange, onRemove }: {
         <span className="text-sm font-medium truncate" style={{ color: 'var(--text1)' }}>
           {slot.modelId === 'auto' ? 'Auto' : slot.modelLabel}
         </span>
+        {pricing && (
+          <span className="text-xs font-medium px-1.5 py-0.5 rounded flex-shrink-0" style={{ background: 'rgba(34,197,94,0.1)', color: '#22c55e' }}>
+            ~${pricing.amount.toFixed(2)}
+          </span>
+        )}
+        {pricingLoading && !pricing && (
+          <span className="text-xs flex-shrink-0" style={{ color: 'var(--text3)' }}>$…</span>
+        )}
         <div className="flex items-center gap-1.5 flex-shrink-0">
           <span className="text-xs px-1.5 py-0.5 rounded" style={{ background: 'var(--bg-input)', color: 'var(--text3)' }}>
             {slot.duration}s
@@ -422,13 +474,24 @@ function TemplateForm({ userId, existing, onSave, onCancel }: {
   onSave: () => void;
   onCancel: () => void;
 }) {
-  const [name, setName] = useState(existing?.name || '');
-  const [description, setDescription] = useState(existing?.description || '');
+  const [name, setName] = useState(() => {
+    try { const s = sessionStorage.getItem(TEMPLATE_FORM_KEY); if (s) { const d = JSON.parse(s); if (d.name !== undefined) return d.name; } } catch {}
+    return existing?.name || '';
+  });
+  const [description, setDescription] = useState(() => {
+    try { const s = sessionStorage.getItem(TEMPLATE_FORM_KEY); if (s) { const d = JSON.parse(s); if (d.description !== undefined) return d.description; } } catch {}
+    return existing?.description || '';
+  });
   const [slots, setSlots] = useState<TemplateSlot[]>(() => {
+    try { const s = sessionStorage.getItem(TEMPLATE_FORM_KEY); if (s) { const d = JSON.parse(s); if (d.slots?.length) return d.slots; } } catch {}
     if (existing?.slots?.length) return existing.slots;
     return [defaultSlot()];
   });
   const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    sessionStorage.setItem(TEMPLATE_FORM_KEY, JSON.stringify({ name, description, slots }));
+  }, [name, description, slots]);
 
   function updateSlot(index: number, updated: TemplateSlot) {
     setSlots(prev => prev.map((s, i) => i === index ? updated : s));
