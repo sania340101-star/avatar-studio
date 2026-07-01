@@ -11,6 +11,7 @@ import { useProjectCache } from '@/lib/useProjectCache';
 import { DEFAULT_SYSTEM_PROMPT } from '@/lib/constants';
 import VersionHistory from '@/components/VersionHistory';
 import StepBar from '@/components/StepBar';
+import MediaPreview from '@/components/MediaPreview';
 
 interface GeneratedImage {
   url: string;
@@ -24,6 +25,7 @@ export default function GenerateImagePage() {
 
   // User input
   const [references, setReferences] = useState<{ url: string; name: string }[]>([]);
+  const [previewRef, setPreviewRef] = useState<{ url: string; name: string } | null>(null);
   const [modelPref, setModelPref] = useState('auto');
   const [instruction, setInstruction] = useState('');
   const [desiredSize, setDesiredSize] = useState('portrait_16_9');
@@ -382,11 +384,11 @@ export default function GenerateImagePage() {
 
             <div className="flex flex-wrap gap-2">
               {references.map((ref, i) => (
-                <div key={i} className="relative w-20 h-20 rounded-lg overflow-hidden border" style={{ borderColor: 'var(--border)' }}>
+                <div key={i} className="relative w-20 h-20 rounded-lg overflow-hidden border cursor-pointer" style={{ borderColor: 'var(--border)' }} onClick={() => setPreviewRef(ref)}>
                   <span className="absolute top-0 left-0 z-10 w-6 h-6 flex items-center justify-center rounded-br-lg text-xs font-bold" style={{ background: 'var(--accent)', color: 'white' }}>{i + 1}</span>
                   <img src={ref.url} alt={ref.name} className="w-full h-full object-cover" />
                   <button
-                    onClick={() => setReferences(prev => prev.filter((_, j) => j !== i))}
+                    onClick={e => { e.stopPropagation(); setReferences(prev => prev.filter((_, j) => j !== i)); }}
                     className="absolute top-0 right-0 w-5 h-5 flex items-center justify-center text-xs rounded-bl-lg"
                     style={{ background: 'var(--red)', color: 'white' }}
                   >x</button>
@@ -644,6 +646,10 @@ export default function GenerateImagePage() {
       )}
 
       <VersionHistory generations={history} onSelect={handleSelectVersion} onDelete={handleDeleteVersion} />
+
+      {previewRef && (
+        <MediaPreview url={previewRef.url} type="image" name={previewRef.name} onClose={() => setPreviewRef(null)} />
+      )}
     </div>
   );
 }

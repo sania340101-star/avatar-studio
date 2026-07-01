@@ -9,6 +9,20 @@ interface Props {
   onClose: () => void;
 }
 
+async function downloadFile(url: string, filename: string) {
+  try {
+    const res = await fetch(url);
+    const blob = await res.blob();
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  } catch {
+    window.open(url, '_blank');
+  }
+}
+
 export default function MediaPreview({ url, type, name, onClose }: Props) {
   useEffect(() => {
     function handleKey(e: KeyboardEvent) {
@@ -24,20 +38,19 @@ export default function MediaPreview({ url, type, name, onClose }: Props) {
       style={{ background: 'rgba(0,0,0,0.85)' }}
       onClick={onClose}
     >
-      <div className="absolute top-4 right-4 flex items-center gap-3 z-10">
-        <a
-          href={url}
-          download={name || true}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-white/70 hover:text-white transition-colors"
-          onClick={e => e.stopPropagation()}
+      <div className="absolute top-4 right-4 flex items-center gap-6 z-10">
+        <button
+          onClick={e => { e.stopPropagation(); downloadFile(url, name || `file.${type === 'video' ? 'mp4' : type === 'audio' ? 'mp3' : 'png'}`); }}
+          className="w-11 h-11 flex items-center justify-center rounded-full text-white/70 hover:text-white hover:bg-white/10 transition-colors"
         >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-7 h-7">
             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" />
           </svg>
-        </a>
-        <button onClick={onClose} className="text-white/70 hover:text-white transition-colors">
+        </button>
+        <button
+          onClick={onClose}
+          className="w-11 h-11 flex items-center justify-center rounded-full text-white/70 hover:text-white hover:bg-white/10 transition-colors"
+        >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-8 h-8">
             <path d="M18 6L6 18M6 6l12 12" />
           </svg>
