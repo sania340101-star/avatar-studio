@@ -6,6 +6,8 @@ const SERVICE_KEY = process.env.INTERNAL_SERVICE_KEY || '';
 
 export async function POST(req: NextRequest) {
   try {
+    const userId = req.headers.get('x-user-id');
+    if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     const sessionId = req.headers.get('x-session-id');
     if (!sessionId) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 });

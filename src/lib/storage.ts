@@ -86,14 +86,15 @@ export function getGenerations(projectId: string, type?: 'image' | 'video'): Gen
   const filtered = type ? all.filter(g => g.type === type) : all;
   return filtered.sort((a, b) => b.createdAt - a.createdAt);
 }
-export function getAllUserGenerations(userId: string, type?: 'image' | 'video'): Generation[] {
+export function getAllUserGenerations(userId: string, type?: 'image' | 'video', limit = 200): Generation[] {
   const projects = getProjects(userId);
   const all: Generation[] = [];
   for (const p of projects) {
     all.push(...readJson<Generation[]>(genFile(p.id), []));
   }
   const filtered = type ? all.filter(g => g.type === type) : all;
-  return filtered.sort((a, b) => b.createdAt - a.createdAt);
+  const sorted = filtered.sort((a, b) => b.createdAt - a.createdAt);
+  return limit > 0 ? sorted.slice(0, limit) : sorted;
 }
 export function addGeneration(gen: Generation): Generation {
   ensureDirs();

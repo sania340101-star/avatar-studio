@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { readFileSync, existsSync } from 'fs';
+import { createReadStream, existsSync, statSync } from 'fs';
 import { join, extname, resolve } from 'path';
+import { Readable } from 'stream';
 import { getUploadsDir } from '@/lib/storage';
 const MIME_MAP: Record<string, string> = {
   '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png',
@@ -22,10 +23,13 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ path
   }
   const ext = extname(filePath).toLowerCase();
   const contentType = MIME_MAP[ext] || 'application/octet-stream';
-  const buffer = readFileSync(filePath);
-  return new NextResponse(buffer, {
+  const stat = statSync(filePath);
+  const stream = createReadStream(filePath);
+  const webStream = Readable.toWeb(stream) as ReadableStream;
+  return new NextResponse(webStream, {
     headers: {
       'Content-Type': contentType,
+      'Content-Length': String(stat.size),
       'X-Content-Type-Options': 'nosniff',
       'Cache-Control': 'public, max-age=31536000, immutable',
     },

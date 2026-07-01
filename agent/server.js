@@ -939,7 +939,8 @@ const server = http.createServer(async (req, res) => {
 
   // --- Pricing endpoint ---
   if (isPricing) {
-    const { falKey, modelId } = body;
+    const falKey = req.headers['x-fal-key'] || body.falKey;
+    const { modelId } = body;
     if (!falKey) { activeRequests--; res.statusCode = 400; res.end(JSON.stringify({ error: 'falKey required' })); return; }
     if (!modelId) { activeRequests--; res.statusCode = 400; res.end(JSON.stringify({ error: 'modelId required' })); return; }
 
@@ -1003,7 +1004,8 @@ const server = http.createServer(async (req, res) => {
   }
 
   // --- Prepare / Generate endpoints ---
-  const { falKey, type = 'image', instruction } = body;
+  const falKey = req.headers['x-fal-key'] || body.falKey;
+  const { type = 'image', instruction } = body;
   if (!falKey) { activeRequests--; res.statusCode = 400; res.end(JSON.stringify({ error: 'falKey required' })); return; }
   const hasMedia = body.sourceImage || body.sourceVideo || body.audioUrl || body.references?.length || body.referenceImages?.length;
   if (!instruction && !hasMedia) { activeRequests--; res.statusCode = 400; res.end(JSON.stringify({ error: 'instruction or media reference required' })); return; }

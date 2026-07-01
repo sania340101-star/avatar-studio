@@ -3,7 +3,6 @@ import { writeFileSync } from 'fs';
 import { join } from 'path';
 import { getUploadsDir } from '@/lib/storage';
 import { audit } from '@/lib/audit';
-import { verifyToken } from '@/lib/token';
 
 const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB
 
@@ -27,13 +26,9 @@ const ALLOWED_TYPES: Record<string, string> = {
 
 export async function POST(req: NextRequest) {
   try {
-    const sessionCookie = req.cookies.get('session')?.value;
-    if (!sessionCookie) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    const payload = await verifyToken(sessionCookie);
-    if (!payload) return NextResponse.json({ error: 'Invalid session' }, { status: 401 });
-
-    const userId = String(payload.userId);
-    const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
+    const userId = req.headers.get('x-user-id');
+    if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const ip = req.headers.get('x-client-ip') || req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
 
     const formData = await req.formData();
     const file = formData.get('file') as File | null;

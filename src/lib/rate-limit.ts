@@ -43,6 +43,8 @@ const ROUTE_LIMITS: [RegExp, RouteLimit][] = [
   [/^\/api\/auth\/verify-otp$/, { maxRequests: 10, windowMs: 60_000 }],
   [/^\/api\/generate$/, { maxRequests: 20, windowMs: 60_000 }],
   [/^\/api\/prepare-generation$/, { maxRequests: 20, windowMs: 60_000 }],
+  [/^\/api\/jobs\/batch$/, { maxRequests: 10, windowMs: 60_000 }],
+  [/^\/api\/jobs\/[^/]+\/confirm$/, { maxRequests: 20, windowMs: 60_000 }],
   [/^\/api\/upload$/, { maxRequests: 30, windowMs: 60_000 }],
 ];
 

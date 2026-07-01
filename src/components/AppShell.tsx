@@ -12,7 +12,7 @@ function OtpLogin({ onLogin }: { onLogin: (user: AppUser) => void }) {
   const [step, setStep] = useState<'email' | 'code'>('email');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [devCode, setDevCode] = useState('');
+  const [smtpNotConfigured, setSmtpNotConfigured] = useState(false);
   const [cooldown, setCooldown] = useState(0);
   const cooldownRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const codeInputRef = useRef<HTMLInputElement>(null);
@@ -55,7 +55,7 @@ function OtpLogin({ onLogin }: { onLogin: (user: AppUser) => void }) {
         setError(data.error);
         return;
       }
-      if (data.devCode) setDevCode(data.devCode);
+      if (data.smtpNotConfigured) setSmtpNotConfigured(true);
       setStep('code');
       startCooldown();
       setTimeout(() => codeInputRef.current?.focus(), 50);
@@ -122,7 +122,7 @@ function OtpLogin({ onLogin }: { onLogin: (user: AppUser) => void }) {
     setStep('email');
     setCode('');
     setError('');
-    setDevCode('');
+    setSmtpNotConfigured(false);
     if (cooldownRef.current) clearInterval(cooldownRef.current);
     setCooldown(0);
   }
@@ -163,15 +163,9 @@ function OtpLogin({ onLogin }: { onLogin: (user: AppUser) => void }) {
         ) : (
           <>
             <p className="text-sm mb-4" style={{ color: 'var(--text2)' }}>
-              {devCode ? 'Email delivery not configured.' : 'Code sent to'}{' '}
+              {smtpNotConfigured ? 'Email delivery not configured. Check server logs for code.' : 'Code sent to'}{' '}
               <strong style={{ color: 'var(--text1)' }}>{email}</strong>
             </p>
-            {devCode && (
-              <div className="mb-4 p-3 rounded-lg text-center" style={{ background: 'var(--accent-subtle)', border: '1px solid var(--accent)' }}>
-                <p className="text-xs mb-1" style={{ color: 'var(--text3)' }}>Your login code:</p>
-                <p className="text-2xl font-semibold tracking-[0.3em]" style={{ color: 'var(--accent)' }}>{devCode}</p>
-              </div>
-            )}
             <input
               ref={codeInputRef}
               type="text"
