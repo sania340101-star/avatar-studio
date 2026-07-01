@@ -8,6 +8,23 @@ import { ExportSession, ExportClip, Generation } from '@/lib/types';
 import { DEVICE_PRESETS } from '@/lib/models';
 import MaskPreview from '@/components/MaskPreview';
 
+function probeDuration(url: string): Promise<number> {
+  return new Promise((resolve) => {
+    const v = document.createElement('video');
+    v.preload = 'metadata';
+    v.onloadedmetadata = () => { resolve(v.duration); v.remove(); };
+    v.onerror = () => { resolve(0); v.remove(); };
+    v.src = url;
+  });
+}
+
+function formatDuration(s: number): string {
+  if (!s || !isFinite(s)) return '—';
+  const m = Math.floor(s / 60);
+  const sec = Math.floor(s % 60);
+  return m > 0 ? `${m}:${sec.toString().padStart(2, '0')}` : `${sec}s`;
+}
+
 function ExportEditorContent() {
   const params = useParams();
   const router = useRouter();
@@ -48,6 +65,22 @@ function ExportEditorContent() {
   }, [sessionId]);
 
   useEffect(() => { load(); }, [load]);
+
+  useEffect(() => {
+    if (!session) return;
+    const missing = session.clips.filter(c => !c.duration);
+    if (missing.length === 0) return;
+    Promise.all(missing.map(async (c) => {
+      const dur = await probeDuration(c.url);
+      return { id: c.id, duration: dur > 0 ? Math.round(dur * 10) / 10 : undefined };
+    })).then(results => {
+      const durMap = new Map(results.filter(r => r.duration).map(r => [r.id, r.duration]));
+      if (durMap.size === 0) return;
+      const clips = session.clips.map(c => durMap.has(c.id) ? { ...c, duration: durMap.get(c.id) } : c);
+      setSession(prev => prev ? { ...prev, clips } : prev);
+      debouncedSave({ clips });
+    });
+  }, [session?.id, session?.clips.length]);
 
   const save = useCallback(async (updates: Partial<ExportSession>) => {
     if (!session) return;
@@ -94,14 +127,16 @@ function ExportEditorContent() {
     return gen.prompt.slice(0, 60) || gen.modelLabel || 'Untitled';
   }
 
-  function addClip(gen: Generation) {
+  async function addClip(gen: Generation) {
     if (!session) return;
+    const dur = await probeDuration(gen.resultUrls[0]);
     const clip: ExportClip = {
       id: `clip-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
       generationId: gen.id,
       projectId: gen.projectId,
       url: gen.resultUrls[0],
       label: clipLabel(gen),
+      duration: dur > 0 ? Math.round(dur * 10) / 10 : undefined,
       transform: { offsetX: 0, offsetY: 0, scale: 1 },
     };
     const updated = { clips: [...session.clips, clip] };
@@ -269,6 +304,7 @@ function ExportEditorContent() {
   }
 
   const preset = DEVICE_PRESETS[session.device];
+  const totalDuration = session.clips.reduce((sum, c) => sum + (c.duration || 0), 0);
 
   return (
     <div>
@@ -308,6 +344,7 @@ function ExportEditorContent() {
           <div className="flex items-center gap-3 mt-0.5">
             <span className="text-xs" style={{ color: 'var(--text3)' }}>
               {session.clips.length} clip{session.clips.length !== 1 ? 's' : ''}
+              {totalDuration > 0 && ` · ${formatDuration(totalDuration)}`}
             </span>
             <span className="text-xs" style={{ color: 'var(--text3)' }}>
               {preset.name} ({preset.width}x{preset.height})
@@ -411,9 +448,16 @@ function ExportEditorContent() {
                   </div>
                 </button>
 
-                {/* Label + project */}
+                {/* Label + project + duration */}
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm truncate" style={{ color: 'var(--text1)' }}>{clip.label}</p>
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm truncate" style={{ color: 'var(--text1)' }}>{clip.label}</p>
+                    {clip.duration != null && (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded flex-shrink-0" style={{ background: 'var(--bg-input)', color: 'var(--text3)' }}>
+                        {formatDuration(clip.duration)}
+                      </span>
+                    )}
+                  </div>
                   {projectMap[clip.projectId] && (
                     <p className="text-xs truncate" style={{ color: 'var(--text3)' }}>{projectMap[clip.projectId]}</p>
                   )}
@@ -530,6 +574,7 @@ function ExportEditorContent() {
               <p className="text-xs font-semibold mb-1" style={{ color: 'var(--text3)' }}>RENDER</p>
               <p className="text-xs" style={{ color: 'var(--text3)' }}>
                 {preset.width}x{preset.height} @ 60fps &middot; {session.clips.length} clip{session.clips.length !== 1 ? 's' : ''}
+                {totalDuration > 0 && ` · ${formatDuration(totalDuration)}`}
               </p>
             </div>
             <div className="flex items-center gap-3">
@@ -578,6 +623,51 @@ function ExportEditorContent() {
                 <polyline points="20 6 9 17 4 12" />
               </svg>
               Export ready
+            </div>
+          )}
+
+          {/* Version history */}
+          {session.exports && session.exports.length > 0 && (
+            <div className="mt-4 pt-3 border-t" style={{ borderColor: 'var(--border)' }}>
+              <p className="text-xs font-semibold mb-2" style={{ color: 'var(--text3)' }}>
+                VERSIONS ({session.exports.length})
+              </p>
+              <div className="space-y-2">
+                {[...session.exports].reverse().map((exp, i) => (
+                  <div
+                    key={exp.id}
+                    className="flex items-center gap-3 p-2 rounded-lg"
+                    style={{ background: 'var(--bg)', border: '1px solid var(--border)' }}
+                  >
+                    <div className="w-16 h-10 rounded overflow-hidden flex-shrink-0" style={{ background: 'var(--bg-input)' }}>
+                      <video src={exp.url} className="w-full h-full object-cover" muted />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-medium" style={{ color: 'var(--text1)' }}>
+                        v{session.exports!.length - i}
+                      </p>
+                      <p className="text-[10px]" style={{ color: 'var(--text3)' }}>
+                        {new Date(exp.createdAt).toLocaleString()}
+                      </p>
+                    </div>
+                    <button
+                      onClick={async () => {
+                        const res = await fetch(exp.url);
+                        const blob = await res.blob();
+                        const a = document.createElement('a');
+                        a.href = URL.createObjectURL(blob);
+                        a.download = `${session.name}-v${session.exports!.length - i}.mp4`;
+                        a.click();
+                        URL.revokeObjectURL(a.href);
+                      }}
+                      className="text-xs px-3 py-1.5 rounded-lg font-medium flex-shrink-0"
+                      style={{ background: 'var(--bg-input)', color: 'var(--text2)' }}
+                    >
+                      Download
+                    </button>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
         </div>

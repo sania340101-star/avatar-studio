@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getExportSession, updateExportSession, addGeneration, getUploadsDir } from '@/lib/storage';
 import { DEVICE_PRESETS } from '@/lib/models';
-import { Generation } from '@/lib/types';
+import { Generation, ExportSession } from '@/lib/types';
 import { spawn } from 'child_process';
 import { writeFileSync, unlinkSync, existsSync } from 'fs';
 import { join } from 'path';
@@ -109,7 +109,14 @@ async function processExport(sessionId: string, userId: string) {
     };
     addGeneration(gen);
 
-    updateExportSession(sessionId, { status: 'done', exportUrl });
+    const currentSession = getExportSession(sessionId);
+    const prevExports = currentSession?.exports || [];
+    const newVersion = { id: gen.id, url: exportUrl, createdAt: gen.createdAt };
+    updateExportSession(sessionId, {
+      status: 'done',
+      exportUrl,
+      exports: [...prevExports, newVersion],
+    } as Partial<ExportSession>);
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : 'Export failed';
     updateExportSession(sessionId, { status: 'error', error: msg });

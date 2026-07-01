@@ -218,6 +218,12 @@ export interface ExportClip {
   };
 }
 
+export interface ExportVersion {
+  id: string;
+  url: string;
+  createdAt: number;
+}
+
 export interface ExportSession {
   id: string;
   userId: string;
@@ -227,6 +233,7 @@ export interface ExportSession {
   transform: { offsetX: number; offsetY: number; scale: number };
   status: 'draft' | 'exporting' | 'done' | 'error';
   exportUrl?: string;
+  exports?: ExportVersion[];
   error?: string;
   createdAt: number;
   updatedAt: number;
