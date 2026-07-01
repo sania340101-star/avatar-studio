@@ -28,7 +28,7 @@ async function downloadUrl(url: string, filename: string) {
   }
 }
 
-function Thumb({ src, type, className }: { src: string; type: 'image' | 'video'; className?: string }) {
+function Thumb({ src, type, className }: { src: string; type: 'image' | 'video' | 'export'; className?: string }) {
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState(false);
 
@@ -72,7 +72,7 @@ export default function VersionHistory({ generations, onSelect, onDelete }: Prop
   const [sectionExpanded, setSectionExpanded] = useState(true);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
-  const [lightbox, setLightbox] = useState<{ url: string; type: 'image' | 'video' } | null>(null);
+  const [lightbox, setLightbox] = useState<{ url: string; type: 'image' | 'video' | 'export' } | null>(null);
 
   const closeLightbox = useCallback(() => setLightbox(null), []);
 
@@ -241,7 +241,7 @@ export default function VersionHistory({ generations, onSelect, onDelete }: Prop
                   </p>
                   <div className="flex flex-wrap gap-2">
                     {gen.resultUrls.map((url, j) => {
-                      const ext = gen.type === 'video' ? 'mp4' : 'png';
+                      const ext = gen.type === 'image' ? 'png' : 'mp4';
                       const fname = `v${versionNum}-${j + 1}.${ext}`;
                       return (
                         <div key={j} className="flex flex-col items-center gap-1">
