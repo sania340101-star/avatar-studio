@@ -10,13 +10,13 @@ const MODE_KEY = 'avatar-studio:generate-mode';
 export default function GeneratePage() {
   const [mode, setMode] = useState<Mode>(() => {
     if (typeof window !== 'undefined') {
-      return (sessionStorage.getItem(MODE_KEY) as Mode) || 'video';
+      return (localStorage.getItem(MODE_KEY) as Mode) || 'image';
     }
-    return 'video';
+    return 'image';
   });
 
   useEffect(() => {
-    sessionStorage.setItem(MODE_KEY, mode);
+    localStorage.setItem(MODE_KEY, mode);
   }, [mode]);
 
   return (

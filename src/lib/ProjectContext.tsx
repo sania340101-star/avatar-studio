@@ -41,7 +41,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (projects.length > 0 && !activeId) {
-      const saved = sessionStorage.getItem(ACTIVE_KEY);
+      const saved = localStorage.getItem(ACTIVE_KEY);
       if (saved && projects.find(p => p.id === saved)) {
         setActiveId(saved);
       } else {
@@ -52,7 +52,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
 
   function setActiveProjectId(id: string) {
     setActiveId(id);
-    sessionStorage.setItem(ACTIVE_KEY, id);
+    localStorage.setItem(ACTIVE_KEY, id);
   }
 
   async function handleCreateProject(title: string): Promise<Project> {
@@ -81,7 +81,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     await fetch(`/api/projects?projectId=${id}`, { method: 'DELETE' });
     if (activeId === id) {
       setActiveId(null);
-      sessionStorage.removeItem(ACTIVE_KEY);
+      localStorage.removeItem(ACTIVE_KEY);
     }
     await refreshProjects();
   }
