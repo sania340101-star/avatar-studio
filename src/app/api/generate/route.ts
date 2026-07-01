@@ -37,7 +37,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Instruction is required.' }, { status: 400 });
     }
 
-    const userId = req.headers.get('x-user-id') || 'anonymous';
+    const userId = req.headers.get('x-user-id');
+    if (!userId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
     const budget = checkBudget(userId);
     if (!budget.allowed) {
       return NextResponse.json({

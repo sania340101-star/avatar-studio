@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { readFileSync, existsSync } from 'fs';
-import { join, extname } from 'path';
+import { join, extname, resolve } from 'path';
 import { getUploadsDir } from '@/lib/storage';
 const MIME_MAP: Record<string, string> = {
   '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png',
@@ -12,10 +12,11 @@ const MIME_MAP: Record<string, string> = {
 export async function GET(req: NextRequest, { params }: { params: Promise<{ path: string[] }> }) {
   const { path } = await params;
   const filename = path.join('/');
-  if (filename.includes('..')) {
+  const uploadsDir = resolve(getUploadsDir());
+  const filePath = resolve(join(uploadsDir, filename));
+  if (!filePath.startsWith(uploadsDir)) {
     return NextResponse.json({ error: 'Invalid path' }, { status: 400 });
   }
-  const filePath = join(getUploadsDir(), filename);
   if (!existsSync(filePath)) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
   }

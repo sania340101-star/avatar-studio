@@ -27,7 +27,7 @@ function isServiceAuth(request: NextRequest): boolean {
 
 export async function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
-  const isPublic = PUBLIC_PATHS.has(pathname) || pathname.startsWith('/api/files/');
+  const isPublic = PUBLIC_PATHS.has(pathname);
   const isService = isServiceAuth(request);
   const ip = getClientIp(request);
 
@@ -75,6 +75,15 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
+  if (isService) {
+    const headers = new Headers(request.headers);
+    headers.set('x-user-id', 'service');
+    headers.set('x-session-id', 'service');
+    headers.set('x-user-role', 'service');
+    headers.set('x-client-ip', ip);
+    return NextResponse.next({ request: { headers } });
+  }
+
   const headers = new Headers(request.headers);
   headers.set('x-user-id', String(payload!.userId));
   headers.set('x-session-id', String(payload!.sessionId));
@@ -85,5 +94,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: '/api/((?!upload).*)',
+  matcher: '/api/(.*)',
 };
