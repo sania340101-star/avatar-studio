@@ -123,6 +123,7 @@ export interface Generation {
   parentId?: string;
   estimatedCost?: GenerationCost;
   actualCost?: GenerationCost;
+  batchId?: string;
   createdAt: number;
 }
 

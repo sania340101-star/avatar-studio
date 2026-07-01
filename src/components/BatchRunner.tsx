@@ -125,6 +125,7 @@ export default function BatchRunner({ template, projectId, onBack, inline, exter
           resultUrls: job.result?.video?.url ? [job.result.video.url] : [],
           status: 'completed',
           actualCost: job.result?.cost || undefined,
+          batchId,
         }),
       }).catch(e => console.error('Failed to save batch result to history:', e));
     });
