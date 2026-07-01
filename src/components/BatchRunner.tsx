@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Template, TemplateRef } from '@/lib/types';
 import ImagePicker from '@/components/ImagePicker';
 import ReferenceUpload from '@/components/ReferenceUpload';
@@ -56,8 +56,30 @@ export default function BatchRunner({ template, projectId, onBack, inline, exter
   const [error, setError] = useState('');
   const [lightbox, setLightbox] = useState<{ url: string; type: 'image' | 'video' } | null>(null);
   const savedBatchRef = useRef<string | null>(null);
+  const [slotPricing, setSlotPricing] = useState<Record<string, { amount: number; unit: string }>>({});
 
   const slots = template.slots || [];
+
+  const fetchPricing = useCallback(async () => {
+    const uniqueModels = [...new Set(slots.map(s => s.modelId))];
+    const results: Record<string, { amount: number; unit: string }> = {};
+    await Promise.all(uniqueModels.map(async modelId => {
+      try {
+        const res = await fetch('/api/pricing', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ modelId }),
+        });
+        const data = await res.json();
+        if (data.amount != null) {
+          results[modelId] = { amount: data.amount, unit: data.details || '' };
+        }
+      } catch { /* ignore */ }
+    }));
+    setSlotPricing(results);
+  }, [slots]);
+
+  useEffect(() => { fetchPricing(); }, [fetchPricing]);
 
   useEffect(() => {
     setBatchId(null);
@@ -188,6 +210,9 @@ export default function BatchRunner({ template, projectId, onBack, inline, exter
                 const imgRefs = slot.references.filter(r => r.type === 'image').length;
                 const vidRefs = slot.references.filter(r => r.type === 'video').length;
                 const audRefs = slot.references.filter(r => r.type === 'audio').length;
+                const pricing = slotPricing[slot.modelId];
+                const isPerSec = pricing && pricing.unit.includes('second');
+                const slotCost = pricing ? (isPerSec ? pricing.amount * slot.duration : pricing.amount) : null;
                 return (
                   <div key={slot.id} className="flex items-center gap-2 text-xs p-2 rounded-lg" style={{ background: 'var(--bg)', color: 'var(--text2)' }}>
                     <span className="font-medium px-1.5 py-0.5 rounded" style={{ background: 'var(--accent-subtle)', color: 'var(--accent)' }}>#{i + 1}</span>
@@ -197,10 +222,28 @@ export default function BatchRunner({ template, projectId, onBack, inline, exter
                     {imgRefs > 0 && <span style={{ color: 'var(--text3)' }}>{imgRefs} img</span>}
                     {vidRefs > 0 && <span style={{ color: 'var(--text3)' }}>{vidRefs} vid</span>}
                     {audRefs > 0 && <span style={{ color: 'var(--text3)' }}>{audRefs} aud</span>}
+                    {slotCost != null && (
+                      <span className="ml-auto font-medium px-1.5 py-0.5 rounded text-[10px]" style={{ background: 'rgba(76,175,80,0.15)', color: 'var(--green)' }}>~${slotCost.toFixed(2)}</span>
+                    )}
                   </div>
                 );
               })}
             </div>
+            {(() => {
+              let total = 0;
+              let hasAll = true;
+              for (const slot of slots) {
+                const p = slotPricing[slot.modelId];
+                if (!p) { hasAll = false; break; }
+                total += p.unit.includes('second') ? p.amount * slot.duration : p.amount;
+              }
+              return hasAll && slots.length > 1 ? (
+                <div className="flex items-center justify-between mt-2 pt-2 border-t text-xs" style={{ borderColor: 'var(--border)' }}>
+                  <span style={{ color: 'var(--text3)' }}>Estimated total</span>
+                  <span className="font-semibold" style={{ color: 'var(--green)' }}>~${total.toFixed(2)}</span>
+                </div>
+              ) : null;
+            })()}
           </div>
 
           {error && (
