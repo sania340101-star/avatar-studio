@@ -403,6 +403,25 @@ export default function VersionHistory({ generations, onSelect, onDelete }: Prop
                         </div>
                       )}
 
+                      {gen.params.instruction != null && (
+                        <p className="text-xs" style={{ color: 'var(--text2)' }}>{String(gen.params.instruction)}</p>
+                      )}
+
+                      <div className="flex flex-wrap gap-1">
+                        {gen.params.duration != null && (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: 'var(--bg-input)', color: 'var(--text3)' }}>{String(gen.params.duration)}s</span>
+                        )}
+                        {gen.params.aspectRatio != null && (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: 'var(--bg-input)', color: 'var(--text3)' }}>{String(gen.params.aspectRatio)}</span>
+                        )}
+                        {gen.params.quality != null && (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: 'var(--bg-input)', color: 'var(--text3)' }}>{String(gen.params.quality)}</span>
+                        )}
+                        {gen.params.fps != null && (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: 'var(--bg-input)', color: 'var(--text3)' }}>{String(gen.params.fps)}fps</span>
+                        )}
+                      </div>
+
                       <p className="text-xs truncate" style={{ color: 'var(--text3)' }}>{gen.prompt}</p>
                     </div>
                   );

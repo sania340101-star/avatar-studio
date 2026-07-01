@@ -93,6 +93,50 @@ function GalleryContent() {
     { id: 'video', label: 'Videos' },
   ];
 
+  type GalleryEntry =
+    | { kind: 'single'; gen: Generation }
+    | { kind: 'batch'; batchId: string; gens: Generation[]; templateName: string };
+
+  const galleryEntries: GalleryEntry[] = [];
+  const batchMap = new Map<string, Generation[]>();
+  for (const gen of generations) {
+    if (gen.batchId) {
+      const arr = batchMap.get(gen.batchId) || [];
+      arr.push(gen);
+      batchMap.set(gen.batchId, arr);
+    } else {
+      galleryEntries.push({ kind: 'single', gen });
+    }
+  }
+  for (const [bid, gens] of batchMap) {
+    const sorted = gens.sort((a, b) => ((a.params.slotIndex as number) ?? 0) - ((b.params.slotIndex as number) ?? 0));
+    galleryEntries.push({
+      kind: 'batch',
+      batchId: bid,
+      gens: sorted,
+      templateName: String(sorted[0].params.templateName || 'Batch'),
+    });
+  }
+  galleryEntries.sort((a, b) => {
+    const ta = a.kind === 'single' ? a.gen.createdAt : Math.max(...a.gens.map(g => g.createdAt));
+    const tb = b.kind === 'single' ? b.gen.createdAt : Math.max(...b.gens.map(g => g.createdAt));
+    return tb - ta;
+  });
+
+  function isBatchSelected(entry: Extract<GalleryEntry, { kind: 'batch' }>) {
+    return entry.gens.every(g => selectedIds.has(g.id));
+  }
+  function toggleBatchSelect(entry: Extract<GalleryEntry, { kind: 'batch' }>) {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      const allIn = entry.gens.every(g => next.has(g.id));
+      for (const g of entry.gens) {
+        if (allIn) next.delete(g.id); else next.add(g.id);
+      }
+      return next;
+    });
+  }
+
   const hasSelection = selectedIds.size > 0;
   const allSelected = generations.length > 0 && selectedIds.size === generations.length;
 
@@ -194,7 +238,126 @@ function GalleryContent() {
         </div>
       ) : (
         <div className="space-y-4">
-          {generations.map(gen => {
+          {galleryEntries.map(entry => {
+            if (entry.kind === 'batch') {
+              const batchSelected = isBatchSelected(entry);
+              let totalCost = 0;
+              let hasCost = false;
+              for (const g of entry.gens) {
+                const c = g.actualCost?.amount ?? g.estimatedCost?.amount;
+                if (c != null) { totalCost += c; hasCost = true; }
+              }
+              const models = [...new Set(entry.gens.map(g => g.modelLabel))];
+              return (
+                <div
+                  key={entry.batchId}
+                  className="rounded-xl border p-4 transition-colors"
+                  style={{
+                    borderColor: batchSelected ? 'var(--accent)' : 'var(--border)',
+                    background: batchSelected ? 'var(--accent-subtle)' : 'var(--bg-card)',
+                  }}
+                >
+                  <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-3">
+                    <button
+                      onClick={() => toggleBatchSelect(entry)}
+                      className="w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 transition-colors"
+                      style={{
+                        borderColor: batchSelected ? 'var(--accent)' : 'var(--border)',
+                        background: batchSelected ? 'var(--accent)' : 'transparent',
+                      }}
+                    >
+                      {batchSelected && (
+                        <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" className="w-3 h-3">
+                          <polyline points="20 6 9 17 4 12" />
+                        </svg>
+                      )}
+                    </button>
+                    <span className="text-xs font-medium px-2 py-0.5 rounded" style={{ background: 'rgba(108,60,224,0.15)', color: 'var(--accent)' }}>
+                      template
+                    </span>
+                    <span className="text-xs font-medium px-2 py-0.5 rounded" style={{ background: 'rgba(76,175,80,0.12)', color: 'var(--green)' }}>
+                      {entry.gens.length} slots
+                    </span>
+                    <span className="text-sm font-medium truncate">{entry.templateName}</span>
+                    {filterProjectId === 'all' && projectMap[entry.gens[0].projectId] && (
+                      <span className="text-xs px-2 py-0.5 rounded" style={{ background: 'var(--bg-input)', color: 'var(--text3)' }}>
+                        {projectMap[entry.gens[0].projectId]}
+                      </span>
+                    )}
+                    <span className="text-xs" style={{ color: 'var(--text3)' }}>
+                      {new Date(Math.max(...entry.gens.map(g => g.createdAt))).toLocaleString()}
+                    </span>
+                    {hasCost && (
+                      <span className="text-xs font-medium px-2 py-0.5 rounded" style={{ background: 'rgba(108,60,224,0.1)', color: 'var(--accent)' }}>
+                        ${totalCost.toFixed(2)}
+                      </span>
+                    )}
+                    {models.length <= 2 && (
+                      <span className="text-xs ml-auto hidden sm:inline" style={{ color: 'var(--text3)' }}>{models.join(', ')}</span>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {entry.gens.map((gen, j) => {
+                      const slotIdx = (gen.params.slotIndex as number) ?? j;
+                      const slotCost = gen.actualCost?.amount != null
+                        ? `$${gen.actualCost.amount.toFixed(2)}`
+                        : gen.estimatedCost?.amount != null ? `~$${gen.estimatedCost.amount.toFixed(2)}` : null;
+                      return (
+                        <div key={gen.id} className="rounded-lg border p-2 space-y-2" style={{ borderColor: 'var(--border)', background: 'var(--bg)' }}>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-medium px-1.5 py-0.5 rounded" style={{ background: 'var(--accent-subtle)', color: 'var(--accent)' }}>
+                              #{slotIdx + 1}
+                            </span>
+                            <span className="text-xs truncate" style={{ color: 'var(--text3)' }}>{gen.modelLabel}</span>
+                            {gen.params.duration != null && (
+                              <span className="text-xs" style={{ color: 'var(--text3)' }}>{String(gen.params.duration)}s</span>
+                            )}
+                            {slotCost && (
+                              <span className="text-xs font-medium ml-auto px-1.5 py-0.5 rounded" style={{ background: 'rgba(108,60,224,0.1)', color: 'var(--accent)' }}>
+                                {slotCost}
+                              </span>
+                            )}
+                          </div>
+
+                          {gen.resultUrls[0] && (
+                            <div className="relative group rounded-lg overflow-hidden border hover:border-[var(--accent)] transition-colors" style={{ borderColor: 'var(--border)' }}>
+                              <button onClick={() => setLightbox({ url: gen.resultUrls[0], type: gen.type })} className="w-full cursor-zoom-in">
+                                {gen.type === 'video' ? (
+                                  <video src={gen.resultUrls[0]} className="w-full pointer-events-none" />
+                                ) : (
+                                  <img src={gen.resultUrls[0]} alt="" className="w-full aspect-video object-cover" />
+                                )}
+                              </button>
+                              <div className="absolute bottom-0 left-0 right-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex justify-center p-2 pointer-events-none">
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); downloadUrl(gen.resultUrls[0], `batch-slot-${slotIdx + 1}.${gen.type === 'video' ? 'mp4' : 'png'}`); }}
+                                  className="pointer-events-auto px-3 py-1 rounded text-xs text-white font-medium"
+                                  style={{ background: 'var(--accent)' }}
+                                >
+                                  Download
+                                </button>
+                              </div>
+                            </div>
+                          )}
+
+                          <p className="text-xs truncate" style={{ color: 'var(--text3)' }}>{gen.prompt}</p>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {hasCost && (
+                    <div className="flex items-center justify-between text-xs mt-3 pt-2 border-t" style={{ borderColor: 'var(--border)' }}>
+                      <span style={{ color: 'var(--text3)' }}>Total cost</span>
+                      <span className="font-semibold" style={{ color: 'var(--accent)' }}>${totalCost.toFixed(2)}</span>
+                    </div>
+                  )}
+                </div>
+              );
+            }
+
+            const gen = entry.gen;
             const isSelected = selectedIds.has(gen.id);
             return (
               <div
