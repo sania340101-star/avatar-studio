@@ -365,6 +365,14 @@ function GalleryContent() {
                       )}
                     </div>
 
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setConfirmDeleteId(entry.batchId); }}
+                      className="text-xs px-2 py-1 rounded opacity-50 hover:opacity-100 flex-shrink-0"
+                      style={{ color: 'var(--red)' }}
+                    >
+                      Del
+                    </button>
+
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
                       className={`w-4 h-4 flex-shrink-0 transition-transform cursor-pointer ${isExpanded ? 'rotate-90' : ''}`}
                       style={{ color: 'var(--text3)' }}
@@ -645,10 +653,14 @@ function GalleryContent() {
         </div>
       )}
 
-      {/* Single delete confirmation */}
+      {/* Single / batch delete confirmation */}
       {confirmDeleteId && (() => {
         const gen = generations.find(g => g.id === confirmDeleteId);
-        if (!gen) return null;
+        const batchGens = !gen ? batchMap.get(confirmDeleteId) : null;
+        if (!gen && !batchGens) return null;
+        const isBatch = !!batchGens;
+        const count = isBatch ? batchGens!.length : 1;
+        const typeName = isBatch ? `${count} template generations` : `${gen!.type} generation`;
         return (
           <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => setConfirmDeleteId(null)}>
             <div className="absolute inset-0 bg-black/50" />
@@ -662,9 +674,9 @@ function GalleryContent() {
                   <polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
                 </svg>
               </div>
-              <h3 className="text-sm font-semibold text-center mb-1" style={{ color: 'var(--text1)' }}>Delete generation?</h3>
+              <h3 className="text-sm font-semibold text-center mb-1" style={{ color: 'var(--text1)' }}>Delete {isBatch ? 'batch' : 'generation'}?</h3>
               <p className="text-xs text-center mb-4" style={{ color: 'var(--text3)' }}>
-                This {gen.type} generation will be permanently deleted.
+                {isBatch ? `All ${count} slots in this template batch` : `This ${gen!.type} generation`} will be permanently deleted.
               </p>
               <div className="flex gap-2">
                 <button
@@ -675,7 +687,15 @@ function GalleryContent() {
                   Cancel
                 </button>
                 <button
-                  onClick={() => { handleDelete(gen); setConfirmDeleteId(null); }}
+                  onClick={async () => {
+                    if (isBatch) {
+                      await Promise.all(batchGens!.map(g => fetch(`/api/generations?projectId=${g.projectId}&generationId=${g.id}`, { method: 'DELETE' })));
+                    } else {
+                      await handleDelete(gen!);
+                    }
+                    setConfirmDeleteId(null);
+                    load();
+                  }}
                   className="flex-1 py-2 rounded-lg text-sm font-medium text-white"
                   style={{ background: 'var(--red, #ef4444)' }}
                 >
