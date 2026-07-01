@@ -593,6 +593,7 @@ function buildFalInput(body, schemaProps, falUploadedUrls, falMediaUrls) {
     const vidKey = findKey([
       /^video_url$/i, /^source_video_url$/i, /^input_video_url$/i,
       /^motion_video_url$/i, /^reference_video_url$/i, /^input_video$/i,
+      /^motion_brush_url$/i, /^ref.*video/i, /video_url$/i,
     ], 'video_url');
     input[vidKey] = srcVid;
   }
@@ -1004,7 +1005,8 @@ const server = http.createServer(async (req, res) => {
   // --- Prepare / Generate endpoints ---
   const { falKey, type = 'image', instruction } = body;
   if (!falKey) { activeRequests--; res.statusCode = 400; res.end(JSON.stringify({ error: 'falKey required' })); return; }
-  if (!instruction) { activeRequests--; res.statusCode = 400; res.end(JSON.stringify({ error: 'instruction required' })); return; }
+  const hasMedia = body.sourceImage || body.sourceVideo || body.audioUrl || body.references?.length || body.referenceImages?.length;
+  if (!instruction && !hasMedia) { activeRequests--; res.statusCode = 400; res.end(JSON.stringify({ error: 'instruction or media reference required' })); return; }
 
   const id = randomUUID();
   const mcpConfig = path.join(TMP_DIR, `mcp-${id}.json`);
@@ -1012,19 +1014,30 @@ const server = http.createServer(async (req, res) => {
 
   try {
     // Download and upload all references + media to fal CDN
-    const imageRefs = [...(body.references || []), ...(body.referenceImages || [])];
-    if (body.sourceImage && !imageRefs.includes(body.sourceImage)) imageRefs.push(body.sourceImage);
-    const imageFiles = await downloadReferences(imageRefs);
+    const otherRefs = [...(body.references || []), ...(body.referenceImages || [])];
+    const imageFiles = await downloadReferences(otherRefs);
     allDownloaded.push(...imageFiles);
 
     let falUploadedUrls = [];
     const falMediaUrls = {};
 
     if (isGenerate && falKey) {
-      // Upload image references
+      // Upload other image references
       if (imageFiles.length > 0) {
         falUploadedUrls = await uploadReferencesToFal(imageFiles, falKey);
         console.log(`[agent] uploaded ${falUploadedUrls.length}/${imageFiles.length} image refs to fal.ai`);
+      }
+
+      // Upload sourceImage separately for reliable mapping
+      if (body.sourceImage) {
+        try {
+          const srcFile = await downloadFile(body.sourceImage);
+          allDownloaded.push(srcFile);
+          falMediaUrls.sourceImage = await uploadToFal(srcFile, falKey);
+          console.log(`[agent] uploaded sourceImage to fal.ai: ${falMediaUrls.sourceImage}`);
+        } catch (e) {
+          console.error(`[agent] Failed to upload sourceImage:`, e.message);
+        }
       }
 
       // Upload sourceVideo if present
@@ -1051,7 +1064,7 @@ const server = http.createServer(async (req, res) => {
         }
       }
 
-      // Upload endImage if present (separate from image refs)
+      // Upload endImage if present
       if (body.endImage) {
         try {
           const endFile = await downloadFile(body.endImage);
@@ -1061,11 +1074,6 @@ const server = http.createServer(async (req, res) => {
         } catch (e) {
           console.error(`[agent] Failed to upload endImage:`, e.message);
         }
-      }
-
-      // sourceImage CDN URL (last in falUploadedUrls if it was added)
-      if (body.sourceImage && falUploadedUrls.length > 0) {
-        falMediaUrls.sourceImage = falUploadedUrls[falUploadedUrls.length - 1];
       }
     }
 

@@ -38,7 +38,15 @@ export async function proxyResultUrl(url: string): Promise<string> {
     }
     const buffer = Buffer.from(await res.arrayBuffer());
     const urlPath = new URL(url).pathname;
-    const ext = extname(urlPath) || '.png';
+    let ext = extname(urlPath);
+    if (!ext) {
+      const ct = res.headers.get('content-type') || '';
+      if (ct.includes('video/mp4') || ct.includes('video/')) ext = '.mp4';
+      else if (ct.includes('image/png')) ext = '.png';
+      else if (ct.includes('image/jpeg')) ext = '.jpg';
+      else if (ct.includes('image/webp')) ext = '.webp';
+      else ext = '.png';
+    }
     const filename = `result-${Date.now()}-${Math.random().toString(36).slice(2, 8)}${ext}`;
     writeFileSync(join(getUploadsDir(), filename), buffer);
     return `/api/files/${filename}`;
