@@ -26,6 +26,7 @@ function ExportEditorContent() {
 
   const [dragIdx, setDragIdx] = useState<number | null>(null);
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
   const saveTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
 
@@ -77,6 +78,14 @@ function ExportEditorContent() {
     if (showBrowser) loadBrowserVideos();
   }, [showBrowser, browserFilter]);
 
+  function clipLabel(gen: Generation): string {
+    const slotIdx = gen.params.slotIndex as number | undefined;
+    const templateName = gen.params.templateName as string | undefined;
+    if (templateName && slotIdx != null) return `${templateName} — Slot ${slotIdx + 1}`;
+    if (slotIdx != null) return `Slot ${slotIdx + 1} · ${gen.modelLabel}`;
+    return gen.prompt.slice(0, 60) || gen.modelLabel || 'Untitled';
+  }
+
   function addClip(gen: Generation) {
     if (!session) return;
     const clip: ExportClip = {
@@ -84,7 +93,7 @@ function ExportEditorContent() {
       generationId: gen.id,
       projectId: gen.projectId,
       url: gen.resultUrls[0],
-      label: gen.prompt.slice(0, 60) || 'Untitled',
+      label: clipLabel(gen),
       transform: { offsetX: 0, offsetY: 0, scale: 1 },
     };
     const updated = { clips: [...session.clips, clip] };
@@ -300,10 +309,20 @@ function ExportEditorContent() {
                   {idx + 1}
                 </span>
 
-                {/* Thumbnail */}
-                <div className="w-16 h-10 rounded overflow-hidden flex-shrink-0" style={{ background: 'var(--bg-input)' }}>
+                {/* Thumbnail — click to preview */}
+                <button
+                  onClick={() => setPreviewUrl(clip.url)}
+                  className="w-16 h-10 rounded overflow-hidden flex-shrink-0 relative group cursor-pointer"
+                  style={{ background: 'var(--bg-input)' }}
+                  title="Preview"
+                >
                   <video src={clip.url} className="w-full h-full object-cover" muted />
-                </div>
+                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                    <svg viewBox="0 0 24 24" fill="white" className="w-4 h-4">
+                      <polygon points="5 3 19 12 5 21 5 3" />
+                    </svg>
+                  </div>
+                </button>
 
                 {/* Label + project */}
                 <div className="flex-1 min-w-0">
@@ -453,6 +472,27 @@ function ExportEditorContent() {
                 Done
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Video preview lightbox */}
+      {previewUrl && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center"
+          style={{ background: 'rgba(0,0,0,0.85)' }}
+          onClick={() => setPreviewUrl(null)}
+        >
+          <button
+            onClick={() => setPreviewUrl(null)}
+            className="absolute top-4 right-4 w-11 h-11 flex items-center justify-center rounded-full text-white/70 hover:text-white hover:bg-white/10 transition-colors z-10"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-8 h-8">
+              <path d="M18 6L6 18M6 6l12 12" />
+            </svg>
+          </button>
+          <div className="max-w-[90vw] max-h-[90vh]" onClick={e => e.stopPropagation()}>
+            <video src={previewUrl} className="max-w-full max-h-[90vh] object-contain rounded-lg" controls autoPlay />
           </div>
         </div>
       )}
