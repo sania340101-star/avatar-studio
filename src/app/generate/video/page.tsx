@@ -542,6 +542,7 @@ export default function GenerateVideoPage() {
           onBack={() => setSelectedTemplate(null)}
           inline
           externalRefs={{ sourceImage, sourceVideo, audioRef, endImage }}
+          onComplete={loadHistory}
         />
       )}
 

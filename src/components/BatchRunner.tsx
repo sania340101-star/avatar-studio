@@ -27,7 +27,7 @@ interface BatchJob {
   error?: string;
 }
 
-export default function BatchRunner({ template, projectId, onBack, inline, externalRefs }: {
+export default function BatchRunner({ template, projectId, onBack, inline, externalRefs, onComplete }: {
   template: Template;
   projectId: string;
   onBack: () => void;
@@ -38,6 +38,7 @@ export default function BatchRunner({ template, projectId, onBack, inline, exter
     audioRef?: TemplateRef | null;
     endImage?: string;
   };
+  onComplete?: () => void;
 }) {
   const [_sourceImage, _setSourceImage] = useState('');
   const [_sourceVideo, _setSourceVideo] = useState<TemplateRef | null>(null);
@@ -86,9 +87,9 @@ export default function BatchRunner({ template, projectId, onBack, inline, exter
     if (!allDone) return;
     savedBatchRef.current = batchId;
     const completed = batchJobs.filter(j => j.status === 'complete' && j.result?.video?.url);
-    for (const job of completed) {
+    const saves = completed.map(job => {
       const slot = slots[job.slotIndex ?? 0];
-      fetch('/api/generations', {
+      return fetch('/api/generations', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -104,8 +105,9 @@ export default function BatchRunner({ template, projectId, onBack, inline, exter
           actualCost: job.result?.cost || undefined,
         }),
       }).catch(e => console.error('Failed to save batch result to history:', e));
-    }
-  }, [batchId, batchJobs, projectId, template, slots, sourceImage]);
+    });
+    Promise.all(saves).then(() => onComplete?.());
+  }, [batchId, batchJobs, projectId, template, slots, sourceImage, onComplete]);
 
   async function handleRun() {
     setRunning(true);

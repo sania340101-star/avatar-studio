@@ -1,3 +1,19 @@
+## 2026-06-30: UX Polish + fal.ai CDN upload fix
+
+Done:
+- Strategy selector for image generation (Economy/Balance/Quality) — same 3-button grid as video
+- fal.ai CDN upload: server.js uploads local files (references, sourceVideo, sourceImage, audioUrl, endImage) to fal CDN before passing to Claude
+- Version History always visible in video generation (was hidden when template selected)
+- Image form modelPref restored from project cache (was missing)
+- Agent process restarted on D30 with updated server.js
+- Obsidian plan updated with Phase 3 sub-phase breakdown
+
+Pending:
+- Phase 3c: Email OTP — SMTP not configured on D30
+- Phase 4a: Mask preview with canvas overlay
+- Phase 4b: Export with FFmpeg
+- Test fal.ai CDN upload with real template + video references
+
 ## 2026-06-29: Template v2 + Batch Generation deployed
 
 Done:
