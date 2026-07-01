@@ -14,6 +14,7 @@ interface MaskPreviewProps {
 
 export default function MaskPreview({ device, videoUrl, transform, onTransformChange, loop = true, onVideoEnded }: MaskPreviewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const videoElRef = useRef<HTMLVideoElement>(null);
   const [dragging, setDragging] = useState(false);
   const dragStart = useRef({ x: 0, y: 0, ox: 0, oy: 0 });
   const preset = DEVICE_PRESETS[device];
@@ -21,6 +22,15 @@ export default function MaskPreview({ device, videoUrl, transform, onTransformCh
   const maskId = `mask-${device}`;
 
   const displayScale = useRef(1);
+
+  useEffect(() => {
+    const vid = videoElRef.current;
+    if (vid && vid.src !== videoUrl) {
+      vid.src = videoUrl;
+      vid.load();
+      vid.play().catch(() => {});
+    }
+  }, [videoUrl]);
 
   useEffect(() => {
     function updateScale() {
@@ -106,7 +116,7 @@ export default function MaskPreview({ device, videoUrl, transform, onTransformCh
               }}
             >
               <video
-                src={videoUrl}
+                ref={videoElRef}
                 autoPlay
                 loop={loop}
                 muted

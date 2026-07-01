@@ -465,7 +465,6 @@ function ExportEditorContent() {
             onTransformChange={updateTransform}
             loop={isLocked}
             onVideoEnded={handleVideoEnded}
-            key={activeClipIdx}
           />
         </div>
       )}
