@@ -378,7 +378,15 @@ function ExportEditorContent() {
       {/* Playlist */}
       <div className="rounded-xl border p-4 mb-4" style={{ background: 'var(--bg-card)', borderColor: 'var(--border)' }}>
         <div className="flex items-center justify-between mb-3">
-          <p className="text-xs font-semibold" style={{ color: 'var(--text3)' }}>PLAYLIST</p>
+          <p className="text-xs font-semibold" style={{ color: 'var(--text3)' }}>
+            PLAYLIST
+            {session.clips.length > 0 && (
+              <span className="font-normal ml-2" style={{ color: 'var(--text3)' }}>
+                {session.clips.length} clip{session.clips.length !== 1 ? 's' : ''}
+                {totalDuration > 0 && ` · ${formatDuration(totalDuration)}`}
+              </span>
+            )}
+          </p>
           <button
             onClick={() => setShowBrowser(true)}
             className="text-xs px-3 py-1.5 rounded-lg font-medium text-white"
@@ -577,52 +585,30 @@ function ExportEditorContent() {
                 {totalDuration > 0 && ` · ${formatDuration(totalDuration)}`}
               </p>
             </div>
-            <div className="flex items-center gap-3">
-              {session.status === 'done' && session.exportUrl && (
-                <button
-                  onClick={downloadExport}
-                  className="text-xs px-4 py-2 rounded-lg font-medium flex items-center gap-1.5"
-                  style={{ background: 'var(--bg-input)', color: 'var(--text1)' }}
-                >
+            <button
+              onClick={startExport}
+              disabled={exporting || session.status === 'exporting'}
+              className="text-xs px-5 py-2 rounded-lg font-medium text-white disabled:opacity-50 flex items-center gap-1.5"
+              style={{ background: 'var(--accent)' }}
+            >
+              {exporting || session.status === 'exporting' ? (
+                <>
+                  <div className="w-3.5 h-3.5 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: 'white', borderTopColor: 'transparent' }} />
+                  Exporting...
+                </>
+              ) : (
+                <>
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
-                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" />
+                    <rect x="2" y="3" width="20" height="14" rx="2" /><polygon points="10 8 16 11 10 14 10 8" />
                   </svg>
-                  Download
-                </button>
+                  Export
+                </>
               )}
-              <button
-                onClick={startExport}
-                disabled={exporting || session.status === 'exporting'}
-                className="text-xs px-5 py-2 rounded-lg font-medium text-white disabled:opacity-50 flex items-center gap-1.5"
-                style={{ background: 'var(--accent)' }}
-              >
-                {exporting || session.status === 'exporting' ? (
-                  <>
-                    <div className="w-3.5 h-3.5 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: 'white', borderTopColor: 'transparent' }} />
-                    Exporting...
-                  </>
-                ) : (
-                  <>
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
-                      <rect x="2" y="3" width="20" height="14" rx="2" /><polygon points="10 8 16 11 10 14 10 8" />
-                    </svg>
-                    Export
-                  </>
-                )}
-              </button>
-            </div>
+            </button>
           </div>
           {session.status === 'error' && session.error && (
             <div className="mt-3 p-2 rounded-lg text-xs" style={{ background: 'rgba(239,68,68,0.1)', color: 'var(--red, #ef4444)' }}>
               {session.error}
-            </div>
-          )}
-          {session.status === 'done' && session.exportUrl && (
-            <div className="mt-3 p-2 rounded-lg text-xs flex items-center gap-2" style={{ background: 'rgba(34,197,94,0.1)', color: 'var(--green, #22c55e)' }}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4 flex-shrink-0">
-                <polyline points="20 6 9 17 4 12" />
-              </svg>
-              Export ready
             </div>
           )}
 
@@ -633,40 +619,65 @@ function ExportEditorContent() {
                 VERSIONS ({session.exports.length})
               </p>
               <div className="space-y-2">
-                {[...session.exports].reverse().map((exp, i) => (
-                  <div
-                    key={exp.id}
-                    className="flex items-center gap-3 p-2 rounded-lg"
-                    style={{ background: 'var(--bg)', border: '1px solid var(--border)' }}
-                  >
-                    <div className="w-16 h-10 rounded overflow-hidden flex-shrink-0" style={{ background: 'var(--bg-input)' }}>
-                      <video src={exp.url} className="w-full h-full object-cover" muted />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs font-medium" style={{ color: 'var(--text1)' }}>
-                        v{session.exports!.length - i}
-                      </p>
-                      <p className="text-[10px]" style={{ color: 'var(--text3)' }}>
-                        {new Date(exp.createdAt).toLocaleString()}
-                      </p>
-                    </div>
-                    <button
-                      onClick={async () => {
-                        const res = await fetch(exp.url);
-                        const blob = await res.blob();
-                        const a = document.createElement('a');
-                        a.href = URL.createObjectURL(blob);
-                        a.download = `${session.name}-v${session.exports!.length - i}.mp4`;
-                        a.click();
-                        URL.revokeObjectURL(a.href);
-                      }}
-                      className="text-xs px-3 py-1.5 rounded-lg font-medium flex-shrink-0"
-                      style={{ background: 'var(--bg-input)', color: 'var(--text2)' }}
+                {[...session.exports].reverse().map((exp, i) => {
+                  const vNum = session.exports!.length - i;
+                  const isLatest = i === 0;
+                  return (
+                    <div
+                      key={exp.id}
+                      className="rounded-lg border overflow-hidden"
+                      style={{ borderColor: isLatest ? 'var(--accent)' : 'var(--border)', background: 'var(--bg)' }}
                     >
-                      Download
-                    </button>
-                  </div>
-                ))}
+                      <div className="flex items-center gap-3 p-2">
+                        <button
+                          onClick={() => setPreviewUrl(exp.url)}
+                          className="w-16 h-10 rounded overflow-hidden flex-shrink-0 relative group cursor-pointer"
+                          style={{ background: 'var(--bg-input)' }}
+                        >
+                          <video src={exp.url} className="w-full h-full object-cover" muted />
+                          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                            <svg viewBox="0 0 24 24" fill="white" className="w-4 h-4">
+                              <polygon points="5 3 19 12 5 21 5 3" />
+                            </svg>
+                          </div>
+                        </button>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <p className="text-xs font-medium" style={{ color: 'var(--text1)' }}>
+                              Version {vNum}
+                            </p>
+                            {isLatest && (
+                              <span className="text-[10px] px-1.5 py-0.5 rounded-full font-medium" style={{ background: 'var(--accent)', color: 'white' }}>
+                                latest
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-[10px]" style={{ color: 'var(--text3)' }}>
+                            {new Date(exp.createdAt).toLocaleString()}
+                          </p>
+                        </div>
+                        <button
+                          onClick={async () => {
+                            const res = await fetch(exp.url);
+                            const blob = await res.blob();
+                            const a = document.createElement('a');
+                            a.href = URL.createObjectURL(blob);
+                            a.download = `${session.name}-v${vNum}.mp4`;
+                            a.click();
+                            URL.revokeObjectURL(a.href);
+                          }}
+                          className="text-xs px-3 py-1.5 rounded-lg font-medium flex-shrink-0 flex items-center gap-1"
+                          style={{ background: 'var(--accent)', color: 'white' }}
+                        >
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3 h-3">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" />
+                          </svg>
+                          Download
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}
