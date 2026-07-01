@@ -89,7 +89,7 @@ export async function GET(request: NextRequest) {
   const response = NextResponse.redirect(redirectUrl);
   response.cookies.set('session', sessionToken, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
+    secure: process.env.COOKIE_SECURE === 'true',
     sameSite: 'lax',
     maxAge: 86400,
     path: '/',
@@ -102,7 +102,7 @@ export async function GET(request: NextRequest) {
     hasFalKey: !!falKey,
   }), {
     httpOnly: false,
-    secure: process.env.NODE_ENV === 'production',
+    secure: process.env.COOKIE_SECURE === 'true',
     sameSite: 'lax',
     maxAge: 86400,
     path: '/',

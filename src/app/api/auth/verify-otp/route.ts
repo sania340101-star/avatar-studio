@@ -73,7 +73,7 @@ export async function POST(req: NextRequest) {
     });
     res.cookies.set('session', token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
+      secure: process.env.COOKIE_SECURE === 'true',
       sameSite: 'lax',
       path: '/',
       maxAge: 86400,
@@ -87,7 +87,7 @@ export async function POST(req: NextRequest) {
       hasFalKey: !!falKey,
     }), {
       httpOnly: false,
-      secure: process.env.NODE_ENV === 'production',
+      secure: process.env.COOKIE_SECURE === 'true',
       sameSite: 'lax',
       path: '/',
       maxAge: 86400,
