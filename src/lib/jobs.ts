@@ -21,18 +21,22 @@ setInterval(() => {
   }
 }, 5 * 60 * 1000).unref?.();
 
-async function proxyResultUrl(url: string): Promise<string> {
+export async function proxyResultUrl(url: string): Promise<string> {
   if (!url || url.startsWith('/api/files/')) return url;
   try {
     const res = await fetch(url);
-    if (!res.ok) return url;
+    if (!res.ok) {
+      console.error(`[proxyResultUrl] download failed (${res.status}): ${url}`);
+      return url;
+    }
     const buffer = Buffer.from(await res.arrayBuffer());
     const urlPath = new URL(url).pathname;
     const ext = extname(urlPath) || '.png';
     const filename = `result-${Date.now()}-${Math.random().toString(36).slice(2, 8)}${ext}`;
     writeFileSync(join(getUploadsDir(), filename), buffer);
     return `/api/files/${filename}`;
-  } catch {
+  } catch (e) {
+    console.error(`[proxyResultUrl] error for ${url}:`, e instanceof Error ? e.message : e);
     return url;
   }
 }
@@ -206,6 +210,11 @@ async function runPrepare(job: JobData, falKey: string) {
 }
 
 async function runGenerate(job: JobData, prompt: string, model: string, falKey: string) {
+  const budget = checkBudget(job.userId);
+  if (!budget.allowed) {
+    throw new Error(`Daily spending limit reached ($${budget.spent.toFixed(2)} / $${budget.limit.toFixed(2)}).`);
+  }
+
   const res = await fetch(`${AGENT_URL}/generate`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'X-Service-Key': SERVICE_KEY },

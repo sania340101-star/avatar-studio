@@ -1,27 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { writeFileSync } from 'fs';
-import { join, extname } from 'path';
-import { getUploadsDir } from '@/lib/storage';
 import { checkBudget, recordSpending } from '@/lib/billing';
+import { proxyResultUrl } from '@/lib/jobs';
 
 const AGENT_URL = process.env.AGENT_URL || 'http://172.18.16.24:3391';
 const SERVICE_KEY = process.env.INTERNAL_SERVICE_KEY || '';
-
-async function proxyResultUrl(url: string): Promise<string> {
-  if (!url || url.startsWith('/api/files/')) return url;
-  try {
-    const res = await fetch(url);
-    if (!res.ok) return url;
-    const buffer = Buffer.from(await res.arrayBuffer());
-    const urlPath = new URL(url).pathname;
-    const ext = extname(urlPath) || '.png';
-    const filename = `result-${Date.now()}-${Math.random().toString(36).slice(2, 8)}${ext}`;
-    writeFileSync(join(getUploadsDir(), filename), buffer);
-    return `/api/files/${filename}`;
-  } catch {
-    return url;
-  }
-}
 
 export async function POST(req: NextRequest) {
   try {

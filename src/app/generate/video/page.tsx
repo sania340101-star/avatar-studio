@@ -241,7 +241,7 @@ export default function GenerateVideoPage() {
           estimatedCost: job.prepareResult?.estimatedCost || undefined,
           actualCost: job.result.cost || undefined,
         }),
-      }).then(() => loadHistory()).catch(() => {});
+      }).then(() => loadHistory()).catch(e => console.error('Failed to save to version history:', e));
       jobIdRef.current = null;
     }
     if (job.status === 'error') {

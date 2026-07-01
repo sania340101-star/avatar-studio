@@ -103,7 +103,7 @@ export default function BatchRunner({ template, projectId, onBack, inline, exter
           status: 'completed',
           actualCost: job.result?.cost || undefined,
         }),
-      }).catch(() => {});
+      }).catch(e => console.error('Failed to save batch result to history:', e));
     }
   }, [batchId, batchJobs, projectId, template, slots, sourceImage]);
 
