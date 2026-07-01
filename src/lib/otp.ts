@@ -24,13 +24,17 @@ function generateCode(): string {
 }
 
 export function createOtp(email: string): string {
-  const code = generateCode();
   const key = email.toLowerCase();
+  const existing = otpStore.get(key);
+  if (existing && existing.attempts >= MAX_ATTEMPTS && Date.now() <= existing.expiresAt) {
+    return '';
+  }
+  const code = generateCode();
   otpStore.set(key, {
     code,
     email: key,
     expiresAt: Date.now() + OTP_TTL,
-    attempts: 0,
+    attempts: existing ? existing.attempts : 0,
   });
   return code;
 }

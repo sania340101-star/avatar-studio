@@ -35,6 +35,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true });
     }
     const code = createOtp(email);
+    if (!code) {
+      return NextResponse.json({ error: 'Too many attempts. Please wait 5 minutes.' }, { status: 429 });
+    }
     const result = await sendOtpEmail(email, code);
     if (!result.sent && result.devCode) {
       console.log(`[DEV] OTP code for ${email}: ${result.devCode}`);

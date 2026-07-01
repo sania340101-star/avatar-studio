@@ -20,14 +20,25 @@ const TMP_DIR = path.join(__dirname, 'tmp');
 
 if (!existsSync(TMP_DIR)) mkdirSync(TMP_DIR);
 
-const { appendFileSync } = require('fs');
+const { appendFileSync, statSync, renameSync } = require('fs');
 const LOG_FILE = path.join(__dirname, 'agent.log');
+const LOG_MAX_BYTES = 10 * 1024 * 1024; // 10 MB
 const origLog = console.log;
 const origErr = console.error;
 const origWarn = console.warn;
+let logCheckCounter = 0;
+function rotateLogIfNeeded() {
+  try {
+    const st = statSync(LOG_FILE);
+    if (st.size > LOG_MAX_BYTES) {
+      renameSync(LOG_FILE, LOG_FILE + '.old');
+    }
+  } catch {}
+}
 function logToFile(...args) {
-  const line = args.map(a => typeof a === 'string' ? a : JSON.stringify(a)).join(' ');
+  const line = `[${new Date().toISOString()}] ` + args.map(a => typeof a === 'string' ? a : JSON.stringify(a)).join(' ');
   try { appendFileSync(LOG_FILE, line + '\n'); } catch {}
+  if (++logCheckCounter % 100 === 0) rotateLogIfNeeded();
   origLog.apply(console, args);
 }
 console.log = logToFile;
@@ -391,7 +402,18 @@ function normalizeGenerateResult(result) {
   return result;
 }
 
-function downloadFile(url) {
+function isPrivateHost(hostname) {
+  if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1') return true;
+  if (hostname.startsWith('169.254.')) return true;
+  if (hostname.startsWith('10.')) return true;
+  if (hostname.startsWith('192.168.')) return true;
+  const m = hostname.match(/^172\.(\d+)\./);
+  if (m && parseInt(m[1]) >= 16 && parseInt(m[1]) <= 31) return true;
+  return false;
+}
+
+function downloadFile(url, redirectDepth = 0) {
+  if (redirectDepth > 5) return Promise.reject(new Error('Too many redirects'));
   return new Promise((resolve, reject) => {
     let reqUrl, headers = {};
     if (url.startsWith('/')) {
@@ -399,6 +421,10 @@ function downloadFile(url) {
       headers['Host'] = APP_HOSTNAME;
       headers['X-Service-Key'] = SERVICE_KEY;
     } else {
+      const parsed = new URL(url);
+      if (isPrivateHost(parsed.hostname)) {
+        return reject(new Error(`Blocked download from private host: ${parsed.hostname}`));
+      }
       reqUrl = url;
     }
     const ext = path.extname(new URL(reqUrl).pathname) || '.jpg';
@@ -413,7 +439,7 @@ function downloadFile(url) {
     };
     proto.get(opts, (res) => {
       if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
-        return downloadFile(res.headers.location).then(resolve).catch(reject);
+        return downloadFile(res.headers.location, redirectDepth + 1).then(resolve).catch(reject);
       }
       if (res.statusCode !== 200) return reject(new Error(`Download failed: ${res.statusCode}`));
       const chunks = [];
@@ -520,8 +546,12 @@ async function callFalMcpTool(falKey, toolName, args) {
     });
     const text = await res.text();
     const dataMatch = text.match(/^data: (.+)$/m);
-    if (!dataMatch) throw new Error(`No data in MCP response for ${toolName}`);
-    const data = JSON.parse(dataMatch[1]);
+    let data;
+    if (dataMatch) {
+      data = JSON.parse(dataMatch[1]);
+    } else {
+      data = JSON.parse(text);
+    }
     if (data.result?.isError) throw new Error(data.result.content?.[0]?.text || `MCP ${toolName} error`);
     return data.result?.content?.[0]?.text || '';
   } finally {
@@ -874,12 +904,12 @@ const server = http.createServer(async (req, res) => {
   res.setHeader('Content-Type', 'application/json');
 
   if (req.method === 'GET' && req.url === '/health') {
-    res.end(JSON.stringify({ ok: true, version: '1.8.4', activeRequests }));
+    res.end(JSON.stringify({ ok: true, version: '1.8.5', activeRequests }));
     return;
   }
 
   if (req.method === 'GET' && req.url === '/status') {
-    res.end(JSON.stringify({ ok: true, version: '1.8.4', activeRequests, uptime: process.uptime() }));
+    res.end(JSON.stringify({ ok: true, version: '1.8.5', activeRequests, uptime: process.uptime() }));
     return;
   }
 
@@ -904,16 +934,17 @@ const server = http.createServer(async (req, res) => {
 
   let body;
   try { body = await parseBody(req); }
-  catch (e) { res.statusCode = 400; res.end(JSON.stringify({ error: e.message })); return; }
+  catch (e) { activeRequests--; res.statusCode = 400; res.end(JSON.stringify({ error: e.message })); return; }
 
   // --- Pricing endpoint ---
   if (isPricing) {
     const { falKey, modelId } = body;
-    if (!falKey) { res.statusCode = 400; res.end(JSON.stringify({ error: 'falKey required' })); return; }
-    if (!modelId) { res.statusCode = 400; res.end(JSON.stringify({ error: 'modelId required' })); return; }
+    if (!falKey) { activeRequests--; res.statusCode = 400; res.end(JSON.stringify({ error: 'falKey required' })); return; }
+    if (!modelId) { activeRequests--; res.statusCode = 400; res.end(JSON.stringify({ error: 'modelId required' })); return; }
 
     const cached = pricingCache.get(modelId);
     if (cached && Date.now() - cached.ts < PRICING_TTL) {
+      activeRequests--;
       res.end(JSON.stringify({ ok: true, cached: true, ...cached.data }));
       return;
     }
@@ -941,8 +972,12 @@ const server = http.createServer(async (req, res) => {
       clearTimeout(timeout);
       const mcpText = await mcpRes.text();
       const dataMatch = mcpText.match(/^data: (.+)$/m);
-      if (!dataMatch) throw new Error('No data in MCP response');
-      const mcpData = JSON.parse(dataMatch[1]);
+      let mcpData;
+      if (dataMatch) {
+        mcpData = JSON.parse(dataMatch[1]);
+      } else {
+        mcpData = JSON.parse(mcpText);
+      }
       if (mcpData.result?.isError) throw new Error(mcpData.result.content?.[0]?.text || 'MCP error');
       const pricingText = mcpData.result?.content?.[0]?.text;
       if (!pricingText) throw new Error('Empty pricing response');
@@ -962,13 +997,14 @@ const server = http.createServer(async (req, res) => {
       res.statusCode = 500;
       res.end(JSON.stringify({ error: e.message }));
     }
+    activeRequests--;
     return;
   }
 
   // --- Prepare / Generate endpoints ---
   const { falKey, type = 'image', instruction } = body;
-  if (!falKey) { res.statusCode = 400; res.end(JSON.stringify({ error: 'falKey required' })); return; }
-  if (!instruction) { res.statusCode = 400; res.end(JSON.stringify({ error: 'instruction required' })); return; }
+  if (!falKey) { activeRequests--; res.statusCode = 400; res.end(JSON.stringify({ error: 'falKey required' })); return; }
+  if (!instruction) { activeRequests--; res.statusCode = 400; res.end(JSON.stringify({ error: 'instruction required' })); return; }
 
   const id = randomUUID();
   const mcpConfig = path.join(TMP_DIR, `mcp-${id}.json`);
@@ -977,7 +1013,7 @@ const server = http.createServer(async (req, res) => {
   try {
     // Download and upload all references + media to fal CDN
     const imageRefs = [...(body.references || []), ...(body.referenceImages || [])];
-    if (body.sourceImage) imageRefs.push(body.sourceImage);
+    if (body.sourceImage && !imageRefs.includes(body.sourceImage)) imageRefs.push(body.sourceImage);
     const imageFiles = await downloadReferences(imageRefs);
     allDownloaded.push(...imageFiles);
 
@@ -1099,5 +1135,5 @@ const server = http.createServer(async (req, res) => {
 });
 
 server.listen(PORT, '0.0.0.0', () => {
-  console.log(`[agent] Avatar Studio agent wrapper v1.8.4 listening on :${PORT}`);
+  console.log(`[agent] Avatar Studio agent wrapper v1.8.5 listening on :${PORT}`);
 });

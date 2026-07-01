@@ -21,9 +21,16 @@ setInterval(() => {
   }
 }, 5 * 60 * 1000).unref?.();
 
+const ALLOWED_RESULT_HOSTS = ['fal.media', 'v3.fal.media', 'storage.googleapis.com', 'fal-cdn.batuhan.co'];
+
 export async function proxyResultUrl(url: string): Promise<string> {
   if (!url || url.startsWith('/api/files/')) return url;
   try {
+    const parsed = new URL(url);
+    if (!ALLOWED_RESULT_HOSTS.some(h => parsed.hostname === h || parsed.hostname.endsWith('.' + h))) {
+      console.error(`[proxyResultUrl] blocked non-allowlisted host: ${parsed.hostname}`);
+      return url;
+    }
     const res = await fetch(url);
     if (!res.ok) {
       console.error(`[proxyResultUrl] download failed (${res.status}): ${url}`);

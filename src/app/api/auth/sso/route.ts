@@ -49,7 +49,8 @@ export async function GET(request: NextRequest) {
   }
 
   if (!SSO_JWT_SECRET) {
-    console.warn('[SSO] SSO_JWT_SECRET not set — JWT signature verification disabled');
+    console.error('[SSO] SSO_JWT_SECRET not set — rejecting SSO request');
+    return NextResponse.json({ error: 'SSO not configured' }, { status: 500 });
   }
 
   const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
