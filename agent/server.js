@@ -397,6 +397,7 @@ function downloadFile(url) {
     if (url.startsWith('/')) {
       reqUrl = `http://localhost:80${url}`;
       headers['Host'] = APP_HOSTNAME;
+      headers['X-Service-Key'] = SERVICE_KEY;
     } else {
       reqUrl = url;
     }
@@ -490,6 +491,263 @@ async function uploadReferencesToFal(files, falKey) {
     }
   }
   return results;
+}
+
+// ============================================================
+// Direct fal.ai queue API for video generation
+// Bypasses Claude sub-agent to avoid turn-limit exhaustion
+// ============================================================
+
+async function callFalMcpTool(falKey, toolName, args) {
+  const mcpBody = JSON.stringify({
+    jsonrpc: '2.0',
+    method: 'tools/call',
+    params: { name: toolName, arguments: args },
+    id: 1,
+  });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 20000);
+  try {
+    const res = await fetch('https://mcp.fal.ai/mcp', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json, text/event-stream',
+        'Authorization': `Key ${falKey}`,
+      },
+      body: mcpBody,
+      signal: controller.signal,
+    });
+    const text = await res.text();
+    const dataMatch = text.match(/^data: (.+)$/m);
+    if (!dataMatch) throw new Error(`No data in MCP response for ${toolName}`);
+    const data = JSON.parse(dataMatch[1]);
+    if (data.result?.isError) throw new Error(data.result.content?.[0]?.text || `MCP ${toolName} error`);
+    return data.result?.content?.[0]?.text || '';
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function buildFalInput(body, schemaProps, falUploadedUrls, falMediaUrls) {
+  const keys = Object.keys(schemaProps);
+  const input = {};
+
+  const findKey = (patterns, fallback) => {
+    for (const p of patterns) {
+      const found = keys.find(k => p.test(k));
+      if (found) return found;
+    }
+    return fallback;
+  };
+
+  const promptKey = findKey([/^prompt$/i, /^text_prompt$/i], 'prompt');
+  if (body.instruction) input[promptKey] = body.instruction;
+
+  const srcImg = falMediaUrls?.sourceImage;
+  if (srcImg) {
+    const imgKey = findKey([
+      /^image_url$/i, /^start_image_url$/i, /^input_image_url$/i,
+      /^input_image$/i, /^source_image_url$/i,
+    ], 'image_url');
+    input[imgKey] = srcImg;
+  } else if (falUploadedUrls?.length > 0) {
+    const imgKey = findKey([
+      /^image_url$/i, /^start_image_url$/i, /^input_image_url$/i,
+    ], 'image_url');
+    input[imgKey] = falUploadedUrls[0];
+  }
+
+  const srcVid = falMediaUrls?.sourceVideo;
+  if (srcVid) {
+    const vidKey = findKey([
+      /^video_url$/i, /^source_video_url$/i, /^input_video_url$/i,
+      /^motion_video_url$/i, /^reference_video_url$/i, /^input_video$/i,
+    ], 'video_url');
+    input[vidKey] = srcVid;
+  }
+
+  const audUrl = falMediaUrls?.audioUrl;
+  if (audUrl) {
+    const audKey = findKey([
+      /^audio_url$/i, /^audio$/i, /^input_audio_url$/i, /^input_audio$/i,
+    ], 'audio_url');
+    input[audKey] = audUrl;
+  }
+
+  const endImg = falMediaUrls?.endImage;
+  if (endImg) {
+    const endKey = findKey([
+      /^end_image_url$/i, /^tail_image_url$/i, /^end_frame_url$/i,
+      /^last_frame_url$/i,
+    ], 'end_image_url');
+    input[endKey] = endImg;
+  }
+
+  if (body.duration != null) {
+    const durKey = findKey([/^duration$/i], 'duration');
+    const durProp = schemaProps[durKey];
+    if (durProp?.type === 'string' || durProp?.enum) {
+      input[durKey] = String(body.duration);
+    } else {
+      input[durKey] = Number(body.duration);
+    }
+  }
+
+  if (body.aspectRatio) {
+    const arKey = findKey([/^aspect_ratio$/i, /^video_aspect_ratio$/i], 'aspect_ratio');
+    input[arKey] = body.aspectRatio;
+  }
+
+  if (body.fps) {
+    const fpsKey = findKey([/^fps$/i, /^frame_rate$/i], null);
+    if (fpsKey) input[fpsKey] = Number(body.fps);
+  }
+
+  for (const [key, prop] of Object.entries(schemaProps)) {
+    if (prop.required && input[key] == null) {
+      if (prop.enum?.length > 0) {
+        input[key] = prop.enum[prop.enum.includes('video') ? prop.enum.indexOf('video') : 0];
+      } else if (prop.default != null) {
+        input[key] = prop.default;
+      }
+    }
+  }
+
+  return input;
+}
+
+async function directFalGenerate(modelId, body, falKey, falUploadedUrls, falMediaUrls) {
+  let schemaProps = {};
+  try {
+    console.log(`[agent] directFal: fetching schema for ${modelId}`);
+    const schemaText = await callFalMcpTool(falKey, 'get_model_schema', { endpoint_id: modelId });
+    const schema = JSON.parse(schemaText);
+    if (Array.isArray(schema?.input_params)) {
+      for (const param of schema.input_params) {
+        schemaProps[param.name] = {
+          type: (param.type || 'string').replace(/ \| null/g, ''),
+          required: !!param.required,
+          enum: param.enum,
+          description: param.description || '',
+          default: param.default,
+        };
+      }
+    } else {
+      schemaProps = schema?.input_schema?.properties
+        || schema?.input?.properties
+        || schema?.properties || {};
+    }
+    console.log(`[agent] directFal: schema keys: ${Object.keys(schemaProps).join(', ')}`);
+  } catch (e) {
+    console.warn(`[agent] directFal: schema fetch failed (${e.message}), using defaults`);
+  }
+
+  const input = buildFalInput(body, schemaProps, falUploadedUrls, falMediaUrls);
+  console.log(`[agent] directFal: submitting to ${modelId}, input keys: ${Object.keys(input).join(', ')}`);
+
+  const submitRes = await fetch(`https://queue.fal.run/${modelId}`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Key ${falKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(input),
+  });
+
+  if (!submitRes.ok) {
+    const errBody = await submitRes.text();
+    throw new Error(`fal.ai submit failed (${submitRes.status}): ${errBody.slice(0, 500)}`);
+  }
+
+  const submitData = await submitRes.json();
+  const requestId = submitData.request_id;
+  if (!requestId) throw new Error(`No request_id from fal.ai: ${JSON.stringify(submitData).slice(0, 300)}`);
+
+  const statusUrl = submitData.status_url || `https://queue.fal.run/${modelId}/requests/${requestId}/status`;
+  const responseUrl = submitData.response_url || `https://queue.fal.run/${modelId}/requests/${requestId}`;
+  console.log(`[agent] directFal: queued, request_id=${requestId}, statusUrl=${statusUrl}`);
+
+  const MAX_WAIT = 10 * 60 * 1000;
+  const start = Date.now();
+  let pollMs = 5000;
+
+  while (true) {
+    await new Promise(r => setTimeout(r, pollMs));
+
+    if (Date.now() - start > MAX_WAIT) {
+      throw new Error(`fal.ai job timed out after ${Math.round(MAX_WAIT / 60000)} minutes`);
+    }
+
+    try {
+      const statusRes = await fetch(statusUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Key ${falKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: '{}',
+      });
+
+      if (!statusRes.ok) {
+        console.warn(`[agent] directFal: status HTTP ${statusRes.status}, retrying...`);
+        continue;
+      }
+
+      const statusData = await statusRes.json();
+      const elapsed = Math.round((Date.now() - start) / 1000);
+      console.log(`[agent] directFal: status=${statusData.status}, elapsed=${elapsed}s`);
+
+      if (statusData.status === 'COMPLETED') break;
+      if (statusData.status === 'FAILED') {
+        throw new Error(`fal.ai generation failed: ${JSON.stringify(statusData).slice(0, 500)}`);
+      }
+    } catch (e) {
+      if (e.message.includes('fal.ai generation failed')) throw e;
+      console.warn(`[agent] directFal: poll error (${e.message}), retrying...`);
+    }
+
+    if (Date.now() - start > 60000) pollMs = 10000;
+  }
+
+  const resultRes = await fetch(responseUrl, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Key ${falKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: '{}',
+  });
+
+  if (!resultRes.ok) {
+    const errBody = await resultRes.text();
+    throw new Error(`fal.ai result fetch failed (${resultRes.status}): ${errBody.slice(0, 500)}`);
+  }
+
+  const result = await resultRes.json();
+  console.log(`[agent] directFal: result keys: ${Object.keys(result).join(',')}`);
+
+  let videoUrl = result.video?.url || result.output?.url || result.result?.video?.url;
+  if (!videoUrl) {
+    const json = JSON.stringify(result);
+    const m = json.match(/https?:\/\/[^\s"'\\]+\.(?:mp4|webm|mov)/i);
+    if (m) videoUrl = m[0];
+  }
+
+  if (!videoUrl) {
+    console.error('[agent] directFal: no video URL in result:', JSON.stringify(result).slice(0, 1000));
+    throw new Error('Generation completed but no video URL in response');
+  }
+
+  console.log(`[agent] directFal: video URL: ${videoUrl.slice(0, 100)}`);
+
+  return {
+    video: { url: videoUrl },
+    prompt: body.instruction,
+    model: modelId,
+    modelLabel: body.modelLabel || modelId.split('/').pop(),
+    cost: result.cost || undefined,
+  };
 }
 
 async function getBestClaudeKey() {
@@ -610,11 +868,18 @@ function parseBody(req) {
 const pricingCache = new Map();
 const PRICING_TTL = 5 * 60 * 1000;
 
+let activeRequests = 0;
+
 const server = http.createServer(async (req, res) => {
   res.setHeader('Content-Type', 'application/json');
 
   if (req.method === 'GET' && req.url === '/health') {
-    res.end(JSON.stringify({ ok: true, version: '1.7.2' }));
+    res.end(JSON.stringify({ ok: true, version: '1.8.4', activeRequests }));
+    return;
+  }
+
+  if (req.method === 'GET' && req.url === '/status') {
+    res.end(JSON.stringify({ ok: true, version: '1.8.4', activeRequests, uptime: process.uptime() }));
     return;
   }
 
@@ -634,6 +899,8 @@ const server = http.createServer(async (req, res) => {
     res.end(JSON.stringify({ error: 'Invalid service key' }));
     return;
   }
+
+  activeRequests++;
 
   let body;
   try { body = await parseBody(req); }
@@ -708,30 +975,6 @@ const server = http.createServer(async (req, res) => {
   let allDownloaded = [];
 
   try {
-    const claudeToken = await getBestClaudeKey();
-    writeFileSync(mcpConfig, JSON.stringify({
-      mcpServers: {
-        'fal-ai': {
-          type: 'http',
-          url: 'https://mcp.fal.ai/mcp',
-          headers: { Authorization: `Key ${falKey}` },
-        },
-      },
-    }));
-
-    let systemPrompt, tools;
-    if (isPrepare) {
-      systemPrompt = type === 'video' ? VIDEO_PREPARE_SYSTEM : IMAGE_PREPARE_SYSTEM;
-      tools = PREPARE_TOOLS;
-    } else {
-      systemPrompt = type === 'video' ? VIDEO_GENERATE_SYSTEM : IMAGE_GENERATE_SYSTEM;
-      tools = GENERATE_TOOLS;
-    }
-
-    if (body.systemPrompt) {
-      systemPrompt += `\n\n# User Style Instructions\n${body.systemPrompt}`;
-    }
-
     // Download and upload all references + media to fal CDN
     const imageRefs = [...(body.references || []), ...(body.referenceImages || [])];
     if (body.sourceImage) imageRefs.push(body.sourceImage);
@@ -790,21 +1033,56 @@ const server = http.createServer(async (req, res) => {
       }
     }
 
-    const userPrompt = buildPrompt(body, imageFiles, falUploadedUrls, falMediaUrls);
-    const action = isPrepare ? 'prepare' : 'generate';
-    const claudeModel = 'sonnet';
-    console.log(`[agent] ${type} ${action} started (${id}), model: ${body.model || 'auto'}, refs: ${imageFiles.length}, media: ${JSON.stringify(Object.keys(falMediaUrls))}, claude: ${claudeModel}`);
+    let result;
+    const videoModel = body.model || body.modelPref;
 
-    const maxTurns = isGenerate && type === 'video' ? 30 : 15;
-    let result = await callClaude(claudeToken, mcpConfig, systemPrompt, userPrompt, tools, maxTurns, claudeModel);
-    console.log(`[agent] ${type} ${action} complete (${id}), raw keys: ${Object.keys(result).join(',')}`);
+    if (isGenerate && type === 'video' && videoModel && videoModel !== 'auto') {
+      // Direct fal.ai queue API — no Claude turns wasted on polling
+      console.log(`[agent] video generate started (${id}) via DIRECT API, model: ${videoModel}, refs: ${imageFiles.length}, media: ${JSON.stringify(Object.keys(falMediaUrls))}`);
+      result = await directFalGenerate(videoModel, body, falKey, falUploadedUrls, falMediaUrls);
+      console.log(`[agent] video generate complete (${id}) via direct API`);
+    } else {
+      // Claude sub-agent for prepare, image generate, or auto-model video
+      const claudeToken = await getBestClaudeKey();
+      writeFileSync(mcpConfig, JSON.stringify({
+        mcpServers: {
+          'fal-ai': {
+            type: 'http',
+            url: 'https://mcp.fal.ai/mcp',
+            headers: { Authorization: `Key ${falKey}` },
+          },
+        },
+      }));
 
-    if (isGenerate && type === 'image') {
-      result = normalizeGenerateResult(result);
-      const imgCount = result.images?.length || 0;
-      console.log(`[agent] normalized: ${imgCount} images`);
-      if (imgCount === 0) {
-        console.error(`[agent] WARNING: no images after normalization (${id}), result:`, JSON.stringify(result).slice(0, 500));
+      let systemPrompt, tools;
+      if (isPrepare) {
+        systemPrompt = type === 'video' ? VIDEO_PREPARE_SYSTEM : IMAGE_PREPARE_SYSTEM;
+        tools = PREPARE_TOOLS;
+      } else {
+        systemPrompt = type === 'video' ? VIDEO_GENERATE_SYSTEM : IMAGE_GENERATE_SYSTEM;
+        tools = GENERATE_TOOLS;
+      }
+
+      if (body.systemPrompt) {
+        systemPrompt += `\n\n# User Style Instructions\n${body.systemPrompt}`;
+      }
+
+      const userPrompt = buildPrompt(body, imageFiles, falUploadedUrls, falMediaUrls);
+      const action = isPrepare ? 'prepare' : 'generate';
+      const claudeModel = 'sonnet';
+      console.log(`[agent] ${type} ${action} started (${id}), model: ${body.model || 'auto'}, refs: ${imageFiles.length}, media: ${JSON.stringify(Object.keys(falMediaUrls))}, claude: ${claudeModel}`);
+
+      const maxTurns = 15;
+      result = await callClaude(claudeToken, mcpConfig, systemPrompt, userPrompt, tools, maxTurns, claudeModel);
+      console.log(`[agent] ${type} ${action} complete (${id}), raw keys: ${Object.keys(result).join(',')}`);
+
+      if (isGenerate && type === 'image') {
+        result = normalizeGenerateResult(result);
+        const imgCount = result.images?.length || 0;
+        console.log(`[agent] normalized: ${imgCount} images`);
+        if (imgCount === 0) {
+          console.error(`[agent] WARNING: no images after normalization (${id}), result:`, JSON.stringify(result).slice(0, 500));
+        }
       }
     }
 
@@ -814,11 +1092,12 @@ const server = http.createServer(async (req, res) => {
     res.statusCode = 500;
     res.end(JSON.stringify({ error: e.message }));
   } finally {
+    activeRequests--;
     try { unlinkSync(mcpConfig); } catch {}
     for (const f of allDownloaded) { try { unlinkSync(f); } catch {} }
   }
 });
 
 server.listen(PORT, '0.0.0.0', () => {
-  console.log(`[agent] Avatar Studio agent wrapper v1.7.2 listening on :${PORT}`);
+  console.log(`[agent] Avatar Studio agent wrapper v1.8.4 listening on :${PORT}`);
 });
