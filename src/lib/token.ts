@@ -50,10 +50,13 @@ export async function verifyToken(
     const [payloadB64, sigB64] = parts;
     const enc = new TextEncoder();
     const key = await getKey();
-    const valid = await crypto.subtle.verify(
-      'HMAC', key, fromBase64Url(sigB64).buffer as ArrayBuffer, enc.encode(payloadB64),
-    );
-    if (!valid) return null;
+    const expectedSig = await crypto.subtle.sign('HMAC', key, enc.encode(payloadB64));
+    const expectedBytes = new Uint8Array(expectedSig);
+    const actualBytes = fromBase64Url(sigB64);
+    if (expectedBytes.length !== actualBytes.length) return null;
+    let diff = 0;
+    for (let i = 0; i < expectedBytes.length; i++) diff |= expectedBytes[i] ^ actualBytes[i];
+    if (diff !== 0) return null;
     const json = new TextDecoder().decode(fromBase64Url(payloadB64));
     const data = JSON.parse(json) as Record<string, unknown>;
     if (typeof data.exp === 'number' && data.exp < Math.floor(Date.now() / 1000)) {
