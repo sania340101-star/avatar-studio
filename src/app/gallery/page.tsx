@@ -255,6 +255,7 @@ function GalleryContent() {
                   style={{
                     borderColor: batchSelected ? 'var(--accent)' : 'var(--border)',
                     background: batchSelected ? 'var(--accent-subtle)' : 'var(--bg-card)',
+                    borderLeft: '3px solid var(--accent)',
                   }}
                 >
                   <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-3">
@@ -280,7 +281,10 @@ function GalleryContent() {
                     </span>
                     <span className="text-sm font-medium truncate">{entry.templateName}</span>
                     {projectMap[entry.gens[0].projectId] && (
-                      <span className="text-xs px-2 py-0.5 rounded" style={{ background: 'var(--bg-input)', color: 'var(--text3)' }}>
+                      <span className="text-xs font-medium px-2 py-0.5 rounded flex items-center gap-1" style={{ background: 'rgba(59,130,246,0.12)', color: 'var(--blue, #3b82f6)' }}>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3 h-3 flex-shrink-0">
+                          <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+                        </svg>
                         {projectMap[entry.gens[0].projectId]}
                       </span>
                     )}
@@ -297,6 +301,7 @@ function GalleryContent() {
                     )}
                   </div>
 
+                  <div className="border-t mb-3" style={{ borderColor: 'var(--border)' }} />
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     {entry.gens.map((gen, j) => {
                       const slotIdx = (gen.params.slotIndex as number) ?? j;
@@ -410,7 +415,10 @@ function GalleryContent() {
                   </span>
                   <span className="text-sm font-medium truncate">{gen.modelLabel}</span>
                   {projectMap[gen.projectId] && (
-                    <span className="text-xs px-2 py-0.5 rounded" style={{ background: 'var(--bg-input)', color: 'var(--text3)' }}>
+                    <span className="text-xs font-medium px-2 py-0.5 rounded flex items-center gap-1" style={{ background: 'rgba(59,130,246,0.12)', color: 'var(--blue, #3b82f6)' }}>
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3 h-3 flex-shrink-0">
+                        <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+                      </svg>
                       {projectMap[gen.projectId]}
                     </span>
                   )}
