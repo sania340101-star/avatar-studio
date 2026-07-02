@@ -23,7 +23,7 @@ export default function StepBar({ current, hasPrepared, isPreparing, onStepClick
           color: step1Active ? 'white' : 'var(--accent)',
         }}
       >
-        <span className="w-5 h-5 rounded-full text-[11px] font-bold flex items-center justify-center"
+        <span className="w-5 h-5 rounded-full text-xs font-bold flex items-center justify-center"
           style={{
             background: step1Active ? 'rgba(255,255,255,0.25)' : 'var(--accent)',
             color: 'white',
@@ -52,7 +52,7 @@ export default function StepBar({ current, hasPrepared, isPreparing, onStepClick
           color: step2Active ? 'white' : 'var(--text3)',
         }}
       >
-        <span className="w-5 h-5 rounded-full text-[11px] font-bold flex items-center justify-center"
+        <span className="w-5 h-5 rounded-full text-xs font-bold flex items-center justify-center"
           style={{
             background: step2Active ? 'rgba(255,255,255,0.25)' : 'var(--border)',
             color: step2Active ? 'white' : 'var(--text3)',

@@ -80,10 +80,13 @@ export default function ImagePicker({ value, onChange, label = 'Source Image', r
             <img src={value} alt="" className="w-full h-full object-cover" />
             <button
               onClick={e => { e.stopPropagation(); onChange(''); }}
-              className="absolute top-0 right-0 w-5 h-5 flex items-center justify-center text-xs rounded-bl-lg"
+              className="absolute -top-1 -right-1 w-8 h-8 flex items-center justify-center rounded-full"
               style={{ background: 'var(--red)', color: 'white' }}
+              aria-label="Remove image"
             >
-              x
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-4 h-4" aria-hidden="true">
+                <path d="M18 6L6 18M6 6l12 12" />
+              </svg>
             </button>
           </div>
         )}
@@ -106,7 +109,11 @@ export default function ImagePicker({ value, onChange, label = 'Source Image', r
           <div className="w-full max-w-lg max-h-[80vh] overflow-auto rounded-2xl p-4 sm:p-5 mx-3 sm:mx-0" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold">Select Image</h3>
-              <button onClick={() => setShowPicker(false)} className="text-xl" style={{ color: 'var(--text3)' }}>x</button>
+              <button onClick={() => setShowPicker(false)} className="w-11 h-11 flex items-center justify-center rounded-lg" style={{ color: 'var(--text3)' }} aria-label="Close">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-6 h-6" aria-hidden="true">
+                  <path d="M18 6L6 18M6 6l12 12" />
+                </svg>
+              </button>
             </div>
 
             <div className="mb-4">

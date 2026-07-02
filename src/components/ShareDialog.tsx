@@ -123,7 +123,7 @@ export default function ShareDialog({ entityType, entityId, entityName, projectI
                           <p className="text-xs truncate" style={{ color: 'var(--text3)' }}>{u.email}</p>
                         )}
                       </div>
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--text3)' }}>
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--text3)' }} aria-hidden="true">
                         <path d="M4 12h16M12 4l8 8-8 8" />
                       </svg>
                     </button>

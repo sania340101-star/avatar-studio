@@ -6,6 +6,7 @@ import AppShell from '@/components/AppShell';
 import { useProject } from '@/lib/ProjectContext';
 import { Generation } from '@/lib/types';
 import ShareDialog from '@/components/ShareDialog';
+import ConfirmDialog from '@/components/ConfirmDialog';
 
 type TabFilter = 'all' | 'image' | 'video' | 'export';
 
@@ -227,7 +228,7 @@ function GalleryContent() {
                 className="text-xs px-3 py-1.5 rounded-lg font-medium flex items-center gap-1.5"
                 style={{ background: 'var(--accent)', color: 'white' }}
               >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5" aria-hidden="true">
                   <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" />
                 </svg>
                 <span className="hidden sm:inline">Download</span>
@@ -238,7 +239,7 @@ function GalleryContent() {
                 style={{ background: 'var(--green, #22c55e)' }}
                 title="Create export session from selected videos"
               >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5" aria-hidden="true">
                   <rect x="2" y="3" width="20" height="14" rx="2" /><polygon points="10 8 16 11 10 14 10 8" />
                 </svg>
                 <span className="hidden sm:inline">Export</span>
@@ -248,7 +249,7 @@ function GalleryContent() {
                 className="text-xs px-3 py-1.5 rounded-lg font-medium flex items-center gap-1.5 text-white"
                 style={{ background: 'var(--red, #ef4444)' }}
               >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5" aria-hidden="true">
                   <polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
                 </svg>
                 <span className="hidden sm:inline">Delete</span>
@@ -257,9 +258,9 @@ function GalleryContent() {
                 onClick={() => setSelectedIds(new Set())}
                 className="text-xs px-1.5 py-1.5"
                 style={{ color: 'var(--text3)' }}
-                title="Clear selection"
+                aria-label="Clear selection"
               >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4" aria-hidden="true">
                   <path d="M18 6L6 18M6 6l12 12" />
                 </svg>
               </button>
@@ -306,9 +307,11 @@ function GalleryContent() {
                         borderColor: batchSelected ? 'var(--accent)' : 'var(--border)',
                         background: batchSelected ? 'var(--accent)' : 'transparent',
                       }}
+                      aria-label={batchSelected ? 'Deselect batch' : 'Select batch'}
+                      aria-pressed={batchSelected}
                     >
                       {batchSelected && (
-                        <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" className="w-3 h-3">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" className="w-3 h-3" aria-hidden="true">
                           <polyline points="20 6 9 17 4 12" />
                         </svg>
                       )}
@@ -346,7 +349,7 @@ function GalleryContent() {
                         </span>
                         {projectMap[entry.gens[0].projectId] && (
                           <span className="text-xs font-medium px-2 py-0.5 rounded flex items-center gap-1" style={{ background: 'rgba(59,130,246,0.12)', color: 'var(--blue, #3b82f6)' }}>
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3 h-3 flex-shrink-0">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3 h-3 flex-shrink-0" aria-hidden="true">
                               <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
                             </svg>
                             {projectMap[entry.gens[0].projectId]}
@@ -369,32 +372,39 @@ function GalleryContent() {
 
                     <button
                       onClick={(e) => { e.stopPropagation(); setShareGen({ id: entry.gens[0].id, projectId: entry.gens[0].projectId, name: entry.templateName }); }}
-                      className="w-7 h-7 rounded-lg flex items-center justify-center opacity-50 hover:opacity-100 flex-shrink-0"
+                      className="w-7 h-7 min-w-[44px] min-h-[44px] rounded-lg flex items-center justify-center opacity-50 hover:opacity-100 flex-shrink-0"
                       style={{ color: 'var(--text3)' }}
-                      title="Share"
+                      aria-label="Share"
                     >
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5" aria-hidden="true">
                         <circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" /><line x1="8.59" y1="13.51" x2="15.42" y2="17.49" /><line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
                       </svg>
                     </button>
                     <button
                       onClick={(e) => { e.stopPropagation(); setConfirmDeleteId(entry.batchId); }}
-                      className="w-7 h-7 rounded-lg flex items-center justify-center opacity-50 hover:opacity-100 flex-shrink-0"
+                      className="w-7 h-7 min-w-[44px] min-h-[44px] rounded-lg flex items-center justify-center opacity-50 hover:opacity-100 flex-shrink-0"
                       style={{ color: 'var(--red)' }}
-                      title="Delete"
+                      aria-label="Delete"
                     >
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5" aria-hidden="true">
                         <polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
                       </svg>
                     </button>
 
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
-                      className={`w-4 h-4 flex-shrink-0 transition-transform cursor-pointer ${isExpanded ? 'rotate-90' : ''}`}
-                      style={{ color: 'var(--text3)' }}
+                    <button
                       onClick={() => setExpandedId(isExpanded ? null : entry.batchId)}
+                      className="flex-shrink-0"
+                      aria-label={isExpanded ? 'Collapse' : 'Expand'}
+                      aria-expanded={isExpanded}
                     >
-                      <path d="M9 18l6-6-6-6" />
-                    </svg>
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+                        className={`w-4 h-4 transition-transform ${isExpanded ? 'rotate-90' : ''}`}
+                        style={{ color: 'var(--text3)' }}
+                        aria-hidden="true"
+                      >
+                        <path d="M9 18l6-6-6-6" />
+                      </svg>
+                    </button>
                   </div>
 
                   {isExpanded && (
@@ -425,7 +435,7 @@ function GalleryContent() {
 
                                 {gen.resultUrls[0] && (
                                   <div className="relative group rounded-lg overflow-hidden border hover:border-[var(--accent)] transition-colors" style={{ borderColor: 'var(--border)' }}>
-                                    <button onClick={() => setLightbox({ url: gen.resultUrls[0], type: gen.type })} className="w-full cursor-zoom-in">
+                                    <button onClick={() => setLightbox({ url: gen.resultUrls[0], type: gen.type })} className="w-full cursor-zoom-in" aria-label="Preview">
                                       {gen.type === 'video' ? (
                                         <video src={gen.resultUrls[0]} className="w-full pointer-events-none" muted />
                                       ) : (
@@ -450,16 +460,16 @@ function GalleryContent() {
 
                                 <div className="flex flex-wrap gap-1">
                                   {gen.params.aspectRatio != null && (
-                                    <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: 'var(--bg-input)', color: 'var(--text3)' }}>{String(gen.params.aspectRatio)}</span>
+                                    <span className="text-xs px-1.5 py-0.5 rounded" style={{ background: 'var(--bg-input)', color: 'var(--text3)' }}>{String(gen.params.aspectRatio)}</span>
                                   )}
                                   {gen.params.quality != null && (
-                                    <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: 'var(--bg-input)', color: 'var(--text3)' }}>{String(gen.params.quality)}</span>
+                                    <span className="text-xs px-1.5 py-0.5 rounded" style={{ background: 'var(--bg-input)', color: 'var(--text3)' }}>{String(gen.params.quality)}</span>
                                   )}
                                   {gen.params.fps != null && (
-                                    <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: 'var(--bg-input)', color: 'var(--text3)' }}>{String(gen.params.fps)}fps</span>
+                                    <span className="text-xs px-1.5 py-0.5 rounded" style={{ background: 'var(--bg-input)', color: 'var(--text3)' }}>{String(gen.params.fps)}fps</span>
                                   )}
                                   {gen.params.strategy != null && (
-                                    <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: 'var(--bg-input)', color: 'var(--text3)' }}>{String(gen.params.strategy)}</span>
+                                    <span className="text-xs px-1.5 py-0.5 rounded" style={{ background: 'var(--bg-input)', color: 'var(--text3)' }}>{String(gen.params.strategy)}</span>
                                   )}
                                 </div>
 
@@ -506,9 +516,11 @@ function GalleryContent() {
                       borderColor: isSelected ? 'var(--accent)' : 'var(--border)',
                       background: isSelected ? 'var(--accent)' : 'transparent',
                     }}
+                    aria-label={isSelected ? 'Deselect' : 'Select'}
+                    aria-pressed={isSelected}
                   >
                     {isSelected && (
-                      <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" className="w-3 h-3">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" className="w-3 h-3" aria-hidden="true">
                         <polyline points="20 6 9 17 4 12" />
                       </svg>
                     )}
@@ -543,7 +555,7 @@ function GalleryContent() {
                       </span>
                       {projectMap[gen.projectId] && (
                         <span className="text-xs font-medium px-2 py-0.5 rounded flex items-center gap-1" style={{ background: 'rgba(59,130,246,0.12)', color: 'var(--blue, #3b82f6)' }}>
-                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3 h-3 flex-shrink-0">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3 h-3 flex-shrink-0" aria-hidden="true">
                             <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
                           </svg>
                           {projectMap[gen.projectId]}
@@ -563,32 +575,39 @@ function GalleryContent() {
 
                   <button
                     onClick={(e) => { e.stopPropagation(); setShareGen({ id: gen.id, projectId: gen.projectId, name: gen.prompt.slice(0, 50) || `${gen.type} generation` }); }}
-                    className="w-7 h-7 rounded-lg flex items-center justify-center opacity-50 hover:opacity-100 flex-shrink-0"
+                    className="w-7 h-7 min-w-[44px] min-h-[44px] rounded-lg flex items-center justify-center opacity-50 hover:opacity-100 flex-shrink-0"
                     style={{ color: 'var(--text3)' }}
-                    title="Share"
+                    aria-label="Share"
                   >
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5" aria-hidden="true">
                       <circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" /><line x1="8.59" y1="13.51" x2="15.42" y2="17.49" /><line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
                     </svg>
                   </button>
                   <button
                     onClick={(e) => { e.stopPropagation(); setConfirmDeleteId(gen.id); }}
-                    className="w-7 h-7 rounded-lg flex items-center justify-center opacity-50 hover:opacity-100 flex-shrink-0"
+                    className="w-7 h-7 min-w-[44px] min-h-[44px] rounded-lg flex items-center justify-center opacity-50 hover:opacity-100 flex-shrink-0"
                     style={{ color: 'var(--red)' }}
-                    title="Delete"
+                    aria-label="Delete"
                   >
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5" aria-hidden="true">
                       <polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
                     </svg>
                   </button>
 
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
-                    className={`w-4 h-4 flex-shrink-0 transition-transform cursor-pointer ${isExpanded ? 'rotate-90' : ''}`}
-                    style={{ color: 'var(--text3)' }}
+                  <button
                     onClick={() => setExpandedId(isExpanded ? null : gen.id)}
+                    className="flex-shrink-0"
+                    aria-label={isExpanded ? 'Collapse' : 'Expand'}
+                    aria-expanded={isExpanded}
                   >
-                    <path d="M9 18l6-6-6-6" />
-                  </svg>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+                      className={`w-4 h-4 transition-transform ${isExpanded ? 'rotate-90' : ''}`}
+                      style={{ color: 'var(--text3)' }}
+                      aria-hidden="true"
+                    >
+                      <path d="M9 18l6-6-6-6" />
+                    </svg>
+                  </button>
                 </div>
 
                 {isExpanded && (
@@ -643,6 +662,7 @@ function GalleryContent() {
                                   <button
                                     onClick={() => setLightbox({ url, type: gen.type })}
                                     className="group relative rounded-lg overflow-hidden cursor-zoom-in"
+                                    aria-label="Preview"
                                   >
                                     <div className={gen.type === 'image' ? 'w-24 h-24' : 'w-32 h-24'}>
                                       {gen.type !== 'image' ? (
@@ -652,7 +672,7 @@ function GalleryContent() {
                                       )}
                                     </div>
                                     <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                                      <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" className="w-5 h-5">
+                                      <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" className="w-5 h-5" aria-hidden="true">
                                         <circle cx="11" cy="11" r="8" />
                                         <path d="M21 21l-4.35-4.35" />
                                         <path d="M11 8v6M8 11h6" />
@@ -688,92 +708,41 @@ function GalleryContent() {
         if (!gen && !batchGens) return null;
         const isBatch = !!batchGens;
         const count = isBatch ? batchGens!.length : 1;
+        let desc = isBatch
+          ? `All ${count} slots in this template batch will be permanently deleted.`
+          : `This ${gen!.type} generation will be permanently deleted.`;
+        if (!isBatch && gen!.type === 'video') desc += ' It will also be removed from any exports using it.';
+        if (!isBatch && gen!.type === 'export') desc += ' It will also be removed from the export version history.';
         return (
-          <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => setConfirmDeleteId(null)}>
-            <div className="absolute inset-0 bg-black/50" />
-            <div
-              className="relative rounded-xl p-5 w-80 shadow-xl"
-              style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}
-              onClick={e => e.stopPropagation()}
-            >
-              <div className="w-10 h-10 rounded-full flex items-center justify-center mx-auto mb-3" style={{ background: 'rgba(239,68,68,0.1)' }}>
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5" style={{ color: 'var(--red)' }}>
-                  <polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                </svg>
-              </div>
-              <h3 className="text-sm font-semibold text-center mb-1" style={{ color: 'var(--text1)' }}>Delete {isBatch ? 'batch' : 'generation'}?</h3>
-              <p className="text-xs text-center mb-4" style={{ color: 'var(--text3)' }}>
-                {isBatch ? `All ${count} slots in this template batch` : `This ${gen!.type} generation`} will be permanently deleted.
-                {!isBatch && gen!.type === 'video' && ' It will also be removed from any exports using it.'}
-                {!isBatch && gen!.type === 'export' && ' It will also be removed from the export version history.'}
-              </p>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => setConfirmDeleteId(null)}
-                  className="flex-1 py-2 rounded-lg text-sm font-medium"
-                  style={{ border: '1px solid var(--border)', color: 'var(--text2)' }}
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={async () => {
-                    if (isBatch) {
-                      await Promise.all(batchGens!.map(g => fetch(`/api/generations?projectId=${g.projectId}&generationId=${g.id}`, { method: 'DELETE' })));
-                    } else {
-                      await handleDelete(gen!);
-                    }
-                    setConfirmDeleteId(null);
-                    load();
-                  }}
-                  className="flex-1 py-2 rounded-lg text-sm font-medium text-white"
-                  style={{ background: 'var(--red, #ef4444)' }}
-                >
-                  Delete
-                </button>
-              </div>
-            </div>
-          </div>
+          <ConfirmDialog
+            open={true}
+            onClose={() => setConfirmDeleteId(null)}
+            onConfirm={async () => {
+              if (isBatch) {
+                await Promise.all(batchGens!.map(g => fetch(`/api/generations?projectId=${g.projectId}&generationId=${g.id}`, { method: 'DELETE' })));
+              } else {
+                await handleDelete(gen!);
+              }
+              setConfirmDeleteId(null);
+              load();
+            }}
+            title={`Delete ${isBatch ? 'batch' : 'generation'}?`}
+            description={desc}
+          />
         );
       })()}
 
       {/* Bulk delete confirmation */}
       {confirmBulkDelete && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => setConfirmBulkDelete(false)}>
-          <div className="absolute inset-0 bg-black/50" />
-          <div
-            className="relative rounded-xl p-5 w-80 shadow-xl"
-            style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}
-            onClick={e => e.stopPropagation()}
-          >
-            <div className="w-10 h-10 rounded-full flex items-center justify-center mx-auto mb-3" style={{ background: 'rgba(239,68,68,0.1)' }}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5" style={{ color: 'var(--red)' }}>
-                <polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-              </svg>
-            </div>
-            <h3 className="text-sm font-semibold text-center mb-1" style={{ color: 'var(--text1)' }}>Delete {selectedIds.size} generation{selectedIds.size !== 1 ? 's' : ''}?</h3>
-            <p className="text-xs text-center mb-4" style={{ color: 'var(--text3)' }}>
-              This action cannot be undone.
-            </p>
-            <div className="flex gap-2">
-              <button
-                onClick={() => setConfirmBulkDelete(false)}
-                disabled={bulkDeleting}
-                className="flex-1 py-2 rounded-lg text-sm font-medium"
-                style={{ border: '1px solid var(--border)', color: 'var(--text2)' }}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleBulkDelete}
-                disabled={bulkDeleting}
-                className="flex-1 py-2 rounded-lg text-sm font-medium text-white disabled:opacity-50"
-                style={{ background: 'var(--red, #ef4444)' }}
-              >
-                {bulkDeleting ? 'Deleting...' : 'Delete All'}
-              </button>
-            </div>
-          </div>
-        </div>
+        <ConfirmDialog
+          open={true}
+          onClose={() => setConfirmBulkDelete(false)}
+          onConfirm={handleBulkDelete}
+          title={`Delete ${selectedIds.size} generation${selectedIds.size !== 1 ? 's' : ''}?`}
+          description="This action cannot be undone."
+          confirmLabel={bulkDeleting ? 'Deleting...' : 'Delete All'}
+          confirmDisabled={bulkDeleting}
+        />
       )}
 
       {lightbox && (
@@ -786,17 +755,18 @@ function GalleryContent() {
             <button
               onClick={(e) => { e.stopPropagation(); downloadUrl(lightbox.url, lightbox.type === 'image' ? 'image.png' : `${lightbox.type}.mp4`); }}
               className="w-11 h-11 flex items-center justify-center rounded-full text-white/70 hover:text-white hover:bg-white/10 transition-colors"
-              title="Download"
+              aria-label="Download"
             >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-7 h-7">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-7 h-7" aria-hidden="true">
                 <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" />
               </svg>
             </button>
             <button
               onClick={() => setLightbox(null)}
               className="w-11 h-11 flex items-center justify-center rounded-full text-white/70 hover:text-white hover:bg-white/10 transition-colors"
+              aria-label="Close"
             >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-8 h-8">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-8 h-8" aria-hidden="true">
                 <path d="M18 6L6 18M6 6l12 12" />
               </svg>
             </button>

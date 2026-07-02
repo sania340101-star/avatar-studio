@@ -2,6 +2,7 @@
 
 import { useState, useCallback } from 'react';
 import { Generation } from '@/lib/types';
+import ConfirmDialog from '@/components/ConfirmDialog';
 
 interface Props {
   generations: Generation[];
@@ -164,9 +165,9 @@ export default function VersionHistory({ generations, onSelect, onDelete }: Prop
               onClick={e => { e.stopPropagation(); setConfirmDeleteId(gen.id); }}
               className="w-7 h-7 rounded-lg flex items-center justify-center opacity-50 hover:opacity-100 flex-shrink-0"
               style={{ color: 'var(--red)' }}
-              title="Delete"
+              aria-label="Delete"
             >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5" aria-hidden="true">
                 <polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
               </svg>
             </button>
@@ -175,6 +176,7 @@ export default function VersionHistory({ generations, onSelect, onDelete }: Prop
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
             className={`w-4 h-4 flex-shrink-0 transition-transform ${isExpanded ? 'rotate-90' : ''}`}
             style={{ color: 'var(--text3)' }}
+            aria-hidden="true"
           >
             <path d="M9 18l6-6-6-6" />
           </svg>
@@ -251,6 +253,7 @@ export default function VersionHistory({ generations, onSelect, onDelete }: Prop
                           <button
                             onClick={(e) => { e.stopPropagation(); setLightbox({ url, type: gen.type }); }}
                             className="group relative rounded-lg overflow-hidden cursor-zoom-in"
+                            aria-label="Preview"
                           >
                             <Thumb
                               src={url}
@@ -258,7 +261,7 @@ export default function VersionHistory({ generations, onSelect, onDelete }: Prop
                               className={gen.type === 'image' ? 'w-24 h-24' : 'w-32 h-24'}
                             />
                             <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                              <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" className="w-5 h-5">
+                              <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" className="w-5 h-5" aria-hidden="true">
                                 <circle cx="11" cy="11" r="8" />
                                 <path d="M21 21l-4.35-4.35" />
                                 <path d="M11 8v6M8 11h6" />
@@ -355,6 +358,7 @@ export default function VersionHistory({ generations, onSelect, onDelete }: Prop
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
             className={`w-4 h-4 flex-shrink-0 transition-transform ${isExpanded ? 'rotate-90' : ''}`}
             style={{ color: 'var(--text3)' }}
+            aria-hidden="true"
           >
             <path d="M9 18l6-6-6-6" />
           </svg>
@@ -386,10 +390,11 @@ export default function VersionHistory({ generations, onSelect, onDelete }: Prop
                           <button
                             onClick={(e) => { e.stopPropagation(); setLightbox({ url: gen.resultUrls[0], type: gen.type }); }}
                             className="w-full cursor-zoom-in"
+                            aria-label="Preview"
                           >
                             <Thumb src={gen.resultUrls[0]} type={gen.type} className="w-full aspect-video" />
                             <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-3">
-                              <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" className="w-5 h-5">
+                              <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" className="w-5 h-5" aria-hidden="true">
                                 <circle cx="11" cy="11" r="8" />
                                 <path d="M21 21l-4.35-4.35" />
                                 <path d="M11 8v6M8 11h6" />
@@ -412,16 +417,16 @@ export default function VersionHistory({ generations, onSelect, onDelete }: Prop
 
                       <div className="flex flex-wrap gap-1">
                         {gen.params.duration != null && (
-                          <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: 'var(--bg-input)', color: 'var(--text3)' }}>{String(gen.params.duration)}s</span>
+                          <span className="text-xs px-1.5 py-0.5 rounded" style={{ background: 'var(--bg-input)', color: 'var(--text3)' }}>{String(gen.params.duration)}s</span>
                         )}
                         {gen.params.aspectRatio != null && (
-                          <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: 'var(--bg-input)', color: 'var(--text3)' }}>{String(gen.params.aspectRatio)}</span>
+                          <span className="text-xs px-1.5 py-0.5 rounded" style={{ background: 'var(--bg-input)', color: 'var(--text3)' }}>{String(gen.params.aspectRatio)}</span>
                         )}
                         {gen.params.quality != null && (
-                          <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: 'var(--bg-input)', color: 'var(--text3)' }}>{String(gen.params.quality)}</span>
+                          <span className="text-xs px-1.5 py-0.5 rounded" style={{ background: 'var(--bg-input)', color: 'var(--text3)' }}>{String(gen.params.quality)}</span>
                         )}
                         {gen.params.fps != null && (
-                          <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: 'var(--bg-input)', color: 'var(--text3)' }}>{String(gen.params.fps)}fps</span>
+                          <span className="text-xs px-1.5 py-0.5 rounded" style={{ background: 'var(--bg-input)', color: 'var(--text3)' }}>{String(gen.params.fps)}fps</span>
                         )}
                       </div>
 
@@ -450,7 +455,7 @@ export default function VersionHistory({ generations, onSelect, onDelete }: Prop
         onClick={() => setSectionExpanded(!sectionExpanded)}
         className="flex items-center gap-2 text-lg font-semibold mb-4"
       >
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={`w-4 h-4 transition-transform ${sectionExpanded ? 'rotate-90' : ''}`}>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={`w-4 h-4 transition-transform ${sectionExpanded ? 'rotate-90' : ''}`} aria-hidden="true">
           <path d="M9 18l6-6-6-6" />
         </svg>
         Version History ({entries.length})
@@ -469,38 +474,13 @@ export default function VersionHistory({ generations, onSelect, onDelete }: Prop
       )}
 
       {confirmDeleteId && onDelete && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center"
-          style={{ background: 'rgba(0,0,0,0.6)' }}
-          onClick={() => setConfirmDeleteId(null)}
-        >
-          <div
-            className="rounded-2xl p-6 max-w-sm mx-4 shadow-2xl"
-            style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}
-            onClick={e => e.stopPropagation()}
-          >
-            <p className="text-base font-semibold mb-2">Delete generation?</p>
-            <p className="text-sm mb-5" style={{ color: 'var(--text2)' }}>
-              This will permanently remove this version from history. This action cannot be undone.
-            </p>
-            <div className="flex gap-3 justify-end">
-              <button
-                onClick={() => setConfirmDeleteId(null)}
-                className="px-4 py-2 rounded-lg text-sm font-medium"
-                style={{ background: 'var(--bg-input)', color: 'var(--text2)' }}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => { onDelete(confirmDeleteId); setConfirmDeleteId(null); }}
-                className="px-4 py-2 rounded-lg text-sm font-semibold text-white"
-                style={{ background: 'var(--red, #ef4444)' }}
-              >
-                Delete
-              </button>
-            </div>
-          </div>
-        </div>
+        <ConfirmDialog
+          open={true}
+          onClose={() => setConfirmDeleteId(null)}
+          onConfirm={() => { onDelete(confirmDeleteId); setConfirmDeleteId(null); }}
+          title="Delete generation?"
+          description="This will permanently remove this version from history. This action cannot be undone."
+        />
       )}
 
       {lightbox && (
@@ -513,16 +493,18 @@ export default function VersionHistory({ generations, onSelect, onDelete }: Prop
             <button
               onClick={(e) => { e.stopPropagation(); downloadUrl(lightbox.url, lightbox.type === 'image' ? 'image.png' : 'video.mp4'); }}
               className="w-11 h-11 flex items-center justify-center rounded-full text-white/70 hover:text-white hover:bg-white/10 transition-colors"
+              aria-label="Download"
             >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-7 h-7">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-7 h-7" aria-hidden="true">
                 <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" />
               </svg>
             </button>
             <button
               onClick={closeLightbox}
               className="w-11 h-11 flex items-center justify-center rounded-full text-white/70 hover:text-white hover:bg-white/10 transition-colors"
+              aria-label="Close"
             >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-8 h-8">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-8 h-8" aria-hidden="true">
                 <path d="M18 6L6 18M6 6l12 12" />
               </svg>
             </button>

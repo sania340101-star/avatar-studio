@@ -389,10 +389,15 @@ export default function GenerateImagePage() {
                   <img src={ref.url} alt={ref.name} className="w-full h-full object-cover" />
                   <button
                     onClick={e => { e.stopPropagation(); setReferences(prev => prev.filter((_, j) => j !== i)); }}
-                    className="absolute top-0 right-0 w-5 h-5 flex items-center justify-center text-xs rounded-bl-lg"
+                    className="absolute -top-1 -right-1 w-8 h-8 flex items-center justify-center rounded-full"
                     style={{ background: 'var(--red)', color: 'white' }}
-                  >x</button>
-                  <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-[10px] text-white px-1 truncate">{ref.name}</div>
+                    aria-label="Remove reference"
+                  >
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-4 h-4" aria-hidden="true">
+                      <path d="M18 6L6 18M6 6l12 12" />
+                    </svg>
+                  </button>
+                  <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-xs text-white px-1 truncate">{ref.name}</div>
                 </div>
               ))}
               <button
@@ -409,8 +414,8 @@ export default function GenerateImagePage() {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm mb-1.5" style={{ color: 'var(--text2)' }}>Model</label>
-              <select value={modelPref} onChange={e => setModelPref(e.target.value)} className="w-full">
+              <label htmlFor="select-model" className="block text-sm mb-1.5" style={{ color: 'var(--text2)' }}>Model</label>
+              <select id="select-model" value={modelPref} onChange={e => setModelPref(e.target.value)} className="w-full">
                 <option value="auto">Auto (agent selects)</option>
                 <optgroup label="By Group">
                   {IMAGE_MODEL_GROUPS.map(g => (
@@ -425,8 +430,8 @@ export default function GenerateImagePage() {
               </select>
             </div>
             <div>
-              <label className="block text-sm mb-1.5" style={{ color: 'var(--text2)' }}>Format</label>
-              <select value={desiredSize} onChange={e => setDesiredSize(e.target.value)} className="w-full">
+              <label htmlFor="select-format" className="block text-sm mb-1.5" style={{ color: 'var(--text2)' }}>Format</label>
+              <select id="select-format" value={desiredSize} onChange={e => setDesiredSize(e.target.value)} className="w-full">
                 {IMAGE_SIZE_OPTIONS.map(o => (
                   <option key={o.id} value={o.id}>{o.label}</option>
                 ))}
@@ -435,8 +440,8 @@ export default function GenerateImagePage() {
           </div>
 
           <div>
-            <label className="block text-sm mb-1.5" style={{ color: 'var(--text2)' }}>Resolution</label>
-            <select value={desiredResolution} onChange={e => setDesiredResolution(e.target.value)} className="w-full">
+            <label htmlFor="select-resolution" className="block text-sm mb-1.5" style={{ color: 'var(--text2)' }}>Resolution</label>
+            <select id="select-resolution" value={desiredResolution} onChange={e => setDesiredResolution(e.target.value)} className="w-full">
               {IMAGE_RESOLUTION_OPTIONS.map(o => (
                 <option key={o.id} value={o.id}>{o.label}</option>
               ))}
@@ -459,7 +464,7 @@ export default function GenerateImagePage() {
                     }}
                   >
                     {s.label}
-                    <span className="block text-[10px] mt-0.5" style={{ opacity: 0.7 }}>{s.description}</span>
+                    <span className="block text-xs mt-0.5" style={{ opacity: 0.7 }}>{s.description}</span>
                   </button>
                 ))}
               </div>
@@ -483,8 +488,9 @@ export default function GenerateImagePage() {
           )}
 
           <div>
-            <label className="block text-sm mb-1.5" style={{ color: 'var(--text2)' }}>Instruction</label>
+            <label htmlFor="input-instruction" className="block text-sm mb-1.5" style={{ color: 'var(--text2)' }}>Instruction</label>
             <textarea
+              id="input-instruction"
               value={instruction}
               onChange={e => setInstruction(e.target.value)}
               placeholder="Describe what you want. E.g.: Take image 1 and change the background to a futuristic city. Use the style from image 2..."
@@ -564,8 +570,9 @@ export default function GenerateImagePage() {
           </div>
 
           <div>
-            <label className="block text-sm mb-1.5" style={{ color: 'var(--text2)' }}>Prompt</label>
+            <label htmlFor="input-prompt" className="block text-sm mb-1.5" style={{ color: 'var(--text2)' }}>Prompt</label>
             <textarea
+              id="input-prompt"
               value={editPrompt}
               onChange={e => setEditPrompt(e.target.value)}
               className="w-full h-40 resize-none"
@@ -574,8 +581,9 @@ export default function GenerateImagePage() {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm mb-1.5" style={{ color: 'var(--text2)' }}>Model</label>
+              <label htmlFor="select-review-model" className="block text-sm mb-1.5" style={{ color: 'var(--text2)' }}>Model</label>
               <select
+                id="select-review-model"
                 value={editModel}
                 onChange={e => { setEditModel(e.target.value); fetchPricing(e.target.value); }}
                 className="w-full"

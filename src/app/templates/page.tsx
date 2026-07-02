@@ -5,6 +5,7 @@ import AppShell from '@/components/AppShell';
 import { useProject } from '@/lib/ProjectContext';
 import { Template, TemplateSlot, TemplateRef, VideoModelTypeFilter } from '@/lib/types';
 import ShareDialog from '@/components/ShareDialog';
+import ConfirmDialog from '@/components/ConfirmDialog';
 import {
   VIDEO_MODEL_OPTIONS, VIDEO_MODEL_GROUPS,
   VIDEO_MODEL_TYPE_FILTERS, filterVideoModelsByType,
@@ -201,22 +202,13 @@ function TemplateList({ templates, onEdit, onDelete, onCreate }: {
       )}
 
       {confirmDeleteId && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => setConfirmDeleteId(null)}>
-          <div className="absolute inset-0 bg-black/50" />
-          <div className="relative rounded-xl p-5 w-80 shadow-xl" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }} onClick={e => e.stopPropagation()}>
-            <div className="w-10 h-10 rounded-full flex items-center justify-center mx-auto mb-3" style={{ background: 'rgba(239,68,68,0.1)' }}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5" style={{ color: 'var(--red)' }}>
-                <polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-              </svg>
-            </div>
-            <h3 className="text-sm font-semibold text-center mb-1" style={{ color: 'var(--text1)' }}>Delete template?</h3>
-            <p className="text-xs text-center mb-4" style={{ color: 'var(--text3)' }}>This action cannot be undone.</p>
-            <div className="flex gap-2">
-              <button onClick={() => setConfirmDeleteId(null)} className="flex-1 py-2 rounded-lg text-sm font-medium" style={{ border: '1px solid var(--border)', color: 'var(--text2)' }}>Cancel</button>
-              <button onClick={() => { onDelete(confirmDeleteId); setConfirmDeleteId(null); }} className="flex-1 py-2 rounded-lg text-sm font-medium text-white" style={{ background: 'var(--red, #ef4444)' }}>Delete</button>
-            </div>
-          </div>
-        </div>
+        <ConfirmDialog
+          open={true}
+          onClose={() => setConfirmDeleteId(null)}
+          onConfirm={() => { onDelete(confirmDeleteId); setConfirmDeleteId(null); }}
+          title="Delete template?"
+          description="This action cannot be undone."
+        />
       )}
 
       {shareTemplate && (
@@ -402,8 +394,8 @@ function SlotCard({ slot, index, total, onChange, onRemove }: {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs mb-1" style={{ color: 'var(--text3)' }}>Model</label>
-              <select value={slot.modelId} onChange={e => handleModelChange(e.target.value)} className="w-full text-sm">
+              <label htmlFor={`select-slot-model-${slot.id}`} className="block text-xs mb-1" style={{ color: 'var(--text3)' }}>Model</label>
+              <select id={`select-slot-model-${slot.id}`} value={slot.modelId} onChange={e => handleModelChange(e.target.value)} className="w-full text-sm">
                 <option value="auto">Auto (agent selects)</option>
                 <optgroup label="By Group">
                   {VIDEO_MODEL_GROUPS.map(g => (
@@ -418,8 +410,8 @@ function SlotCard({ slot, index, total, onChange, onRemove }: {
               </select>
             </div>
             <div>
-              <label className="block text-xs mb-1" style={{ color: 'var(--text3)' }}>Type Filter</label>
-              <select value={slot.typeFilter} onChange={e => handleTypeFilterChange(e.target.value)} className="w-full text-sm">
+              <label htmlFor={`select-slot-type-filter-${slot.id}`} className="block text-xs mb-1" style={{ color: 'var(--text3)' }}>Type Filter</label>
+              <select id={`select-slot-type-filter-${slot.id}`} value={slot.typeFilter} onChange={e => handleTypeFilterChange(e.target.value)} className="w-full text-sm">
                 {VIDEO_MODEL_TYPE_FILTERS.map(f => (
                   <option key={f.id} value={f.id}>{f.label}</option>
                 ))}
@@ -429,26 +421,26 @@ function SlotCard({ slot, index, total, onChange, onRemove }: {
 
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <div>
-              <label className="block text-xs mb-1" style={{ color: 'var(--text3)' }}>Duration</label>
-              <select value={slot.duration} onChange={e => updateField('duration', Number(e.target.value))} className="w-full text-sm">
+              <label htmlFor={`select-slot-duration-${slot.id}`} className="block text-xs mb-1" style={{ color: 'var(--text3)' }}>Duration</label>
+              <select id={`select-slot-duration-${slot.id}`} value={slot.duration} onChange={e => updateField('duration', Number(e.target.value))} className="w-full text-sm">
                 {[3, 4, 5, 6, 7, 8, 10, 12, 15, 20].map(d => <option key={d} value={d}>{d}s</option>)}
               </select>
             </div>
             <div>
-              <label className="block text-xs mb-1" style={{ color: 'var(--text3)' }}>Aspect Ratio</label>
-              <select value={slot.aspectRatio} onChange={e => updateField('aspectRatio', e.target.value)} className="w-full text-sm">
+              <label htmlFor={`select-slot-aspect-ratio-${slot.id}`} className="block text-xs mb-1" style={{ color: 'var(--text3)' }}>Aspect Ratio</label>
+              <select id={`select-slot-aspect-ratio-${slot.id}`} value={slot.aspectRatio} onChange={e => updateField('aspectRatio', e.target.value)} className="w-full text-sm">
                 {VIDEO_ASPECT_RATIO_OPTIONS.map(o => <option key={o.id} value={o.id}>{o.label}</option>)}
               </select>
             </div>
             <div>
-              <label className="block text-xs mb-1" style={{ color: 'var(--text3)' }}>Quality</label>
-              <select value={slot.quality} onChange={e => updateField('quality', e.target.value)} className="w-full text-sm">
+              <label htmlFor={`select-slot-quality-${slot.id}`} className="block text-xs mb-1" style={{ color: 'var(--text3)' }}>Quality</label>
+              <select id={`select-slot-quality-${slot.id}`} value={slot.quality} onChange={e => updateField('quality', e.target.value)} className="w-full text-sm">
                 {VIDEO_QUALITY_OPTIONS.map(o => <option key={o.id} value={o.id}>{o.label}</option>)}
               </select>
             </div>
             <div>
-              <label className="block text-xs mb-1" style={{ color: 'var(--text3)' }}>FPS</label>
-              <select value={slot.fps} onChange={e => updateField('fps', Number(e.target.value))} className="w-full text-sm">
+              <label htmlFor={`select-slot-fps-${slot.id}`} className="block text-xs mb-1" style={{ color: 'var(--text3)' }}>FPS</label>
+              <select id={`select-slot-fps-${slot.id}`} value={slot.fps} onChange={e => updateField('fps', Number(e.target.value))} className="w-full text-sm">
                 {VIDEO_FPS_OPTIONS.map(o => <option key={o.id} value={o.id}>{o.label}</option>)}
               </select>
             </div>
@@ -470,7 +462,7 @@ function SlotCard({ slot, index, total, onChange, onRemove }: {
                     }}
                   >
                     {s.label}
-                    <span className="block text-[10px] mt-0.5" style={{ opacity: 0.7 }}>{s.description}</span>
+                    <span className="block text-xs mt-0.5" style={{ opacity: 0.7 }}>{s.description}</span>
                   </button>
                 ))}
               </div>
@@ -478,8 +470,9 @@ function SlotCard({ slot, index, total, onChange, onRemove }: {
           )}
 
           <div>
-            <label className="block text-xs mb-1" style={{ color: 'var(--text3)' }}>Instruction</label>
+            <label htmlFor={`input-slot-instruction-${slot.id}`} className="block text-xs mb-1" style={{ color: 'var(--text3)' }}>Instruction</label>
             <textarea
+              id={`input-slot-instruction-${slot.id}`}
               value={slot.instruction}
               onChange={e => updateField('instruction', e.target.value)}
               placeholder="Describe what you want to generate..."
@@ -571,13 +564,13 @@ function TemplateForm({ userId, existing, onSave, onCancel }: {
 
       <div className="space-y-5">
         <div>
-          <label className="block text-sm mb-1.5" style={{ color: 'var(--text2)' }}>Template Name</label>
-          <input value={name} onChange={e => setName(e.target.value)} placeholder="Corporate Avatar HH" className="w-full" />
+          <label htmlFor="input-template-name" className="block text-sm mb-1.5" style={{ color: 'var(--text2)' }}>Template Name</label>
+          <input id="input-template-name" value={name} onChange={e => setName(e.target.value)} placeholder="Corporate Avatar HH" className="w-full" />
         </div>
 
         <div>
-          <label className="block text-sm mb-1.5" style={{ color: 'var(--text2)' }}>Description</label>
-          <input value={description} onChange={e => setDescription(e.target.value)} placeholder="Short description..." className="w-full" />
+          <label htmlFor="input-template-description" className="block text-sm mb-1.5" style={{ color: 'var(--text2)' }}>Description</label>
+          <input id="input-template-description" value={description} onChange={e => setDescription(e.target.value)} placeholder="Short description..." className="w-full" />
         </div>
 
         <div>

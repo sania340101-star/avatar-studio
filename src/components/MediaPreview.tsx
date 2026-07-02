@@ -42,16 +42,18 @@ export default function MediaPreview({ url, type, name, onClose }: Props) {
         <button
           onClick={e => { e.stopPropagation(); downloadFile(url, name || `file.${type === 'video' ? 'mp4' : type === 'audio' ? 'mp3' : 'png'}`); }}
           className="w-11 h-11 flex items-center justify-center rounded-full text-white/70 hover:text-white hover:bg-white/10 transition-colors"
+          aria-label="Download"
         >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-7 h-7">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-7 h-7" aria-hidden="true">
             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" />
           </svg>
         </button>
         <button
           onClick={onClose}
           className="w-11 h-11 flex items-center justify-center rounded-full text-white/70 hover:text-white hover:bg-white/10 transition-colors"
+          aria-label="Close"
         >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-8 h-8">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-8 h-8" aria-hidden="true">
             <path d="M18 6L6 18M6 6l12 12" />
           </svg>
         </button>

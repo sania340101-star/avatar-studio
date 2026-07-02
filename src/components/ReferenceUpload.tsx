@@ -69,14 +69,19 @@ export default function ReferenceUpload({ references, onChange, accept, label = 
                 const globalIdx = references.indexOf(ref);
                 return (
                   <div key={i} className="relative w-16 h-16 rounded-lg overflow-hidden border cursor-pointer" style={{ borderColor: 'var(--border)' }} onClick={() => setPreview(ref)}>
-                    <span className="absolute top-0 left-0 z-10 w-5 h-5 flex items-center justify-center rounded-br-lg text-[10px] font-bold" style={{ background: 'var(--accent)', color: 'white' }}>{i + 1}</span>
+                    <span className="absolute top-0 left-0 z-10 w-5 h-5 flex items-center justify-center rounded-br-lg text-xs font-bold" style={{ background: 'var(--accent)', color: 'white' }}>{i + 1}</span>
                     <img src={ref.url} alt={ref.name} className="w-full h-full object-cover" />
                     <button
                       onClick={e => { e.stopPropagation(); handleRemove(globalIdx); }}
-                      className="absolute top-0 right-0 w-5 h-5 flex items-center justify-center text-xs rounded-bl-lg"
+                      className="absolute -top-1 -right-1 w-8 h-8 flex items-center justify-center rounded-full"
                       style={{ background: 'var(--red)', color: 'white' }}
-                    >x</button>
-                    <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-[10px] text-white px-1 truncate">{ref.name}</div>
+                      aria-label="Remove image"
+                    >
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-4 h-4" aria-hidden="true">
+                        <path d="M18 6L6 18M6 6l12 12" />
+                      </svg>
+                    </button>
+                    <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-xs text-white px-1 truncate">{ref.name}</div>
                   </div>
                 );
               })}
@@ -97,10 +102,15 @@ export default function ReferenceUpload({ references, onChange, accept, label = 
                     </div>
                     <button
                       onClick={e => { e.stopPropagation(); handleRemove(globalIdx); }}
-                      className="absolute top-0 right-0 w-5 h-5 flex items-center justify-center text-xs rounded-bl-lg"
+                      className="absolute -top-1 -right-1 w-8 h-8 flex items-center justify-center rounded-full"
                       style={{ background: 'var(--red)', color: 'white' }}
-                    >x</button>
-                    <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-[10px] text-white px-1 truncate">{ref.name}</div>
+                      aria-label="Remove video"
+                    >
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-4 h-4" aria-hidden="true">
+                        <path d="M18 6L6 18M6 6l12 12" />
+                      </svg>
+                    </button>
+                    <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-xs text-white px-1 truncate">{ref.name}</div>
                   </div>
                 );
               })}
@@ -120,10 +130,15 @@ export default function ReferenceUpload({ references, onChange, accept, label = 
                     </div>
                     <button
                       onClick={e => { e.stopPropagation(); handleRemove(globalIdx); }}
-                      className="absolute top-0 right-0 w-5 h-5 flex items-center justify-center text-xs rounded-bl-lg"
+                      className="absolute -top-1 -right-1 w-8 h-8 flex items-center justify-center rounded-full"
                       style={{ background: 'var(--red)', color: 'white' }}
-                    >x</button>
-                    <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-[10px] text-white px-1 truncate">{ref.name}</div>
+                      aria-label="Remove audio"
+                    >
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-4 h-4" aria-hidden="true">
+                        <path d="M18 6L6 18M6 6l12 12" />
+                      </svg>
+                    </button>
+                    <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-xs text-white px-1 truncate">{ref.name}</div>
                   </div>
                 );
               })}

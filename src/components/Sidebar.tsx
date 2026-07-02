@@ -6,13 +6,14 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useProject } from '@/lib/ProjectContext';
 import { AppUser } from '@/lib/types';
 import ShareDialog from '@/components/ShareDialog';
+import ConfirmDialog from '@/components/ConfirmDialog';
 
 const GLOBAL_NAV = [
   {
     label: 'Templates',
     href: '/templates',
     icon: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5" aria-hidden="true">
         <rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" />
       </svg>
     ),
@@ -21,7 +22,7 @@ const GLOBAL_NAV = [
     label: 'Gallery',
     href: '/gallery',
     icon: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5" aria-hidden="true">
         <path d="M4 4h16v16H4z" /><path d="M4 4l8 8" /><path d="M20 4l-8 8" />
       </svg>
     ),
@@ -30,7 +31,7 @@ const GLOBAL_NAV = [
     label: 'Export',
     href: '/export',
     icon: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5" aria-hidden="true">
         <rect x="2" y="3" width="20" height="14" rx="2" /><path d="M8 21h8" /><path d="M12 17v4" /><polygon points="10 8 16 11 10 14 10 8" />
       </svg>
     ),
@@ -39,7 +40,7 @@ const GLOBAL_NAV = [
     label: 'Settings',
     href: '/settings',
     icon: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5" aria-hidden="true">
         <circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
       </svg>
     ),
@@ -206,7 +207,7 @@ export default function Sidebar({ open, onClose, user }: { open?: boolean; onClo
                         className="flex-1 text-left text-sm px-3 py-2 flex items-center gap-2 min-w-0"
                         style={{ color: isActive ? 'var(--accent)' : 'var(--text2)' }}
                       >
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4 flex-shrink-0" style={{ opacity: 0.5 }}>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4 flex-shrink-0" style={{ opacity: 0.5 }} aria-hidden="true">
                           <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
                         </svg>
                         <span className="truncate">{p.title}</span>
@@ -217,9 +218,9 @@ export default function Sidebar({ open, onClose, user }: { open?: boolean; onClo
                         onClick={e => { e.stopPropagation(); e.preventDefault(); setMenuOpenId(menuOpenId === p.id ? null : p.id); }}
                         className="md:opacity-0 md:group-hover:opacity-100 transition-opacity px-1.5 py-2"
                         style={{ color: 'var(--text3)' }}
-                        title="Project actions"
+                        aria-label="Project actions"
                       >
-                        <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4">
+                        <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4" aria-hidden="true">
                           <circle cx="12" cy="5" r="2" /><circle cx="12" cy="12" r="2" /><circle cx="12" cy="19" r="2" />
                         </svg>
                       </button>
@@ -234,7 +235,7 @@ export default function Sidebar({ open, onClose, user }: { open?: boolean; onClo
                             className="w-full text-left px-3 py-1.5 flex items-center gap-2 hover:opacity-80"
                             style={{ color: 'var(--text2)' }}
                           >
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5" aria-hidden="true">
                               <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
                             </svg>
                             Rename
@@ -244,7 +245,7 @@ export default function Sidebar({ open, onClose, user }: { open?: boolean; onClo
                             className="w-full text-left px-3 py-1.5 flex items-center gap-2 hover:opacity-80"
                             style={{ color: 'var(--text2)' }}
                           >
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5" aria-hidden="true">
                               <circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" /><line x1="8.59" y1="13.51" x2="15.42" y2="17.49" /><line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
                             </svg>
                             Share
@@ -255,7 +256,7 @@ export default function Sidebar({ open, onClose, user }: { open?: boolean; onClo
                             className="w-full text-left px-3 py-1.5 flex items-center gap-2 hover:opacity-80"
                             style={{ color: 'var(--red, #ef4444)' }}
                           >
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5" aria-hidden="true">
                               <polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
                             </svg>
                             Delete
@@ -273,7 +274,7 @@ export default function Sidebar({ open, onClose, user }: { open?: boolean; onClo
 
         {/* Global nav */}
         <div className="px-2 py-2 border-t" style={{ borderColor: 'var(--border)' }}>
-          <p className="text-[10px] font-semibold uppercase tracking-wider px-3 mb-1" style={{ color: 'var(--text3)' }}>Global</p>
+          <p className="text-xs font-semibold uppercase tracking-wider px-3 mb-1" style={{ color: 'var(--text3)' }}>Global</p>
           <div className="space-y-0.5">
             {GLOBAL_NAV.map(item => {
               const active = pathname.startsWith(item.href);
@@ -298,40 +299,13 @@ export default function Sidebar({ open, onClose, user }: { open?: boolean; onClo
       </div>
 
       {confirmDelete && activeProject && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => setConfirmDelete(false)}>
-          <div className="absolute inset-0 bg-black/50" />
-          <div
-            className="relative rounded-xl p-5 w-80 shadow-xl"
-            style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}
-            onClick={e => e.stopPropagation()}
-          >
-            <div className="w-10 h-10 rounded-full flex items-center justify-center mx-auto mb-3" style={{ background: 'rgba(239,68,68,0.1)' }}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5" style={{ color: 'var(--red)' }}>
-                <polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-              </svg>
-            </div>
-            <h3 className="text-sm font-semibold text-center mb-1" style={{ color: 'var(--text1)' }}>Delete project?</h3>
-            <p className="text-xs text-center mb-4" style={{ color: 'var(--text3)' }}>
-              &quot;{activeProject.title}&quot; and all its generations will be permanently deleted.
-            </p>
-            <div className="flex gap-2">
-              <button
-                onClick={() => setConfirmDelete(false)}
-                className="flex-1 py-2 rounded-lg text-sm font-medium"
-                style={{ border: '1px solid var(--border)', color: 'var(--text2)' }}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => { deleteProject(activeProject.id); setConfirmDelete(false); }}
-                className="flex-1 py-2 rounded-lg text-sm font-medium text-white"
-                style={{ background: 'var(--red, #ef4444)' }}
-              >
-                Delete
-              </button>
-            </div>
-          </div>
-        </div>
+        <ConfirmDialog
+          open={true}
+          onClose={() => setConfirmDelete(false)}
+          onConfirm={() => { deleteProject(activeProject.id); setConfirmDelete(false); }}
+          title="Delete project?"
+          description={`"${activeProject.title}" and all its generations will be permanently deleted.`}
+        />
       )}
 
       {/* Spending — always rendered to prevent layout shift */}

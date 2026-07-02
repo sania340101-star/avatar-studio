@@ -118,7 +118,9 @@ export default function SettingsPage() {
             <p className="text-xs mb-4" style={{ color: 'var(--text3)' }}>
               Instructions injected into every generation. Defines visual style, display requirements, and quality rules for the AI agent.
             </p>
+            <label htmlFor="input-system-prompt" className="sr-only">System Prompt</label>
             <textarea
+              id="input-system-prompt"
               value={systemPrompt}
               onChange={e => setSystemPrompt(e.target.value)}
               className="w-full h-48 resize-y text-sm"

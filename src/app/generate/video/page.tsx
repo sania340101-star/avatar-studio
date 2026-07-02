@@ -560,8 +560,8 @@ export default function GenerateVideoPage() {
         <div className="space-y-5">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm mb-1.5" style={{ color: 'var(--text2)' }}>Model</label>
-              <select value={modelPref} onChange={e => setModelPref(e.target.value)} className="w-full">
+              <label htmlFor="select-model" className="block text-sm mb-1.5" style={{ color: 'var(--text2)' }}>Model</label>
+              <select id="select-model" value={modelPref} onChange={e => setModelPref(e.target.value)} className="w-full">
                 <option value="auto">Auto (agent selects)</option>
                 <optgroup label="By Group">
                   {VIDEO_MODEL_GROUPS.map(g => (
@@ -576,8 +576,9 @@ export default function GenerateVideoPage() {
               </select>
             </div>
             <div>
-              <label className="block text-sm mb-1.5" style={{ color: 'var(--text2)' }}>Type Filter</label>
+              <label htmlFor="select-type-filter" className="block text-sm mb-1.5" style={{ color: 'var(--text2)' }}>Type Filter</label>
               <select
+                id="select-type-filter"
                 value={typeFilter}
                 onChange={e => handleTypeFilterChange(e.target.value as VideoModelTypeFilter)}
                 className="w-full"
@@ -591,32 +592,32 @@ export default function GenerateVideoPage() {
 
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             <div>
-              <label className="block text-sm mb-1.5" style={{ color: 'var(--text2)' }}>Duration</label>
-              <select value={desiredDuration} onChange={e => setDesiredDuration(Number(e.target.value))} className="w-full">
+              <label htmlFor="select-duration" className="block text-sm mb-1.5" style={{ color: 'var(--text2)' }}>Duration</label>
+              <select id="select-duration" value={desiredDuration} onChange={e => setDesiredDuration(Number(e.target.value))} className="w-full">
                 {[3, 4, 5, 6, 7, 8, 10, 12, 15, 20].map(d => (
                   <option key={d} value={d}>{d}s</option>
                 ))}
               </select>
             </div>
             <div>
-              <label className="block text-sm mb-1.5" style={{ color: 'var(--text2)' }}>Aspect Ratio</label>
-              <select value={aspectRatio} onChange={e => setAspectRatio(e.target.value)} className="w-full">
+              <label htmlFor="select-aspect-ratio" className="block text-sm mb-1.5" style={{ color: 'var(--text2)' }}>Aspect Ratio</label>
+              <select id="select-aspect-ratio" value={aspectRatio} onChange={e => setAspectRatio(e.target.value)} className="w-full">
                 {VIDEO_ASPECT_RATIO_OPTIONS.map(o => (
                   <option key={o.id} value={o.id}>{o.label}</option>
                 ))}
               </select>
             </div>
             <div>
-              <label className="block text-sm mb-1.5" style={{ color: 'var(--text2)' }}>Quality</label>
-              <select value={quality} onChange={e => setQuality(e.target.value)} className="w-full">
+              <label htmlFor="select-quality" className="block text-sm mb-1.5" style={{ color: 'var(--text2)' }}>Quality</label>
+              <select id="select-quality" value={quality} onChange={e => setQuality(e.target.value)} className="w-full">
                 {VIDEO_QUALITY_OPTIONS.map(o => (
                   <option key={o.id} value={o.id}>{o.label}</option>
                 ))}
               </select>
             </div>
             <div>
-              <label className="block text-sm mb-1.5" style={{ color: 'var(--text2)' }}>FPS</label>
-              <select value={fps} onChange={e => setFps(Number(e.target.value))} className="w-full">
+              <label htmlFor="select-fps" className="block text-sm mb-1.5" style={{ color: 'var(--text2)' }}>FPS</label>
+              <select id="select-fps" value={fps} onChange={e => setFps(Number(e.target.value))} className="w-full">
                 {VIDEO_FPS_OPTIONS.map(o => (
                   <option key={o.id} value={o.id}>{o.label}</option>
                 ))}
@@ -640,7 +641,7 @@ export default function GenerateVideoPage() {
                     }}
                   >
                     {s.label}
-                    <span className="block text-[10px] mt-0.5" style={{ opacity: 0.7 }}>{s.description}</span>
+                    <span className="block text-xs mt-0.5" style={{ opacity: 0.7 }}>{s.description}</span>
                   </button>
                 ))}
               </div>
@@ -654,8 +655,9 @@ export default function GenerateVideoPage() {
           )}
 
           <div>
-            <label className="block text-sm mb-1.5" style={{ color: 'var(--text2)' }}>Instruction</label>
+            <label htmlFor="input-instruction" className="block text-sm mb-1.5" style={{ color: 'var(--text2)' }}>Instruction</label>
             <textarea
+              id="input-instruction"
               value={instruction}
               onChange={e => setInstruction(e.target.value)}
               placeholder="Describe what you want. E.g.: Animate the character with natural idle movement, subtle breathing. Use the uploaded image as the source..."
@@ -737,8 +739,9 @@ export default function GenerateVideoPage() {
           </div>
 
           <div>
-            <label className="block text-sm mb-1.5" style={{ color: 'var(--text2)' }}>Prompt</label>
+            <label htmlFor="input-prompt" className="block text-sm mb-1.5" style={{ color: 'var(--text2)' }}>Prompt</label>
             <textarea
+              id="input-prompt"
               value={editPrompt}
               onChange={e => setEditPrompt(e.target.value)}
               className="w-full h-40 resize-none"
@@ -747,8 +750,8 @@ export default function GenerateVideoPage() {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm mb-1.5" style={{ color: 'var(--text2)' }}>Model</label>
-              <select value={editModel} onChange={e => { setEditModel(e.target.value); fetchPricing(e.target.value); }} className="w-full">
+              <label htmlFor="select-review-model" className="block text-sm mb-1.5" style={{ color: 'var(--text2)' }}>Model</label>
+              <select id="select-review-model" value={editModel} onChange={e => { setEditModel(e.target.value); fetchPricing(e.target.value); }} className="w-full">
                 {filteredModels.map(m => (
                   <option key={m.id} value={m.id}>{m.label}</option>
                 ))}
@@ -758,32 +761,32 @@ export default function GenerateVideoPage() {
 
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             <div>
-              <label className="block text-sm mb-1.5" style={{ color: 'var(--text2)' }}>Duration</label>
-              <select value={editDuration} onChange={e => setEditDuration(Number(e.target.value))} className="w-full">
+              <label htmlFor="select-review-duration" className="block text-sm mb-1.5" style={{ color: 'var(--text2)' }}>Duration</label>
+              <select id="select-review-duration" value={editDuration} onChange={e => setEditDuration(Number(e.target.value))} className="w-full">
                 {[3, 4, 5, 6, 7, 8, 10, 12, 15, 20].map(d => (
                   <option key={d} value={d}>{d}s</option>
                 ))}
               </select>
             </div>
             <div>
-              <label className="block text-sm mb-1.5" style={{ color: 'var(--text2)' }}>Aspect Ratio</label>
-              <select value={editAspectRatio} onChange={e => setEditAspectRatio(e.target.value)} className="w-full">
+              <label htmlFor="select-review-aspect-ratio" className="block text-sm mb-1.5" style={{ color: 'var(--text2)' }}>Aspect Ratio</label>
+              <select id="select-review-aspect-ratio" value={editAspectRatio} onChange={e => setEditAspectRatio(e.target.value)} className="w-full">
                 {VIDEO_ASPECT_RATIO_OPTIONS.map(o => (
                   <option key={o.id} value={o.id}>{o.label}</option>
                 ))}
               </select>
             </div>
             <div>
-              <label className="block text-sm mb-1.5" style={{ color: 'var(--text2)' }}>Quality</label>
-              <select value={editQuality} onChange={e => setEditQuality(e.target.value)} className="w-full">
+              <label htmlFor="select-review-quality" className="block text-sm mb-1.5" style={{ color: 'var(--text2)' }}>Quality</label>
+              <select id="select-review-quality" value={editQuality} onChange={e => setEditQuality(e.target.value)} className="w-full">
                 {VIDEO_QUALITY_OPTIONS.map(o => (
                   <option key={o.id} value={o.id}>{o.label}</option>
                 ))}
               </select>
             </div>
             <div>
-              <label className="block text-sm mb-1.5" style={{ color: 'var(--text2)' }}>FPS</label>
-              <select value={editFps} onChange={e => setEditFps(Number(e.target.value))} className="w-full">
+              <label htmlFor="select-review-fps" className="block text-sm mb-1.5" style={{ color: 'var(--text2)' }}>FPS</label>
+              <select id="select-review-fps" value={editFps} onChange={e => setEditFps(Number(e.target.value))} className="w-full">
                 {VIDEO_FPS_OPTIONS.map(o => (
                   <option key={o.id} value={o.id}>{o.label}</option>
                 ))}

@@ -235,7 +235,7 @@ export default function BatchRunner({ template, projectId, onBack, inline, exter
                     {vidRefs > 0 && <span style={{ color: 'var(--text3)' }}>{vidRefs} vid</span>}
                     {audRefs > 0 && <span style={{ color: 'var(--text3)' }}>{audRefs} aud</span>}
                     {slotCost != null && (
-                      <span className="ml-auto font-medium px-1.5 py-0.5 rounded text-[10px]" style={{ background: 'rgba(76,175,80,0.15)', color: 'var(--green)' }}>~${slotCost.toFixed(2)}</span>
+                      <span className="ml-auto font-medium px-1.5 py-0.5 rounded text-xs" style={{ background: 'rgba(76,175,80,0.15)', color: 'var(--green)' }}>~${slotCost.toFixed(2)}</span>
                     )}
                   </div>
                 );
@@ -322,7 +322,7 @@ export default function BatchRunner({ template, projectId, onBack, inline, exter
 
                   {job.status === 'complete' && job.result?.video?.url && (
                     <div className="relative group rounded-lg overflow-hidden border" style={{ borderColor: 'var(--border)' }}>
-                      <button onClick={() => setLightbox({ url: job.result!.video!.url, type: 'video' })} className="w-full cursor-zoom-in">
+                      <button onClick={() => setLightbox({ url: job.result!.video!.url, type: 'video' })} className="w-full cursor-zoom-in" aria-label="Preview video">
                         <video src={job.result.video.url} className="w-full pointer-events-none" />
                       </button>
                       <div className="absolute bottom-0 left-0 right-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex justify-center p-2 pointer-events-none">
@@ -379,13 +379,14 @@ export default function BatchRunner({ template, projectId, onBack, inline, exter
             <button
               onClick={(e) => { e.stopPropagation(); downloadUrl(lightbox.url, 'video.mp4'); }}
               className="w-11 h-11 flex items-center justify-center rounded-full text-white/70 hover:text-white hover:bg-white/10 transition-colors"
+              aria-label="Download"
             >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-7 h-7">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-7 h-7" aria-hidden="true">
                 <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" />
               </svg>
             </button>
-            <button onClick={() => setLightbox(null)} className="w-11 h-11 flex items-center justify-center rounded-full text-white/70 hover:text-white hover:bg-white/10 transition-colors">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-8 h-8">
+            <button onClick={() => setLightbox(null)} className="w-11 h-11 flex items-center justify-center rounded-full text-white/70 hover:text-white hover:bg-white/10 transition-colors" aria-label="Close">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-8 h-8" aria-hidden="true">
                 <path d="M18 6L6 18M6 6l12 12" />
               </svg>
             </button>

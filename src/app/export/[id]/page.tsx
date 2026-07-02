@@ -9,6 +9,7 @@ import { DEVICE_PRESETS } from '@/lib/models';
 import MaskPreview from '@/components/MaskPreview';
 import { analyzeAutofit, AutofitProgress } from '@/lib/autofit';
 import { setLastExportId } from '@/lib/nav-state';
+import ConfirmDialog from '@/components/ConfirmDialog';
 
 function probeDuration(url: string): Promise<number> {
   return new Promise((resolve) => {
@@ -59,6 +60,7 @@ function ExportEditorContent() {
   const [autofitting, setAutofitting] = useState(false);
   const [autofitProgress, setAutofitProgress] = useState<AutofitProgress | null>(null);
   const [autofitError, setAutofitError] = useState<string | null>(null);
+  const [inlineError, setInlineError] = useState<string | null>(null);
   const [versionHistoryOpen, setVersionHistoryOpen] = useState(true);
   const [confirmDeleteVersion, setConfirmDeleteVersion] = useState<{ id: string; num: number } | null>(null);
   const [confirmDeleteSession, setConfirmDeleteSession] = useState(false);
@@ -218,7 +220,8 @@ function ExportEditorContent() {
       });
       if (!res.ok) {
         const err = await res.json();
-        alert(err.error || 'Upload failed');
+        setInlineError(err.error || 'Upload failed');
+        setTimeout(() => setInlineError(null), 5000);
         return;
       }
       const { url } = await res.json();
@@ -462,7 +465,8 @@ function ExportEditorContent() {
     if (!res.ok) {
       const err = await res.json();
       setExporting(false);
-      alert(err.error || 'Export failed');
+      setInlineError(err.error || 'Export failed');
+      setTimeout(() => setInlineError(null), 5000);
       return;
     }
     setSession({ ...session, status: 'exporting', updatedAt: Date.now() });
@@ -535,8 +539,9 @@ function ExportEditorContent() {
           onClick={() => { setLastExportId(null); router.push('/export'); }}
           className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
           style={{ background: 'var(--bg-input)', color: 'var(--text2)' }}
+          aria-label="Back to exports"
         >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4" aria-hidden="true">
             <path d="M19 12H5M12 19l-7-7 7-7" />
           </svg>
         </button>
@@ -578,12 +583,25 @@ function ExportEditorContent() {
           className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 opacity-50 hover:opacity-100"
           style={{ color: 'var(--red)' }}
           title="Delete export"
+          aria-label="Delete export"
         >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4" aria-hidden="true">
             <polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
           </svg>
         </button>
       </div>
+
+      {/* Inline error toast */}
+      {inlineError && (
+        <div className="mb-4 p-3 rounded-lg text-sm flex items-center justify-between" style={{ background: 'rgba(239,68,68,0.1)', color: 'var(--red, #ef4444)', border: '1px solid rgba(239,68,68,0.2)' }}>
+          <span>{inlineError}</span>
+          <button onClick={() => setInlineError(null)} className="ml-3 flex-shrink-0 opacity-70 hover:opacity-100" aria-label="Dismiss">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4" aria-hidden="true">
+              <path d="M18 6L6 18M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+      )}
 
       {/* Device selector */}
       <div className="rounded-xl border p-4 mb-4" style={{ background: 'var(--bg-card)', borderColor: 'var(--border)' }}>
@@ -711,10 +729,11 @@ function ExportEditorContent() {
                   className="w-16 h-10 rounded overflow-hidden flex-shrink-0 relative group cursor-pointer"
                   style={{ background: 'var(--bg-input)' }}
                   title="Preview"
+                  aria-label="Preview clip"
                 >
                   <video src={clip.url} className="w-full h-full object-cover" muted />
                   <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                    <svg viewBox="0 0 24 24" fill="white" className="w-4 h-4">
+                    <svg viewBox="0 0 24 24" fill="white" className="w-4 h-4" aria-hidden="true">
                       <polygon points="5 3 19 12 5 21 5 3" />
                     </svg>
                   </div>
@@ -725,25 +744,25 @@ function ExportEditorContent() {
                   <p className="text-sm line-clamp-2 leading-tight" style={{ color: 'var(--text1)' }}>{clip.label}</p>
                   <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
                     {clip.duration != null && (
-                      <span className="text-[10px] px-1.5 py-0.5 rounded flex-shrink-0" style={{ background: 'var(--bg-input)', color: 'var(--text3)' }}>
+                      <span className="text-xs px-1.5 py-0.5 rounded flex-shrink-0" style={{ background: 'var(--bg-input)', color: 'var(--text3)' }}>
                         {formatDuration(clip.duration)}
                       </span>
                     )}
-                    <span className="text-[10px] px-1.5 py-0.5 rounded flex-shrink-0 font-mono" style={{ background: 'var(--bg-input)', color: 'var(--text3)' }}>
+                    <span className="text-xs px-1.5 py-0.5 rounded flex-shrink-0 font-mono" style={{ background: 'var(--bg-input)', color: 'var(--text3)' }}>
                       #{fileHash(clip.url)}
                     </span>
                     {session.clips.filter(c => c.url === clip.url).length > 1 && (
-                      <span className="text-[10px] px-1.5 py-0.5 rounded flex-shrink-0" style={{ background: 'rgba(var(--accent-rgb, 99,102,241), 0.15)', color: 'var(--accent)' }}>
+                      <span className="text-xs px-1.5 py-0.5 rounded flex-shrink-0" style={{ background: 'rgba(var(--accent-rgb, 108,60,224), 0.15)', color: 'var(--accent)' }}>
                         ×{session.clips.filter(c => c.url === clip.url).length}
                       </span>
                     )}
                     {clip.source === 'upload' && (
-                      <span className="text-[10px] px-1.5 py-0.5 rounded flex-shrink-0" style={{ background: 'var(--bg-input)', color: 'var(--text3)' }}>
+                      <span className="text-xs px-1.5 py-0.5 rounded flex-shrink-0" style={{ background: 'var(--bg-input)', color: 'var(--text3)' }}>
                         ↑ upload
                       </span>
                     )}
                     {clip.projectId && projectMap[clip.projectId] && (
-                      <span className="text-[10px] truncate max-w-[80px]" style={{ color: 'var(--text3)' }}>
+                      <span className="text-xs truncate max-w-[80px]" style={{ color: 'var(--text3)' }}>
                         {projectMap[clip.projectId]}
                       </span>
                     )}
@@ -757,8 +776,9 @@ function ExportEditorContent() {
                     className="w-7 h-7 rounded flex items-center justify-center hover:bg-[var(--bg-input)] transition-colors"
                     style={{ color: 'var(--text3)' }}
                     title="Duplicate"
+                    aria-label="Duplicate clip"
                   >
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5" aria-hidden="true">
                       <rect x="9" y="9" width="13" height="13" rx="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
                     </svg>
                   </button>
@@ -767,8 +787,9 @@ function ExportEditorContent() {
                     className="w-7 h-7 rounded flex items-center justify-center hover:bg-[var(--bg-input)] transition-colors"
                     style={{ color: 'var(--red, #ef4444)' }}
                     title="Remove"
+                    aria-label="Remove clip"
                   >
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5" aria-hidden="true">
                       <path d="M18 6L6 18M6 6l12 12" />
                     </svg>
                   </button>
@@ -787,7 +808,7 @@ function ExportEditorContent() {
             <p className="text-xs font-semibold" style={{ color: 'var(--text3)' }}>MASK PREVIEW</p>
             <div className="flex items-center gap-2">
               {isLocked && (
-                <span className="text-[10px] px-2 py-0.5 rounded-full font-medium" style={{ background: 'var(--accent)', color: 'white' }}>
+                <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: 'var(--accent)', color: 'white' }}>
                   🔒 Clip {lockedClipIdx! + 1} looped
                 </span>
               )}
@@ -846,10 +867,10 @@ function ExportEditorContent() {
                 <button
                   key={clip.id}
                   onClick={() => toggleLockClip(idx)}
-                  className="flex-1 py-1.5 rounded text-[10px] font-medium transition-all truncate px-1"
+                  className="flex-1 py-1.5 rounded text-xs font-medium transition-all truncate px-1"
                   style={{
                     background: idx === activeClipIdx
-                      ? lockedClipIdx === idx ? 'var(--accent)' : 'rgba(var(--accent-rgb, 99,102,241), 0.3)'
+                      ? lockedClipIdx === idx ? 'var(--accent)' : 'rgba(var(--accent-rgb, 108,60,224), 0.3)'
                       : 'var(--bg-input)',
                     color: idx === activeClipIdx ? 'white' : 'var(--text3)',
                     border: lockedClipIdx === idx ? '2px solid var(--accent)' : '1px solid var(--border)',
@@ -917,10 +938,11 @@ function ExportEditorContent() {
             </div>
             {session.device !== 'solo' && (
               <div className="flex items-center gap-3">
-                <label className="text-[10px] font-medium flex-shrink-0" style={{ color: 'var(--text3)' }}>
+                <label htmlFor="input-safety-padding" className="text-xs font-medium flex-shrink-0" style={{ color: 'var(--text3)' }}>
                   Safety Padding
                 </label>
                 <input
+                  id="input-safety-padding"
                   type="range"
                   min={0}
                   max={100}
@@ -929,7 +951,7 @@ function ExportEditorContent() {
                   className="flex-1 h-1 rounded-full appearance-none cursor-pointer"
                   style={{ accentColor: 'var(--accent)' }}
                 />
-                <span className="text-[10px] w-8 text-right flex-shrink-0 font-mono" style={{ color: 'var(--text3)' }}>
+                <span className="text-xs w-8 text-right flex-shrink-0 font-mono" style={{ color: 'var(--text3)' }}>
                   {safetyPaddingPx}px
                 </span>
               </div>
@@ -943,17 +965,17 @@ function ExportEditorContent() {
                       style={{ width: `${autofitProgress.percent}%`, background: 'var(--accent)' }}
                     />
                   </div>
-                  <span className="text-[10px] w-8 text-right flex-shrink-0" style={{ color: 'var(--text3)' }}>
+                  <span className="text-xs w-8 text-right flex-shrink-0" style={{ color: 'var(--text3)' }}>
                     {autofitProgress.percent}%
                   </span>
                 </div>
-                <p className="text-[10px] truncate" style={{ color: 'var(--text3)' }}>
+                <p className="text-xs truncate" style={{ color: 'var(--text3)' }}>
                   {autofitProgress.message}
                 </p>
               </div>
             )}
             {autofitError && !autofitting && (
-              <p className="text-[11px] px-2 py-1 rounded" style={{ color: 'var(--red, #ef4444)', background: 'rgba(239,68,68,0.08)' }}>
+              <p className="text-xs px-2 py-1 rounded" style={{ color: 'var(--red, #ef4444)', background: 'rgba(239,68,68,0.08)' }}>
                 {autofitError}
               </p>
             )}
@@ -1055,12 +1077,12 @@ function ExportEditorContent() {
                                 Version {vNum}
                               </p>
                               {isLatest && (
-                                <span className="text-[10px] px-1.5 py-0.5 rounded-full font-medium" style={{ background: 'var(--accent)', color: 'white' }}>
+                                <span className="text-xs px-1.5 py-0.5 rounded-full font-medium" style={{ background: 'var(--accent)', color: 'white' }}>
                                   latest
                                 </span>
                               )}
                             </div>
-                            <p className="text-[10px]" style={{ color: 'var(--text3)' }}>
+                            <p className="text-xs" style={{ color: 'var(--text3)' }}>
                               {new Date(exp.createdAt).toLocaleString()}
                             </p>
                           </div>
@@ -1088,8 +1110,9 @@ function ExportEditorContent() {
                               className="w-7 h-7 rounded-lg flex items-center justify-center opacity-50 hover:opacity-100"
                               style={{ color: 'var(--red)' }}
                               title="Delete version"
+                              aria-label="Delete version"
                             >
-                              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
+                              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5" aria-hidden="true">
                                 <polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
                               </svg>
                             </button>
@@ -1107,86 +1130,32 @@ function ExportEditorContent() {
 
       {/* Delete session confirmation */}
       {confirmDeleteSession && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => setConfirmDeleteSession(false)}>
-          <div className="absolute inset-0 bg-black/50" />
-          <div
-            className="relative rounded-xl p-5 w-80 shadow-xl"
-            style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}
-            onClick={e => e.stopPropagation()}
-          >
-            <div className="w-10 h-10 rounded-full flex items-center justify-center mx-auto mb-3" style={{ background: 'rgba(239,68,68,0.1)' }}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5" style={{ color: 'var(--red)' }}>
-                <polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-              </svg>
-            </div>
-            <h3 className="text-sm font-semibold text-center mb-1" style={{ color: 'var(--text1)' }}>Delete export?</h3>
-            <p className="text-xs text-center mb-4" style={{ color: 'var(--text3)' }}>
-              This export session and all its versions will be permanently deleted.
-            </p>
-            <div className="flex gap-2">
-              <button
-                onClick={() => setConfirmDeleteSession(false)}
-                className="flex-1 py-2 rounded-lg text-sm font-medium"
-                style={{ border: '1px solid var(--border)', color: 'var(--text2)' }}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={async () => {
-                  await fetch(`/api/exports?id=${session!.id}`, { method: 'DELETE' });
-                  setLastExportId(null);
-                  router.push('/export');
-                }}
-                className="flex-1 py-2 rounded-lg text-sm font-medium text-white"
-                style={{ background: 'var(--red, #ef4444)' }}
-              >
-                Delete
-              </button>
-            </div>
-          </div>
-        </div>
+        <ConfirmDialog
+          open={true}
+          onClose={() => setConfirmDeleteSession(false)}
+          onConfirm={async () => {
+            await fetch(`/api/exports?id=${session!.id}`, { method: 'DELETE' });
+            setLastExportId(null);
+            router.push('/export');
+          }}
+          title="Delete export?"
+          description="This export session and all its versions will be permanently deleted."
+        />
       )}
 
       {/* Delete version confirmation */}
       {confirmDeleteVersion && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => setConfirmDeleteVersion(null)}>
-          <div className="absolute inset-0 bg-black/50" />
-          <div
-            className="relative rounded-xl p-5 w-80 shadow-xl"
-            style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}
-            onClick={e => e.stopPropagation()}
-          >
-            <div className="w-10 h-10 rounded-full flex items-center justify-center mx-auto mb-3" style={{ background: 'rgba(239,68,68,0.1)' }}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5" style={{ color: 'var(--red)' }}>
-                <polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-              </svg>
-            </div>
-            <h3 className="text-sm font-semibold text-center mb-1" style={{ color: 'var(--text1)' }}>Delete version {confirmDeleteVersion.num}?</h3>
-            <p className="text-xs text-center mb-4" style={{ color: 'var(--text3)' }}>
-              This version will be permanently deleted from both the export history and gallery.
-            </p>
-            <div className="flex gap-2">
-              <button
-                onClick={() => setConfirmDeleteVersion(null)}
-                className="flex-1 py-2 rounded-lg text-sm font-medium"
-                style={{ border: '1px solid var(--border)', color: 'var(--text2)' }}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={async () => {
-                  await fetch(`/api/exports?id=${session!.id}&versionId=${confirmDeleteVersion.id}`, { method: 'DELETE' });
-                  setConfirmDeleteVersion(null);
-                  load();
-                }}
-                className="flex-1 py-2 rounded-lg text-sm font-medium text-white"
-                style={{ background: 'var(--red, #ef4444)' }}
-              >
-                Delete
-              </button>
-            </div>
-          </div>
-        </div>
+        <ConfirmDialog
+          open={true}
+          onClose={() => setConfirmDeleteVersion(null)}
+          onConfirm={async () => {
+            await fetch(`/api/exports?id=${session!.id}&versionId=${confirmDeleteVersion.id}`, { method: 'DELETE' });
+            setConfirmDeleteVersion(null);
+            load();
+          }}
+          title={`Delete version ${confirmDeleteVersion.num}?`}
+          description="This version will be permanently deleted from both the export history and gallery."
+        />
       )}
 
       {/* Video Browser Modal */}
@@ -1200,8 +1169,8 @@ function ExportEditorContent() {
           >
             <div className="p-4 border-b flex items-center justify-between" style={{ borderColor: 'var(--border)' }}>
               <h3 className="text-sm font-semibold" style={{ color: 'var(--text1)' }}>Add Videos</h3>
-              <button onClick={() => setShowBrowser(false)} style={{ color: 'var(--text3)' }}>
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5">
+              <button onClick={() => setShowBrowser(false)} style={{ color: 'var(--text3)' }} aria-label="Close">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5" aria-hidden="true">
                   <path d="M18 6L6 18M6 6l12 12" />
                 </svg>
               </button>
@@ -1282,7 +1251,7 @@ function ExportEditorContent() {
                         <div className="p-2">
                           <p className="text-xs truncate" style={{ color: 'var(--text2)' }}>{gen.prompt.slice(0, 50) || 'Untitled'}</p>
                           {projectMap[gen.projectId] && (
-                            <p className="text-[10px] truncate" style={{ color: 'var(--text3)' }}>{projectMap[gen.projectId]}</p>
+                            <p className="text-xs truncate" style={{ color: 'var(--text3)' }}>{projectMap[gen.projectId]}</p>
                           )}
                         </div>
                       </div>
@@ -1344,8 +1313,9 @@ function ExportEditorContent() {
           <button
             onClick={() => setPreviewUrl(null)}
             className="absolute top-4 right-4 w-11 h-11 flex items-center justify-center rounded-full text-white/70 hover:text-white hover:bg-white/10 transition-colors z-10"
+            aria-label="Close"
           >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-8 h-8">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-8 h-8" aria-hidden="true">
               <path d="M18 6L6 18M6 6l12 12" />
             </svg>
           </button>

@@ -6,6 +6,7 @@ import AppShell from '@/components/AppShell';
 import { ExportSession } from '@/lib/types';
 import { getLastExportId, setLastExportId } from '@/lib/nav-state';
 import ShareDialog from '@/components/ShareDialog';
+import ConfirmDialog from '@/components/ConfirmDialog';
 
 function ExportListContent() {
   const router = useRouter();
@@ -191,33 +192,13 @@ function ExportListContent() {
       )}
 
       {confirmDeleteId && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => setConfirmDeleteId(null)}>
-          <div className="absolute inset-0 bg-black/50" />
-          <div
-            className="relative rounded-xl p-5 w-80 shadow-xl"
-            style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}
-            onClick={e => e.stopPropagation()}
-          >
-            <h3 className="text-sm font-semibold text-center mb-1" style={{ color: 'var(--text1)' }}>Delete export session?</h3>
-            <p className="text-xs text-center mb-4" style={{ color: 'var(--text3)' }}>This cannot be undone.</p>
-            <div className="flex gap-2">
-              <button
-                onClick={() => setConfirmDeleteId(null)}
-                className="flex-1 py-2 rounded-lg text-sm font-medium"
-                style={{ border: '1px solid var(--border)', color: 'var(--text2)' }}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => handleDelete(confirmDeleteId)}
-                className="flex-1 py-2 rounded-lg text-sm font-medium text-white"
-                style={{ background: 'var(--red, #ef4444)' }}
-              >
-                Delete
-              </button>
-            </div>
-          </div>
-        </div>
+        <ConfirmDialog
+          open={true}
+          onClose={() => setConfirmDeleteId(null)}
+          onConfirm={() => handleDelete(confirmDeleteId)}
+          title="Delete export session?"
+          description="This cannot be undone."
+        />
       )}
 
       {shareExport && (

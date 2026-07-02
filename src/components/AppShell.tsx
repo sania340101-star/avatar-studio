@@ -142,8 +142,9 @@ function OtpLogin({ onLogin }: { onLogin: (user: AppUser) => void }) {
 
         {step === 'email' ? (
           <>
-            <label className="block text-sm mb-1.5" style={{ color: 'var(--text2)' }}>Email</label>
+            <label htmlFor="input-email" className="block text-sm mb-1.5" style={{ color: 'var(--text2)' }}>Email</label>
             <input
+              id="input-email"
               type="email"
               value={email}
               onChange={e => { setEmail(e.target.value); setError(''); }}
@@ -249,11 +250,11 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         <div className="md:hidden flex items-center gap-3 px-4 py-3 border-b flex-shrink-0" style={{ borderColor: 'var(--border)', background: 'var(--bg-card)' }}>
           <button
             onClick={() => setSidebarOpen(true)}
-            className="w-10 h-10 flex items-center justify-center rounded-lg"
+            className="w-11 h-11 flex items-center justify-center rounded-lg"
             style={{ color: 'var(--text1)' }}
             aria-label="Open menu"
           >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-6 h-6">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-6 h-6" aria-hidden="true">
               <path d="M3 12h18M3 6h18M3 18h18" />
             </svg>
           </button>
