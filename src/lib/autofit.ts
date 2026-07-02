@@ -81,7 +81,7 @@ export async function analyzeAutofit(
   device: 'hh1x3' | 'solo',
   onProgress: (p: AutofitProgress) => void,
   sampleIntervalSec = 0.5,
-  safetyPadding = 0.06,
+  safetyPaddingPx = 25,
 ): Promise<AutofitResult | null> {
   const preset = DEVICE_PRESETS[device];
   const mask = DEVICE_MASKS[device];
@@ -226,7 +226,7 @@ export async function analyzeAutofit(
   prog({ stage: 'computing', percent: 100, message: 'Computing optimal fit...' });
 
   const paddedCircles = mask.circles.map(c => ({
-    cx: c.cx, cy: c.cy, r: c.r * (1 - safetyPadding),
+    cx: c.cx, cy: c.cy, r: Math.max(0, c.r - safetyPaddingPx),
   }));
 
   // Dead pixel positions: center of each circle
@@ -303,10 +303,22 @@ export async function analyzeAutofit(
         }
       }
 
-      // Rank: fits+noseOk > fits > noseOk > neither. Within same rank, prefer higher margin.
       const rank = (allIn ? 2 : 0) + (noseOk ? 1 : 0);
       const bestRank = (bestFits ? 2 : 0) + (bestNoseOk ? 1 : 0);
-      if (rank > bestRank || (rank === bestRank && minMargin > bestMargin)) {
+      let shouldUpdate = false;
+      if (rank > bestRank) {
+        shouldUpdate = true;
+      } else if (rank === bestRank) {
+        if (rank === 3) {
+          // fits+noseOk: prefer body shifted UP (more negative oy → dead pixel on chest)
+          if (oy < bestOy - 5 || (Math.abs(oy - bestOy) <= 5 && minMargin > bestMargin)) {
+            shouldUpdate = true;
+          }
+        } else {
+          if (minMargin > bestMargin) shouldUpdate = true;
+        }
+      }
+      if (shouldUpdate) {
         bestMargin = minMargin;
         bestOx = Math.round(ox);
         bestOy = Math.round(oy);

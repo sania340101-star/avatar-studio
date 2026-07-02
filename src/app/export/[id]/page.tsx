@@ -59,6 +59,7 @@ function ExportEditorContent() {
   const [versionHistoryOpen, setVersionHistoryOpen] = useState(true);
   const [confirmDeleteVersion, setConfirmDeleteVersion] = useState<{ id: string; num: number } | null>(null);
   const [confirmDeleteSession, setConfirmDeleteSession] = useState(false);
+  const [safetyPaddingPx, setSafetyPaddingPx] = useState(25);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Transform undo stack
@@ -276,6 +277,8 @@ function ExportEditorContent() {
         session.clips.map(c => c.url),
         session.device,
         (p) => setAutofitProgress(p),
+        0.5,
+        safetyPaddingPx,
       );
       if (result) {
         updateTransform(result, true);
@@ -815,6 +818,23 @@ function ExportEditorContent() {
                   {historyLen > 1 && <span className="opacity-60">({historyLen})</span>}
                 </button>
               )}
+            </div>
+            <div className="flex items-center gap-3">
+              <label className="text-[10px] font-medium flex-shrink-0" style={{ color: 'var(--text3)' }}>
+                Safety Padding
+              </label>
+              <input
+                type="range"
+                min={0}
+                max={100}
+                value={safetyPaddingPx}
+                onChange={e => setSafetyPaddingPx(Number(e.target.value))}
+                className="flex-1 h-1 rounded-full appearance-none cursor-pointer"
+                style={{ accentColor: 'var(--accent)' }}
+              />
+              <span className="text-[10px] w-8 text-right flex-shrink-0 font-mono" style={{ color: 'var(--text3)' }}>
+                {safetyPaddingPx}px
+              </span>
             </div>
             {autofitProgress && (
               <div className="space-y-1">
