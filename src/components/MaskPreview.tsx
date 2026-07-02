@@ -135,7 +135,7 @@ export default function MaskPreview({ device, videoUrl, transform, onTransformCh
                   if (v && v.videoWidth && v.videoHeight) setVideoDims({ w: v.videoWidth, h: v.videoHeight });
                 }}
                 style={(() => {
-                  if (videoDims) {
+                  if (device === 'solo' && videoDims) {
                     const cs = Math.max(preset.width / videoDims.w, preset.height / videoDims.h) * transform.scale;
                     const vw = videoDims.w * cs;
                     const vh = videoDims.h * cs;

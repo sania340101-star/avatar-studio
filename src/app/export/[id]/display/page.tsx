@@ -216,7 +216,7 @@ export default function DisplayPage() {
                 }}
                 style={(() => {
                   const t = state.transform;
-                  if (videoDims) {
+                  if (state.device === 'solo' && videoDims) {
                     const cs = Math.max(preset.width / videoDims.w, preset.height / videoDims.h) * t.scale;
                     const vw = videoDims.w * cs;
                     const vh = videoDims.h * cs;

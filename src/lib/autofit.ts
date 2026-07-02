@@ -227,10 +227,19 @@ export async function analyzeAutofit(
   const maskCx = mask.circles.reduce((s, c) => s + c.cx, 0) / mask.circles.length;
 
   function pointToContainer(p: CollectedPoint, scale: number): { x: number; y: number } {
-    const cs = Math.max(preset.width / p.natW, preset.height / p.natH) * scale;
+    if (device === 'solo') {
+      const cs = Math.max(preset.width / p.natW, preset.height / p.natH) * scale;
+      return {
+        x: p.natW * cs * (p.normX - 0.5) + preset.width / 2,
+        y: p.natH * cs * (p.normY - 0.5) + preset.height / 2,
+      };
+    }
+    const elemW = preset.width * scale;
+    const elemH = preset.height * scale;
+    const cs = Math.max(elemW / p.natW, elemH / p.natH);
     return {
-      x: p.natW * cs * (p.normX - 0.5) + preset.width / 2,
-      y: p.natH * cs * (p.normY - 0.5) + preset.height / 2,
+      x: p.natW * cs * (p.normX - 0.5) + elemW / 2,
+      y: p.natH * cs * (p.normY - 0.5) + elemH / 2,
     };
   }
 
