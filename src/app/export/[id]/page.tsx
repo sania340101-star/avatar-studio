@@ -59,7 +59,7 @@ function ExportEditorContent() {
   const [versionHistoryOpen, setVersionHistoryOpen] = useState(true);
   const [confirmDeleteVersion, setConfirmDeleteVersion] = useState<{ id: string; num: number } | null>(null);
   const [confirmDeleteSession, setConfirmDeleteSession] = useState(false);
-  const [safetyPaddingPx, setSafetyPaddingPx] = useState(25);
+  const [safetyPaddingPx, setSafetyPaddingPx] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Transform undo stack

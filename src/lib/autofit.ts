@@ -60,8 +60,7 @@ function expandLandmarks(points: CollectedPoint[]): CollectedPoint[] {
     const cx = (minX + maxX) / 2;
     const isFullBody = bboxH > 0.35;
 
-    // Head: well-detected by MediaPipe, percentage expansion is enough
-    expanded.push({ normX: cx, normY: Math.max(0, minY - bboxH * 0.30), natW, natH });
+    expanded.push({ normX: cx, normY: Math.max(0, minY - bboxH * 0.12), natW, natH });
     if (isFullBody) {
       // Full-body: MediaPipe often misses feet — force bottom to near frame edge
       expanded.push({ normX: cx, normY: Math.min(1, Math.max(maxY + bboxH * 0.15, 0.97)), natW, natH });
@@ -81,7 +80,7 @@ export async function analyzeAutofit(
   device: 'hh1x3' | 'solo',
   onProgress: (p: AutofitProgress) => void,
   sampleIntervalSec = 0.5,
-  safetyPaddingPx = 25,
+  safetyPaddingPx = 0,
 ): Promise<AutofitResult | null> {
   const preset = DEVICE_PRESETS[device];
   const mask = DEVICE_MASKS[device];
@@ -265,8 +264,8 @@ export async function analyzeAutofit(
     // Pass 1: coarse grid — wide range to find the right zone
     const coarseStepX = 40;
     const coarseStepY = 40;
-    const coarseRangeX = 200;
-    const coarseRangeY = 400;
+    const coarseRangeX = 300;
+    const coarseRangeY = 600;
 
     let bestMargin = -Infinity;
     let bestOx = Math.round(baseOffX);
@@ -346,36 +345,20 @@ export async function analyzeAutofit(
     return { fits: bestFits, offsetX: bestOx, offsetY: bestOy, noseOk: bestNoseOk, margin: bestMargin };
   }
 
-  // Binary search for max scale — prefer fits+noseOk, fallback to fits-only
+  // Binary search for max scale where body fits in circles
+  // Offset ranking inside tryFit handles noseOk + upward shift preference
   let lo = 0.5;
   let hi = 3.0;
   let best: AutofitResult | null = null;
 
-  // Pass 1: max scale where body fits AND nose avoids dead pixel
   for (let i = 0; i < 30; i++) {
     const mid = (lo + hi) / 2;
     const r = tryFit(mid);
-    if (r.fits && r.noseOk) {
+    if (r.fits) {
       best = { scale: Math.round(mid * 100) / 100, offsetX: r.offsetX, offsetY: r.offsetY };
       lo = mid;
     } else {
       hi = mid;
-    }
-  }
-
-  // Pass 2 fallback: if no scale achieves both, accept fits-only
-  if (!best) {
-    lo = 0.5;
-    hi = 3.0;
-    for (let i = 0; i < 30; i++) {
-      const mid = (lo + hi) / 2;
-      const r = tryFit(mid);
-      if (r.fits) {
-        best = { scale: Math.round(mid * 100) / 100, offsetX: r.offsetX, offsetY: r.offsetY };
-        lo = mid;
-      } else {
-        hi = mid;
-      }
     }
   }
 
