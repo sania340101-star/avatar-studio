@@ -325,8 +325,8 @@ function ExportEditorContent() {
       } else {
         transformHistory.current.pop();
         setHistoryLen(transformHistory.current.length);
-        const debug = result?.debug ? ` [${result.debug}]` : ' [no-diag]';
-        setAutofitError(`No poses detected (v1.10.31). Try adjusting manually.${debug}`);
+        const debug = result?.debug ? ` [${result.debug}]` : '';
+        setAutofitError(`No poses detected. Try adjusting manually.${debug}`);
       }
     } catch (err) {
       transformHistory.current.pop();

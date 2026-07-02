@@ -313,21 +313,6 @@ export async function analyzeAutofit(
     const offsetX = Math.round(maskCx - bodyCx);
     const offsetY = Math.round((maskTopY + HEAD_MARGIN_PX) - anchorY);
 
-    // Dead pixel constraint: face must be above first circle center
-    if (headPoints.length > 0) {
-      const headPtsInContainer = headPoints.map(p => {
-        const cp = pointToContainer(p, scale);
-        return { x: cp.x + offsetX, y: cp.y + offsetY };
-      });
-      const maxHeadY = Math.max(...headPtsInContainer.map(p => p.y));
-      const minHeadY = Math.min(...headPtsInContainer.map(p => p.y));
-      const faceH = maxHeadY - minHeadY;
-      const chinY = maxHeadY + faceH * 0.3;
-      if (chinY > mask.circles[0].cy - 30) {
-        return { fits: false, offsetX, offsetY };
-      }
-    }
-
     let allIn = true;
     for (const p of pts) {
       const cx = offsetX + p.x;
@@ -358,5 +343,8 @@ export async function analyzeAutofit(
     }
   }
 
+  if (!best) {
+    return { scale: 0, offsetX: 0, offsetY: 0, debug: `${debugInfo} no_fit` };
+  }
   return best;
 }
