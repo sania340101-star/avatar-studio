@@ -284,11 +284,12 @@ export async function analyzeAutofit(
 
     const refMinX = Math.min(...refPts.map(p => p.x));
     const refMaxX = Math.max(...refPts.map(p => p.x));
-    const refMinY = Math.min(...refPts.map(p => p.y));
 
     const bodyCx = (refMinX + refMaxX) / 2;
     const offsetX = Math.round(maskCx - bodyCx);
-    const offsetY = Math.round((maskTopY + HEAD_MARGIN_PX) - refMinY);
+    // Y: use topmost point from ALL frames (includes expanded boundaries)
+    const globalMinY = Math.min(...allPts.map(p => p.y));
+    const offsetY = Math.round((maskTopY + HEAD_MARGIN_PX) - globalMinY);
 
     // Check ALL points (all frames) fit at the anchor-based offset
     for (const p of allPts) {
