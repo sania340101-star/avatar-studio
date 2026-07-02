@@ -56,8 +56,13 @@ function ExportEditorContent() {
   const [uploading, setUploading] = useState(false);
   const [autofitting, setAutofitting] = useState(false);
   const [autofitProgress, setAutofitProgress] = useState<AutofitProgress | null>(null);
-  const [prevTransform, setPrevTransform] = useState<{ offsetX: number; offsetY: number; scale: number } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Transform undo stack
+  const transformHistory = useRef<Array<{ offsetX: number; offsetY: number; scale: number }>>([]);
+  const isGesturing = useRef(false);
+  const gestureTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const [historyLen, setHistoryLen] = useState(0);
 
   // Sequential player state
   const [activeClipIdx, setActiveClipIdx] = useState<number>(0);
@@ -223,15 +228,44 @@ function ExportEditorContent() {
     debouncedSave({ clips });
   }
 
-  function updateTransform(transform: { offsetX: number; offsetY: number; scale: number }) {
+  function pushTransformHistory() {
     if (!session) return;
+    const cur = session.transform;
+    const last = transformHistory.current[transformHistory.current.length - 1];
+    if (!last || last.offsetX !== cur.offsetX || last.offsetY !== cur.offsetY || last.scale !== cur.scale) {
+      transformHistory.current.push({ ...cur });
+      if (transformHistory.current.length > 20) transformHistory.current.shift();
+      setHistoryLen(transformHistory.current.length);
+    }
+  }
+
+  function updateTransform(transform: { offsetX: number; offsetY: number; scale: number }, fromUndo = false) {
+    if (!session) return;
+    if (!fromUndo) {
+      if (!isGesturing.current) {
+        isGesturing.current = true;
+        pushTransformHistory();
+      }
+      clearTimeout(gestureTimer.current);
+      gestureTimer.current = setTimeout(() => { isGesturing.current = false; }, 1000);
+    }
     setSession({ ...session, transform, updatedAt: Date.now() });
     debouncedSave({ transform });
   }
 
+  function undoTransform() {
+    if (transformHistory.current.length === 0 || !session) return;
+    const prev = transformHistory.current.pop()!;
+    setHistoryLen(transformHistory.current.length);
+    isGesturing.current = false;
+    clearTimeout(gestureTimer.current);
+    updateTransform(prev, true);
+  }
+
   async function runAutofit() {
     if (!session || session.clips.length === 0 || autofitting) return;
-    setPrevTransform({ ...session.transform });
+    pushTransformHistory();
+    isGesturing.current = false;
     setAutofitting(true);
     setAutofitProgress(null);
     try {
@@ -241,24 +275,20 @@ function ExportEditorContent() {
         (p) => setAutofitProgress(p),
       );
       if (result) {
-        updateTransform(result);
+        updateTransform(result, true);
       } else {
-        setPrevTransform(null);
+        transformHistory.current.pop();
+        setHistoryLen(transformHistory.current.length);
         alert('No poses detected in any clip. Try adjusting manually.');
       }
     } catch (err) {
-      setPrevTransform(null);
+      transformHistory.current.pop();
+      setHistoryLen(transformHistory.current.length);
       alert('Auto-fit failed: ' + (err instanceof Error ? err.message : 'unknown error'));
     } finally {
       setAutofitting(false);
       setAutofitProgress(null);
     }
-  }
-
-  function undoAutofit() {
-    if (!prevTransform) return;
-    updateTransform(prevTransform);
-    setPrevTransform(null);
   }
 
   function setDevice(device: 'hh1x3' | 'solo') {
@@ -736,44 +766,60 @@ function ExportEditorContent() {
             onVideoEnded={handleVideoEnded}
           />
 
-          {/* Auto-fit */}
-          <div className="mt-2 flex items-center gap-2">
-            <button
-              onClick={runAutofit}
-              disabled={autofitting || session.clips.length === 0}
-              className="text-xs px-3 py-1.5 rounded-lg font-medium disabled:opacity-50 flex items-center gap-1.5"
-              style={{ background: 'var(--bg-input)', color: 'var(--text2)', border: '1px solid var(--border)' }}
-            >
-              {autofitting ? (
-                <>
-                  <div className="w-3 h-3 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: 'var(--accent)', borderTopColor: 'transparent' }} />
-                  Analyzing...
-                </>
-              ) : (
-                <>
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
-                    <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
-                  </svg>
-                  Auto-fit
-                </>
-              )}
-            </button>
-            {prevTransform && !autofitting && (
+          {/* Auto-fit + Undo */}
+          <div className="mt-2 space-y-2">
+            <div className="flex items-center gap-2">
               <button
-                onClick={undoAutofit}
-                className="text-xs px-3 py-1.5 rounded-lg font-medium flex items-center gap-1.5"
+                onClick={runAutofit}
+                disabled={autofitting || session.clips.length === 0}
+                className="text-xs px-3 py-1.5 rounded-lg font-medium disabled:opacity-50 flex items-center gap-1.5"
                 style={{ background: 'var(--bg-input)', color: 'var(--text2)', border: '1px solid var(--border)' }}
               >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
-                  <path d="M3 10h10a5 5 0 0 1 0 10H9" /><polyline points="7 14 3 10 7 6" />
-                </svg>
-                Undo
+                {autofitting ? (
+                  <>
+                    <div className="w-3 h-3 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: 'var(--accent)', borderTopColor: 'transparent' }} />
+                    Analyzing...
+                  </>
+                ) : (
+                  <>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
+                      <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
+                    </svg>
+                    Auto-fit
+                  </>
+                )}
               </button>
-            )}
+              {historyLen > 0 && !autofitting && (
+                <button
+                  onClick={undoTransform}
+                  className="text-xs px-3 py-1.5 rounded-lg font-medium flex items-center gap-1.5"
+                  style={{ background: 'var(--bg-input)', color: 'var(--text2)', border: '1px solid var(--border)' }}
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
+                    <path d="M3 10h10a5 5 0 0 1 0 10H9" /><polyline points="7 14 3 10 7 6" />
+                  </svg>
+                  Undo
+                  {historyLen > 1 && <span className="opacity-60">({historyLen})</span>}
+                </button>
+              )}
+            </div>
             {autofitProgress && (
-              <span className="text-[10px] flex-1 truncate" style={{ color: 'var(--text3)' }}>
-                {autofitProgress.message}
-              </span>
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: 'var(--bg-input)' }}>
+                    <div
+                      className="h-full rounded-full transition-all duration-300"
+                      style={{ width: `${autofitProgress.percent}%`, background: 'var(--accent)' }}
+                    />
+                  </div>
+                  <span className="text-[10px] w-8 text-right flex-shrink-0" style={{ color: 'var(--text3)' }}>
+                    {autofitProgress.percent}%
+                  </span>
+                </div>
+                <p className="text-[10px] truncate" style={{ color: 'var(--text3)' }}>
+                  {autofitProgress.message}
+                </p>
+              </div>
             )}
           </div>
         </div>

@@ -6,7 +6,10 @@ export interface AutofitProgress {
   clipCount: number;
   frameIndex: number;
   frameCount: number;
+  totalFrames: number;
+  processedFrames: number;
   message: string;
+  percent: number;
 }
 
 export interface AutofitResult {
@@ -33,14 +36,11 @@ function seekVideo(video: HTMLVideoElement, time: number): Promise<void> {
   });
 }
 
-// MediaPipe landmarks don't cover body volume — only skeleton joints.
-// Expand landmark positions outward from body center to approximate actual body edges.
 function expandLandmarks(points: CollectedPoint[]): CollectedPoint[] {
   if (points.length === 0) return points;
 
   const expanded: CollectedPoint[] = [...points];
 
-  // Group by video dimensions to compute per-frame expansion
   const byDims = new Map<string, CollectedPoint[]>();
   for (const p of points) {
     const key = `${p.natW}x${p.natH}`;
@@ -52,7 +52,6 @@ function expandLandmarks(points: CollectedPoint[]): CollectedPoint[] {
     const natW = pts[0].natW;
     const natH = pts[0].natH;
 
-    // Find bounding box in normalized coords
     const minX = Math.min(...pts.map(p => p.normX));
     const maxX = Math.max(...pts.map(p => p.normX));
     const minY = Math.min(...pts.map(p => p.normY));
@@ -60,30 +59,18 @@ function expandLandmarks(points: CollectedPoint[]): CollectedPoint[] {
     const bboxW = maxX - minX;
     const bboxH = maxY - minY;
 
-    // Head top: highest landmark is usually nose/eyes (~forehead level).
-    // Actual head top is ~30% of face height above the nose.
-    // Approximate face height as 15% of body bbox height.
-    const headExtra = bboxH * 0.15;
-    expanded.push({
-      normX: (minX + maxX) / 2,
-      normY: Math.max(0, minY - headExtra),
-      natW, natH,
-    });
+    // Head top: hair/hat extends well above nose landmark
+    const headExtra = bboxH * 0.22;
+    expanded.push({ normX: (minX + maxX) / 2, normY: Math.max(0, minY - headExtra), natW, natH });
 
-    // Side expansion: body/clothing extends ~12% of bbox width beyond skeleton
-    const sideExtra = bboxW * 0.12;
-    // Left edge
+    // Sides: jacket/clothing extends significantly beyond wrist landmarks
+    const sideExtra = bboxW * 0.20;
     expanded.push({ normX: Math.max(0, minX - sideExtra), normY: (minY + maxY) / 2, natW, natH });
-    // Right edge
     expanded.push({ normX: Math.min(1, maxX + sideExtra), normY: (minY + maxY) / 2, natW, natH });
 
-    // Bottom expansion: shoes extend ~5% below ankle landmarks
-    const bottomExtra = bboxH * 0.05;
-    expanded.push({
-      normX: (minX + maxX) / 2,
-      normY: Math.min(1, maxY + bottomExtra),
-      natW, natH,
-    });
+    // Bottom: shoes extend below ankle/toe landmarks
+    const bottomExtra = bboxH * 0.08;
+    expanded.push({ normX: (minX + maxX) / 2, normY: Math.min(1, maxY + bottomExtra), natW, natH });
   }
 
   return expanded;
@@ -93,17 +80,21 @@ export async function analyzeAutofit(
   clipUrls: string[],
   device: 'hh1x3' | 'solo',
   onProgress: (p: AutofitProgress) => void,
-  sampleIntervalSec = 2,
-  safetyPadding = 0.08,
+  sampleIntervalSec = 0.5,
+  safetyPadding = 0.10,
 ): Promise<AutofitResult | null> {
   const preset = DEVICE_PRESETS[device];
   const mask = DEVICE_MASKS[device];
 
-  onProgress({
-    stage: 'loading', clipIndex: 0, clipCount: clipUrls.length,
-    frameIndex: 0, frameCount: 0,
-    message: 'Loading pose detection model...',
-  });
+  const prog = (p: Partial<AutofitProgress> & Pick<AutofitProgress, 'stage' | 'message'>) =>
+    onProgress({
+      clipIndex: 0, clipCount: clipUrls.length,
+      frameIndex: 0, frameCount: 0,
+      totalFrames: 0, processedFrames: 0, percent: 0,
+      ...p,
+    });
+
+  prog({ stage: 'loading', message: 'Loading pose detection model...' });
 
   const { PoseLandmarker, FilesetResolver } = await import('@mediapipe/tasks-vision');
 
@@ -124,8 +115,41 @@ export async function analyzeAutofit(
   const uniqueUrls = [...new Set(clipUrls)];
   const rawPoints: CollectedPoint[] = [];
 
-  for (let ci = 0; ci < uniqueUrls.length; ci++) {
-    const url = uniqueUrls[ci];
+  // Pre-scan: count total frames for progress percentage
+  const clipMeta: { url: string; duration: number; natW: number; natH: number; frameCount: number }[] = [];
+  let totalFrames = 0;
+
+  for (const url of uniqueUrls) {
+    const video = document.createElement('video');
+    video.preload = 'metadata';
+    video.muted = true;
+    video.playsInline = true;
+    try {
+      await new Promise<void>((resolve, reject) => {
+        video.onloadedmetadata = () => resolve();
+        video.onerror = () => reject();
+        video.src = url;
+      });
+      const dur = video.duration;
+      const natW = video.videoWidth;
+      const natH = video.videoHeight;
+      if (dur && natW && natH) {
+        const fc = Math.max(1, Math.ceil(dur / sampleIntervalSec)) + (dur > 0.5 ? 1 : 0);
+        clipMeta.push({ url, duration: dur, natW, natH, frameCount: fc });
+        totalFrames += fc;
+      }
+      video.remove();
+    } catch {
+      video.remove();
+    }
+  }
+
+  if (clipMeta.length === 0) { landmarker.close(); return null; }
+
+  let processedFrames = 0;
+
+  for (let ci = 0; ci < clipMeta.length; ci++) {
+    const { url, duration, natW, natH } = clipMeta[ci];
 
     const video = document.createElement('video');
     video.preload = 'auto';
@@ -135,25 +159,21 @@ export async function analyzeAutofit(
     try {
       await new Promise<void>((resolve, reject) => {
         video.oncanplaythrough = () => resolve();
-        video.onerror = () => reject(new Error('Failed to load video'));
+        video.onerror = () => reject();
         video.src = url;
       });
     } catch {
+      video.remove();
       continue;
     }
-
-    const duration = video.duration;
-    const natW = video.videoWidth;
-    const natH = video.videoHeight;
-    if (!duration || !natW || !natH) { video.remove(); continue; }
 
     const sampleTimes: number[] = [];
     const count = Math.max(1, Math.ceil(duration / sampleIntervalSec));
     for (let i = 0; i < count; i++) {
-      sampleTimes.push(Math.min(i * sampleIntervalSec, duration - 0.1));
+      sampleTimes.push(Math.min(i * sampleIntervalSec, duration - 0.05));
     }
-    if (sampleTimes[sampleTimes.length - 1] < duration - 0.5) {
-      sampleTimes.push(duration - 0.3);
+    if (sampleTimes[sampleTimes.length - 1] < duration - 0.3) {
+      sampleTimes.push(duration - 0.1);
     }
 
     const canvas = document.createElement('canvas');
@@ -162,10 +182,14 @@ export async function analyzeAutofit(
     const ctx = canvas.getContext('2d')!;
 
     for (let fi = 0; fi < sampleTimes.length; fi++) {
-      onProgress({
-        stage: 'analyzing', clipIndex: ci, clipCount: uniqueUrls.length,
+      processedFrames++;
+      const pct = Math.round((processedFrames / totalFrames) * 100);
+      prog({
+        stage: 'analyzing',
+        clipIndex: ci, clipCount: clipMeta.length,
         frameIndex: fi, frameCount: sampleTimes.length,
-        message: `Clip ${ci + 1}/${uniqueUrls.length}, frame ${fi + 1}/${sampleTimes.length}`,
+        totalFrames, processedFrames, percent: pct,
+        message: `Clip ${ci + 1}/${clipMeta.length}, frame ${fi + 1}/${sampleTimes.length}`,
       });
 
       await seekVideo(video, sampleTimes[fi]);
@@ -189,14 +213,9 @@ export async function analyzeAutofit(
 
   if (rawPoints.length === 0) return null;
 
-  // Expand landmarks to account for body volume beyond skeleton
   const allPoints = expandLandmarks(rawPoints);
 
-  onProgress({
-    stage: 'computing', clipIndex: uniqueUrls.length, clipCount: uniqueUrls.length,
-    frameIndex: 0, frameCount: 0,
-    message: 'Computing optimal fit...',
-  });
+  prog({ stage: 'computing', percent: 100, message: 'Computing optimal fit...' });
 
   const paddedCircles = mask.circles.map(c => ({
     cx: c.cx, cy: c.cy, r: c.r * (1 - safetyPadding),
@@ -230,8 +249,7 @@ export async function analyzeAutofit(
     const baseOffX = maskCx - bCx;
     const baseOffY = maskCy - bCy;
 
-    // Grid search around base offset for best margin
-    const steps = [-40, -20, 0, 20, 40];
+    const steps = [-60, -30, -15, 0, 15, 30, 60];
     let bestMargin = -Infinity;
     let bestOx = Math.round(baseOffX);
     let bestOy = Math.round(baseOffY);
@@ -268,7 +286,6 @@ export async function analyzeAutofit(
     return { fits: bestFits, offsetX: bestOx, offsetY: bestOy };
   }
 
-  // Binary search for max scale where fit works
   let lo = 0.5;
   let hi = 3.0;
   let best: AutofitResult | null = null;
