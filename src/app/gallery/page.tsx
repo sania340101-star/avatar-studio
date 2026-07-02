@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import AppShell from '@/components/AppShell';
 import { useProject } from '@/lib/ProjectContext';
 import { Generation } from '@/lib/types';
+import ShareDialog from '@/components/ShareDialog';
 
 type TabFilter = 'all' | 'image' | 'video' | 'export';
 
@@ -34,6 +35,7 @@ function GalleryContent() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
   const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [shareGen, setShareGen] = useState<{ id: string; projectId: string; name: string } | null>(null);
 
   const load = useCallback(async () => {
     const params = new URLSearchParams();
@@ -366,6 +368,16 @@ function GalleryContent() {
                     </div>
 
                     <button
+                      onClick={(e) => { e.stopPropagation(); setShareGen({ id: entry.gens[0].id, projectId: entry.gens[0].projectId, name: entry.templateName }); }}
+                      className="w-7 h-7 rounded-lg flex items-center justify-center opacity-50 hover:opacity-100 flex-shrink-0"
+                      style={{ color: 'var(--text3)' }}
+                      title="Share"
+                    >
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
+                        <circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" /><line x1="8.59" y1="13.51" x2="15.42" y2="17.49" /><line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
+                      </svg>
+                    </button>
+                    <button
                       onClick={(e) => { e.stopPropagation(); setConfirmDeleteId(entry.batchId); }}
                       className="w-7 h-7 rounded-lg flex items-center justify-center opacity-50 hover:opacity-100 flex-shrink-0"
                       style={{ color: 'var(--red)' }}
@@ -549,6 +561,16 @@ function GalleryContent() {
                     <p className="text-sm truncate" style={{ color: 'var(--text2)' }}>{gen.prompt}</p>
                   </div>
 
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setShareGen({ id: gen.id, projectId: gen.projectId, name: gen.prompt.slice(0, 50) || `${gen.type} generation` }); }}
+                    className="w-7 h-7 rounded-lg flex items-center justify-center opacity-50 hover:opacity-100 flex-shrink-0"
+                    style={{ color: 'var(--text3)' }}
+                    title="Share"
+                  >
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
+                      <circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" /><line x1="8.59" y1="13.51" x2="15.42" y2="17.49" /><line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
+                    </svg>
+                  </button>
                   <button
                     onClick={(e) => { e.stopPropagation(); setConfirmDeleteId(gen.id); }}
                     className="w-7 h-7 rounded-lg flex items-center justify-center opacity-50 hover:opacity-100 flex-shrink-0"
@@ -787,6 +809,16 @@ function GalleryContent() {
             )}
           </div>
         </div>
+      )}
+
+      {shareGen && (
+        <ShareDialog
+          entityType="generation"
+          entityId={shareGen.id}
+          entityName={shareGen.name}
+          projectId={shareGen.projectId}
+          onClose={() => setShareGen(null)}
+        />
       )}
     </div>
   );

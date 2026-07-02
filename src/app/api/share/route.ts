@@ -2,16 +2,17 @@ import { NextRequest, NextResponse } from 'next/server';
 import {
   getProject, getTemplate, getExportSession, getRegisteredUsers,
   shareProject, shareTemplate, shareExportSession,
+  getGenerations, shareGeneration,
 } from '@/lib/storage';
 
-const VALID_TYPES = ['project', 'template', 'export'] as const;
+const VALID_TYPES = ['project', 'template', 'export', 'generation'] as const;
 type ShareType = typeof VALID_TYPES[number];
 
 export async function POST(req: NextRequest) {
   const userId = req.headers.get('x-user-id');
   if (!userId) return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
 
-  let body: { entityType?: string; entityId?: string; targetUserId?: string };
+  let body: { entityType?: string; entityId?: string; targetUserId?: string; projectId?: string };
   try {
     body = await req.json();
   } catch {
@@ -61,6 +62,22 @@ export async function POST(req: NextRequest) {
       if (source.userId !== userId) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
       const newId = shareExportSession(entityId, targetUserId);
       return NextResponse.json({ ok: true, newEntityId: newId });
+    }
+
+    if (entityType === 'generation') {
+      const { projectId } = body;
+      if (!projectId || typeof projectId !== 'string') {
+        return NextResponse.json({ error: 'projectId required for generation sharing' }, { status: 400 });
+      }
+      const project = getProject(projectId);
+      if (!project) return NextResponse.json({ error: 'Project not found' }, { status: 404 });
+      if (project.userId !== userId) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      const gens = getGenerations(projectId);
+      if (!gens.find(g => g.id === entityId)) {
+        return NextResponse.json({ error: 'Generation not found' }, { status: 404 });
+      }
+      const result = shareGeneration(projectId, entityId, targetUserId);
+      return NextResponse.json({ ok: true, newEntityId: result.generationId, projectId: result.projectId });
     }
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : 'Share failed' }, { status: 500 });

@@ -4,13 +4,14 @@ import { useState, useEffect } from 'react';
 import { RegisteredUser } from '@/lib/types';
 
 interface ShareDialogProps {
-  entityType: 'project' | 'template' | 'export';
+  entityType: 'project' | 'template' | 'export' | 'generation';
   entityId: string;
   entityName: string;
+  projectId?: string;
   onClose: () => void;
 }
 
-export default function ShareDialog({ entityType, entityId, entityName, onClose }: ShareDialogProps) {
+export default function ShareDialog({ entityType, entityId, entityName, projectId, onClose }: ShareDialogProps) {
   const [users, setUsers] = useState<RegisteredUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [sharing, setSharing] = useState(false);
@@ -31,7 +32,7 @@ export default function ShareDialog({ entityType, entityId, entityName, onClose 
       const res = await fetch('/api/share', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ entityType, entityId, targetUserId }),
+        body: JSON.stringify({ entityType, entityId, targetUserId, ...(projectId ? { projectId } : {}) }),
       });
       const data = await res.json();
       if (res.ok && data.ok) {
@@ -52,7 +53,7 @@ export default function ShareDialog({ entityType, entityId, entityName, onClose 
       (u.email || '').toLowerCase().includes(search.toLowerCase()))
     : users;
 
-  const typeLabel = entityType === 'project' ? 'Project' : entityType === 'template' ? 'Template' : 'Export';
+  const typeLabel = entityType === 'project' ? 'Project' : entityType === 'template' ? 'Template' : entityType === 'generation' ? 'Generation' : 'Export';
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={onClose}>

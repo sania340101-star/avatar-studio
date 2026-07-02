@@ -374,6 +374,42 @@ export function shareTemplate(sourceTemplateId: string, targetUserId: string): s
   return copy.id;
 }
 
+export function shareGeneration(sourceProjectId: string, generationId: string, targetUserId: string): { projectId: string; generationId: string } {
+  ensureDirs();
+  const sourceGens: Generation[] = readJson(genFile(sourceProjectId), []);
+  const gen = sourceGens.find(g => g.id === generationId);
+  if (!gen) throw new Error('Generation not found');
+
+  const all: Project[] = readJson(PROJECTS_FILE, []);
+  let sharedProject = all.find(p => p.userId === targetUserId && p.title === 'Shared with me');
+  if (!sharedProject) {
+    sharedProject = {
+      id: newId('proj'),
+      userId: targetUserId,
+      title: 'Shared with me',
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    };
+    all.push(sharedProject);
+  } else {
+    sharedProject.updatedAt = Date.now();
+  }
+  writeJson(PROJECTS_FILE, all);
+
+  const newGenId = newId('gen');
+  const copy: Generation = {
+    ...gen,
+    id: newGenId,
+    projectId: sharedProject.id,
+    userId: targetUserId,
+  };
+  const targetGens: Generation[] = readJson(genFile(sharedProject.id), []);
+  targetGens.push(copy);
+  writeJson(genFile(sharedProject.id), targetGens);
+
+  return { projectId: sharedProject.id, generationId: newGenId };
+}
+
 export function shareExportSession(sourceSessionId: string, targetUserId: string): string {
   ensureDirs();
   const source = getExportSession(sourceSessionId);
