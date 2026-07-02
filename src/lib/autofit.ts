@@ -58,12 +58,12 @@ function expandLandmarks(points: CollectedPoint[]): CollectedPoint[] {
     const bboxH = maxY - minY;
 
     // Head top: hair/hat extends above nose
-    expanded.push({ normX: (minX + maxX) / 2, normY: Math.max(0, minY - bboxH * 0.22), natW, natH });
+    expanded.push({ normX: (minX + maxX) / 2, normY: Math.max(0, minY - bboxH * 0.30), natW, natH });
     // Sides: clothing extends beyond wrist landmarks
-    expanded.push({ normX: Math.max(0, minX - bboxW * 0.20), normY: (minY + maxY) / 2, natW, natH });
-    expanded.push({ normX: Math.min(1, maxX + bboxW * 0.20), normY: (minY + maxY) / 2, natW, natH });
-    // Bottom: shoes below toe landmarks
-    expanded.push({ normX: (minX + maxX) / 2, normY: Math.min(1, maxY + bboxH * 0.08), natW, natH });
+    expanded.push({ normX: Math.max(0, minX - bboxW * 0.25), normY: (minY + maxY) / 2, natW, natH });
+    expanded.push({ normX: Math.min(1, maxX + bboxW * 0.25), normY: (minY + maxY) / 2, natW, natH });
+    // Bottom: shoes/feet below toe landmarks
+    expanded.push({ normX: (minX + maxX) / 2, normY: Math.min(1, maxY + bboxH * 0.15), natW, natH });
   }
 
   return expanded;
@@ -74,7 +74,7 @@ export async function analyzeAutofit(
   device: 'hh1x3' | 'solo',
   onProgress: (p: AutofitProgress) => void,
   sampleIntervalSec = 0.5,
-  safetyPadding = 0.10,
+  safetyPadding = 0.06,
 ): Promise<AutofitResult | null> {
   const preset = DEVICE_PRESETS[device];
   const mask = DEVICE_MASKS[device];
@@ -224,7 +224,7 @@ export async function analyzeAutofit(
 
   // Dead pixel positions: center of each circle
   const deadPixels = mask.circles.map(c => ({ x: c.cx, y: c.cy }));
-  const DEAD_PIXEL_CLEARANCE = 50;
+  const DEAD_PIXEL_CLEARANCE = 120;
 
   function pointToElem(p: CollectedPoint, elemW: number, elemH: number): { x: number; y: number } {
     const cs = Math.max(elemW / p.natW, elemH / p.natH);
@@ -256,10 +256,10 @@ export async function analyzeAutofit(
 
     // Two-pass offset search
     // Pass 1: coarse grid — wide range to find the right zone
-    const coarseStepX = 50;
-    const coarseStepY = 50;
-    const coarseRangeX = 150;
-    const coarseRangeY = 300;
+    const coarseStepX = 40;
+    const coarseStepY = 40;
+    const coarseRangeX = 200;
+    const coarseRangeY = 400;
 
     let bestMargin = -Infinity;
     let bestOx = Math.round(baseOffX);
@@ -286,9 +286,11 @@ export async function analyzeAutofit(
       // Nose must stay clear of dead pixels (circle centers)
       let noseOk = true;
       for (const np of nosePts) {
+        const nx = ox + np.x;
         const ny = oy + np.y;
         for (const dp of deadPixels) {
-          if (Math.abs(ny - dp.y) < DEAD_PIXEL_CLEARANCE) {
+          const dist = Math.sqrt((nx - dp.x) ** 2 + (ny - dp.y) ** 2);
+          if (dist < DEAD_PIXEL_CLEARANCE) {
             noseOk = false;
           }
         }
