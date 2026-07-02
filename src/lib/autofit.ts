@@ -69,7 +69,7 @@ function expandLandmarks(points: CollectedPoint[]): CollectedPoint[] {
     const cx = (minX + maxX) / 2;
     const isFullBody = bboxH > 0.35;
 
-    expanded.push({ normX: cx, normY: Math.max(0, minY - bboxH * 0.20), natW, natH });
+    expanded.push({ normX: cx, normY: Math.max(0, minY - bboxH * 0.05), natW, natH });
     if (isFullBody) {
       // Full-body: MediaPipe often misses feet — force bottom to near frame edge
       expanded.push({ normX: cx, normY: Math.min(1, Math.max(maxY + bboxH * 0.15, 0.97)), natW, natH });
@@ -250,7 +250,7 @@ export async function analyzeAutofit(
     cx: c.cx, cy: c.cy, r: Math.max(0, c.r - safetyPaddingPx),
   }));
 
-  const HEAD_MARGIN_PX = -30;
+  const HEAD_MARGIN_PX = 5;
   const maskTopY = Math.min(...mask.circles.map(c => c.cy - c.r));
   const maskCx = mask.circles.reduce((s, c) => s + c.cx, 0) / mask.circles.length;
 
