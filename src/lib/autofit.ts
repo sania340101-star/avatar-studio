@@ -250,7 +250,7 @@ export async function analyzeAutofit(
     cx: c.cx, cy: c.cy, r: Math.max(0, c.r - safetyPaddingPx),
   }));
 
-  const HEAD_MARGIN_PX = 20;
+  const HEAD_MARGIN_PX = -30;
   const maskTopY = Math.min(...mask.circles.map(c => c.cy - c.r));
   const maskCx = mask.circles.reduce((s, c) => s + c.cx, 0) / mask.circles.length;
 
