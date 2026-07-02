@@ -110,15 +110,29 @@ export default function DisplayPage() {
           sendTransform({ ...t, offsetY: Math.round(t.offsetY + step) });
           break;
         case '+':
-        case '=':
+        case '=': {
           e.preventDefault();
-          sendTransform({ ...t, scale: Math.min(3, Math.round((t.scale + scaleStep) * 100) / 100) });
+          const newUp = Math.min(3, Math.round((t.scale + scaleStep) * 100) / 100);
+          if (stateRef.current.device === 'solo' && t.scale > 0) {
+            const r = newUp / t.scale;
+            sendTransform({ scale: newUp, offsetX: Math.round(t.offsetX * r), offsetY: Math.round(t.offsetY * r) });
+          } else {
+            sendTransform({ ...t, scale: newUp });
+          }
           break;
+        }
         case '-':
-        case '_':
+        case '_': {
           e.preventDefault();
-          sendTransform({ ...t, scale: Math.max(0.5, Math.round((t.scale - scaleStep) * 100) / 100) });
+          const newDn = Math.max(0.5, Math.round((t.scale - scaleStep) * 100) / 100);
+          if (stateRef.current.device === 'solo' && t.scale > 0) {
+            const r = newDn / t.scale;
+            sendTransform({ scale: newDn, offsetX: Math.round(t.offsetX * r), offsetY: Math.round(t.offsetY * r) });
+          } else {
+            sendTransform({ ...t, scale: newDn });
+          }
           break;
+        }
         case 'Escape':
           if (document.fullscreenElement) {
             document.exitFullscreen().catch(() => {});

@@ -59,8 +59,8 @@ export default function MaskPreview({ device, videoUrl, transform, onTransformCh
     const dy = (e.clientY - dragStart.current.y) / ds;
     onTransformChange({
       ...transform,
-      offsetX: dragStart.current.ox + dx,
-      offsetY: dragStart.current.oy + dy,
+      offsetX: Math.round(dragStart.current.ox + dx),
+      offsetY: Math.round(dragStart.current.oy + dy),
     });
   }, [dragging, transform, onTransformChange]);
 
@@ -76,8 +76,19 @@ export default function MaskPreview({ device, videoUrl, transform, onTransformCh
 
   const adjustScale = useCallback((delta: number) => {
     const newScale = Math.max(0.5, Math.min(3, transform.scale + delta));
-    onTransformChange({ ...transform, scale: Math.round(newScale * 100) / 100 });
-  }, [transform, onTransformChange]);
+    const s = Math.round(newScale * 100) / 100;
+    if (device === 'solo' && transform.scale > 0) {
+      const ratio = s / transform.scale;
+      onTransformChange({
+        ...transform,
+        scale: s,
+        offsetX: Math.round(transform.offsetX * ratio),
+        offsetY: Math.round(transform.offsetY * ratio),
+      });
+    } else {
+      onTransformChange({ ...transform, scale: s });
+    }
+  }, [transform, onTransformChange, device]);
 
   return (
     <div className="space-y-3">
@@ -210,7 +221,20 @@ export default function MaskPreview({ device, videoUrl, transform, onTransformCh
           max="3"
           step="0.01"
           value={transform.scale}
-          onChange={e => onTransformChange({ ...transform, scale: parseFloat(e.target.value) })}
+          onChange={e => {
+            const newScale = parseFloat(e.target.value);
+            if (device === 'solo' && transform.scale > 0) {
+              const ratio = newScale / transform.scale;
+              onTransformChange({
+                ...transform,
+                scale: newScale,
+                offsetX: Math.round(transform.offsetX * ratio),
+                offsetY: Math.round(transform.offsetY * ratio),
+              });
+            } else {
+              onTransformChange({ ...transform, scale: newScale });
+            }
+          }}
           className="flex-1 accent-[var(--accent)]"
           style={{ background: 'transparent', border: 'none', padding: 0, minWidth: 0 }}
         />

@@ -113,6 +113,7 @@ export async function analyzeAutofit(
 
   const uniqueUrls = [...new Set(clipUrls)];
   const rawPoints: CollectedPoint[] = [];
+  const headPoints: CollectedPoint[] = [];
 
   // Pre-scan for progress
   const clipMeta: { url: string; duration: number; natW: number; natH: number; frameCount: number }[] = [];
@@ -201,6 +202,9 @@ export async function analyzeAutofit(
           const lm = lms[li];
           if ((lm.visibility ?? 0) > 0.5 && lm.x >= 0 && lm.x <= 1 && lm.y >= 0 && lm.y <= 1) {
             rawPoints.push({ normX: lm.x, normY: lm.y, natW, natH });
+            if (li <= 10) {
+              headPoints.push({ normX: lm.x, normY: lm.y, natW, natH });
+            }
           }
         }
       }
@@ -226,6 +230,25 @@ export async function analyzeAutofit(
   const maskTopY = Math.min(...mask.circles.map(c => c.cy - c.r));
   const maskCx = mask.circles.reduce((s, c) => s + c.cx, 0) / mask.circles.length;
 
+  // Compute crown anchor points from head landmarks (indices 0-10: nose, eyes, ears, mouth)
+  const crownPoints: CollectedPoint[] = [];
+  if (headPoints.length > 0) {
+    const byDims = new Map<string, CollectedPoint[]>();
+    for (const p of headPoints) {
+      const key = `${p.natW}x${p.natH}`;
+      if (!byDims.has(key)) byDims.set(key, []);
+      byDims.get(key)!.push(p);
+    }
+    for (const [, pts] of byDims) {
+      const minY = Math.min(...pts.map(p => p.normY));
+      const maxY = Math.max(...pts.map(p => p.normY));
+      const faceH = maxY - minY;
+      const crownY = Math.max(0, minY - faceH * 0.5);
+      const cx = (Math.min(...pts.map(p => p.normX)) + Math.max(...pts.map(p => p.normX))) / 2;
+      crownPoints.push({ normX: cx, normY: crownY, natW: pts[0].natW, natH: pts[0].natH });
+    }
+  }
+
   function pointToContainer(p: CollectedPoint, scale: number): { x: number; y: number } {
     if (device === 'solo') {
       const cs = Math.max(preset.width / p.natW, preset.height / p.natH) * scale;
@@ -248,11 +271,34 @@ export async function analyzeAutofit(
 
     const minX = Math.min(...pts.map(p => p.x));
     const maxX = Math.max(...pts.map(p => p.x));
-    const minY = Math.min(...pts.map(p => p.y));
+
+    // Anchor from actual head crown, not expanded boundary points
+    let anchorY: number;
+    if (crownPoints.length > 0) {
+      const crownPts = crownPoints.map(p => pointToContainer(p, scale));
+      anchorY = Math.min(...crownPts.map(p => p.y));
+    } else {
+      anchorY = Math.min(...pts.map(p => p.y));
+    }
 
     const bodyCx = (minX + maxX) / 2;
     const offsetX = Math.round(maskCx - bodyCx);
-    const offsetY = Math.round((maskTopY + HEAD_MARGIN_PX) - minY);
+    const offsetY = Math.round((maskTopY + HEAD_MARGIN_PX) - anchorY);
+
+    // Dead pixel constraint: face must be above first circle center
+    if (headPoints.length > 0) {
+      const headPtsInContainer = headPoints.map(p => {
+        const cp = pointToContainer(p, scale);
+        return { x: cp.x + offsetX, y: cp.y + offsetY };
+      });
+      const maxHeadY = Math.max(...headPtsInContainer.map(p => p.y));
+      const minHeadY = Math.min(...headPtsInContainer.map(p => p.y));
+      const faceH = maxHeadY - minHeadY;
+      const chinY = maxHeadY + faceH * 0.3;
+      if (chinY > mask.circles[0].cy - 30) {
+        return { fits: false, offsetX, offsetY };
+      }
+    }
 
     let allIn = true;
     for (const p of pts) {

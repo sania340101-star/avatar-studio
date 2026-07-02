@@ -8,6 +8,7 @@ import { ExportSession, ExportClip, Generation } from '@/lib/types';
 import { DEVICE_PRESETS } from '@/lib/models';
 import MaskPreview from '@/components/MaskPreview';
 import { analyzeAutofit, AutofitProgress } from '@/lib/autofit';
+import { setLastExportId } from '@/lib/nav-state';
 
 function probeDuration(url: string): Promise<number> {
   return new Promise((resolve) => {
@@ -91,6 +92,8 @@ function ExportEditorContent() {
   }, [sessionId]);
 
   useEffect(() => { load(); }, [load]);
+
+  useEffect(() => { setLastExportId(sessionId); }, [sessionId]);
 
   // BroadcastChannel for display window sync (same browser only)
   useEffect(() => {
@@ -526,7 +529,7 @@ function ExportEditorContent() {
       {/* Header */}
       <div className="flex items-center gap-3 mb-6">
         <button
-          onClick={() => router.push('/export')}
+          onClick={() => { setLastExportId(null); router.push('/export'); }}
           className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
           style={{ background: 'var(--bg-input)', color: 'var(--text2)' }}
         >
@@ -873,26 +876,28 @@ function ExportEditorContent() {
           {/* Auto-fit + Undo */}
           <div className="mt-2 space-y-2">
             <div className="flex items-center gap-2">
-              <button
-                onClick={runAutofit}
-                disabled={autofitting || session.clips.length === 0}
-                className="text-xs px-3 py-1.5 rounded-lg font-medium disabled:opacity-50 flex items-center gap-1.5"
-                style={{ background: 'var(--bg-input)', color: 'var(--text2)', border: '1px solid var(--border)' }}
-              >
-                {autofitting ? (
-                  <>
-                    <div className="w-3 h-3 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: 'var(--accent)', borderTopColor: 'transparent' }} />
-                    Analyzing...
-                  </>
-                ) : (
-                  <>
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
-                      <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
-                    </svg>
-                    Auto-fit
-                  </>
-                )}
-              </button>
+              {session.device !== 'solo' && (
+                <button
+                  onClick={runAutofit}
+                  disabled={autofitting || session.clips.length === 0}
+                  className="text-xs px-3 py-1.5 rounded-lg font-medium disabled:opacity-50 flex items-center gap-1.5"
+                  style={{ background: 'var(--bg-input)', color: 'var(--text2)', border: '1px solid var(--border)' }}
+                >
+                  {autofitting ? (
+                    <>
+                      <div className="w-3 h-3 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: 'var(--accent)', borderTopColor: 'transparent' }} />
+                      Analyzing...
+                    </>
+                  ) : (
+                    <>
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
+                        <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
+                      </svg>
+                      Auto-fit
+                    </>
+                  )}
+                </button>
+              )}
               {historyLen > 0 && !autofitting && (
                 <button
                   onClick={undoTransform}
@@ -907,23 +912,25 @@ function ExportEditorContent() {
                 </button>
               )}
             </div>
-            <div className="flex items-center gap-3">
-              <label className="text-[10px] font-medium flex-shrink-0" style={{ color: 'var(--text3)' }}>
-                Safety Padding
-              </label>
-              <input
-                type="range"
-                min={0}
-                max={100}
-                value={safetyPaddingPx}
-                onChange={e => setSafetyPaddingPx(Number(e.target.value))}
-                className="flex-1 h-1 rounded-full appearance-none cursor-pointer"
-                style={{ accentColor: 'var(--accent)' }}
-              />
-              <span className="text-[10px] w-8 text-right flex-shrink-0 font-mono" style={{ color: 'var(--text3)' }}>
-                {safetyPaddingPx}px
-              </span>
-            </div>
+            {session.device !== 'solo' && (
+              <div className="flex items-center gap-3">
+                <label className="text-[10px] font-medium flex-shrink-0" style={{ color: 'var(--text3)' }}>
+                  Safety Padding
+                </label>
+                <input
+                  type="range"
+                  min={0}
+                  max={100}
+                  value={safetyPaddingPx}
+                  onChange={e => setSafetyPaddingPx(Number(e.target.value))}
+                  className="flex-1 h-1 rounded-full appearance-none cursor-pointer"
+                  style={{ accentColor: 'var(--accent)' }}
+                />
+                <span className="text-[10px] w-8 text-right flex-shrink-0 font-mono" style={{ color: 'var(--text3)' }}>
+                  {safetyPaddingPx}px
+                </span>
+              </div>
+            )}
             {autofitProgress && (
               <div className="space-y-1">
                 <div className="flex items-center gap-2">
@@ -1119,6 +1126,7 @@ function ExportEditorContent() {
               <button
                 onClick={async () => {
                   await fetch(`/api/exports?id=${session!.id}`, { method: 'DELETE' });
+                  setLastExportId(null);
                   router.push('/export');
                 }}
                 className="flex-1 py-2 rounded-lg text-sm font-medium text-white"

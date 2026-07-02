@@ -139,7 +139,7 @@ function TemplateList({ templates, onEdit, onDelete, onCreate }: {
           <p className="text-sm" style={{ color: 'var(--text3)' }}>Create a template with model + params + references for batch generation.</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="space-y-3">
           {templates.map(tmpl => {
             const slots = tmpl.slots || [];
             const slotCount = slots.length;

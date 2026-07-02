@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import AppShell from '@/components/AppShell';
 import { ExportSession } from '@/lib/types';
+import { getLastExportId, setLastExportId } from '@/lib/nav-state';
 
 function ExportListContent() {
   const router = useRouter();
@@ -12,6 +13,13 @@ function ExportListContent() {
   const [newName, setNewName] = useState('');
   const [creating, setCreating] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const lastId = getLastExportId();
+    if (lastId) {
+      router.replace(`/export/${lastId}`);
+    }
+  }, [router]);
 
   const load = useCallback(async () => {
     const res = await fetch('/api/exports');
