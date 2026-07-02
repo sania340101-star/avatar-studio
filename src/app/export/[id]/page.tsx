@@ -250,6 +250,41 @@ function ExportEditorContent() {
     setDragOverIdx(null);
   }
 
+  // Touch drag-and-drop for mobile
+  const touchState = useRef<{ idx: number; startY: number; el: HTMLElement | null }>({ idx: -1, startY: 0, el: null });
+  const clipListRef = useRef<HTMLDivElement>(null);
+
+  function handleTouchStart(e: React.TouchEvent, idx: number) {
+    const handle = (e.target as HTMLElement).closest('[data-drag-handle]');
+    if (!handle) return;
+    const touch = e.touches[0];
+    touchState.current = { idx, startY: touch.clientY, el: e.currentTarget as HTMLElement };
+    setDragIdx(idx);
+  }
+
+  function handleTouchMove(e: React.TouchEvent) {
+    if (touchState.current.idx < 0 || !clipListRef.current) return;
+    e.preventDefault();
+    const touch = e.touches[0];
+    const items = clipListRef.current.querySelectorAll<HTMLElement>('[data-clip-item]');
+    for (let i = 0; i < items.length; i++) {
+      const rect = items[i].getBoundingClientRect();
+      if (touch.clientY >= rect.top && touch.clientY <= rect.bottom && i !== touchState.current.idx) {
+        setDragOverIdx(i);
+        return;
+      }
+    }
+  }
+
+  function handleTouchEnd() {
+    if (touchState.current.idx >= 0 && dragOverIdx !== null && dragOverIdx !== touchState.current.idx) {
+      moveClip(touchState.current.idx, dragOverIdx);
+    }
+    touchState.current = { idx: -1, startY: 0, el: null };
+    setDragIdx(null);
+    setDragOverIdx(null);
+  }
+
   // Sequential player: advance to next clip when video ends
   const handleVideoEnded = useCallback(() => {
     if (!session || session.clips.length === 0) return;
@@ -470,15 +505,19 @@ function ExportEditorContent() {
             </p>
           </div>
         ) : (
-          <div className="space-y-2">
+          <div className="space-y-2" ref={clipListRef}>
             {session.clips.map((clip, idx) => (
               <div
                 key={clip.id}
+                data-clip-item
                 draggable
                 onDragStart={() => handleDragStart(idx)}
                 onDragOver={(e) => handleDragOver(e, idx)}
                 onDrop={() => handleDrop(idx)}
                 onDragEnd={handleDragEnd}
+                onTouchStart={(e) => handleTouchStart(e, idx)}
+                onTouchMove={(e) => handleTouchMove(e)}
+                onTouchEnd={handleTouchEnd}
                 className={`flex items-center gap-3 p-2 rounded-lg border transition-all ${
                   dragOverIdx === idx ? 'border-[var(--accent)]' : ''
                 } ${dragIdx === idx ? 'opacity-40' : ''}`}
@@ -488,7 +527,7 @@ function ExportEditorContent() {
                 }}
               >
                 {/* Drag handle */}
-                <div className="cursor-grab active:cursor-grabbing flex-shrink-0 px-1" style={{ color: 'var(--text3)' }}>
+                <div data-drag-handle className="cursor-grab active:cursor-grabbing flex-shrink-0 px-1 touch-none" style={{ color: 'var(--text3)' }}>
                   <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4">
                     <circle cx="9" cy="6" r="1.5" /><circle cx="15" cy="6" r="1.5" />
                     <circle cx="9" cy="12" r="1.5" /><circle cx="15" cy="12" r="1.5" />
