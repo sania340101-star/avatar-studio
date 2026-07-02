@@ -316,6 +316,6 @@ export async function analyzeAutofit(
   if (!best) {
     return { scale: 0, offsetX: 0, offsetY: 0, debug: `${debugInfo} no_fit` };
   }
-  best.offsetY -= 50;
+  best.offsetY -= 80;
   return best;
 }
