@@ -138,7 +138,7 @@ export async function analyzeAutofit(
     video.preload = 'metadata';
     video.muted = true;
     video.playsInline = true;
-    video.crossOrigin = 'anonymous';
+
     try {
       await new Promise<void>((resolve, reject) => {
         video.onloadedmetadata = () => resolve();
@@ -170,7 +170,7 @@ export async function analyzeAutofit(
     video.preload = 'auto';
     video.muted = true;
     video.playsInline = true;
-    video.crossOrigin = 'anonymous';
+
 
     try {
       await new Promise<void>((resolve, reject) => {

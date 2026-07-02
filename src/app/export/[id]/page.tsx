@@ -58,6 +58,7 @@ function ExportEditorContent() {
   const [uploading, setUploading] = useState(false);
   const [autofitting, setAutofitting] = useState(false);
   const [autofitProgress, setAutofitProgress] = useState<AutofitProgress | null>(null);
+  const [autofitError, setAutofitError] = useState<string | null>(null);
   const [versionHistoryOpen, setVersionHistoryOpen] = useState(true);
   const [confirmDeleteVersion, setConfirmDeleteVersion] = useState<{ id: string; num: number } | null>(null);
   const [confirmDeleteSession, setConfirmDeleteSession] = useState(false);
@@ -310,6 +311,7 @@ function ExportEditorContent() {
     isGesturing.current = false;
     setAutofitting(true);
     setAutofitProgress(null);
+    setAutofitError(null);
     try {
       const result = await analyzeAutofit(
         session.clips.map(c => c.url),
@@ -323,12 +325,12 @@ function ExportEditorContent() {
       } else {
         transformHistory.current.pop();
         setHistoryLen(transformHistory.current.length);
-        alert('No poses detected in any clip. Try adjusting manually.');
+        setAutofitError('No poses detected. Try adjusting manually.');
       }
     } catch (err) {
       transformHistory.current.pop();
       setHistoryLen(transformHistory.current.length);
-      alert('Auto-fit failed: ' + (err instanceof Error ? err.message : 'unknown error'));
+      setAutofitError('Auto-fit failed: ' + (err instanceof Error ? err.message : 'unknown error'));
     } finally {
       setAutofitting(false);
       setAutofitProgress(null);
@@ -948,6 +950,11 @@ function ExportEditorContent() {
                   {autofitProgress.message}
                 </p>
               </div>
+            )}
+            {autofitError && !autofitting && (
+              <p className="text-[11px] px-2 py-1 rounded" style={{ color: 'var(--red, #ef4444)', background: 'rgba(239,68,68,0.08)' }}>
+                {autofitError}
+              </p>
             )}
           </div>
         </div>
