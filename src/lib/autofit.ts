@@ -334,19 +334,36 @@ export async function analyzeAutofit(
     return { fits: bestFits, offsetX: bestOx, offsetY: bestOy, noseOk: bestNoseOk, margin: bestMargin };
   }
 
-  // Binary search for max scale
+  // Binary search for max scale — prefer fits+noseOk, fallback to fits-only
   let lo = 0.5;
   let hi = 3.0;
   let best: AutofitResult | null = null;
 
+  // Pass 1: max scale where body fits AND nose avoids dead pixel
   for (let i = 0; i < 30; i++) {
     const mid = (lo + hi) / 2;
     const r = tryFit(mid);
-    if (r.fits) {
+    if (r.fits && r.noseOk) {
       best = { scale: Math.round(mid * 100) / 100, offsetX: r.offsetX, offsetY: r.offsetY };
       lo = mid;
     } else {
       hi = mid;
+    }
+  }
+
+  // Pass 2 fallback: if no scale achieves both, accept fits-only
+  if (!best) {
+    lo = 0.5;
+    hi = 3.0;
+    for (let i = 0; i < 30; i++) {
+      const mid = (lo + hi) / 2;
+      const r = tryFit(mid);
+      if (r.fits) {
+        best = { scale: Math.round(mid * 100) / 100, offsetX: r.offsetX, offsetY: r.offsetY };
+        lo = mid;
+      } else {
+        hi = mid;
+      }
     }
   }
 
