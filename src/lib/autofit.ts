@@ -60,7 +60,7 @@ function expandLandmarks(points: CollectedPoint[]): CollectedPoint[] {
     const cx = (minX + maxX) / 2;
     const isFullBody = bboxH > 0.35;
 
-    expanded.push({ normX: cx, normY: Math.max(0, minY - bboxH * 0.12), natW, natH });
+    expanded.push({ normX: cx, normY: Math.max(0, minY - bboxH * 0.20), natW, natH });
     if (isFullBody) {
       // Full-body: MediaPipe often misses feet — force bottom to near frame edge
       expanded.push({ normX: cx, normY: Math.min(1, Math.max(maxY + bboxH * 0.15, 0.97)), natW, natH });
@@ -68,8 +68,8 @@ function expandLandmarks(points: CollectedPoint[]): CollectedPoint[] {
       expanded.push({ normX: cx, normY: Math.min(1, maxY + bboxH * 0.15), natW, natH });
     }
     // Sides: clothing extends beyond wrist landmarks
-    expanded.push({ normX: Math.max(0, minX - bboxW * 0.25), normY: (minY + maxY) / 2, natW, natH });
-    expanded.push({ normX: Math.min(1, maxX + bboxW * 0.25), normY: (minY + maxY) / 2, natW, natH });
+    expanded.push({ normX: Math.max(0, minX - bboxW * 0.30), normY: (minY + maxY) / 2, natW, natH });
+    expanded.push({ normX: Math.min(1, maxX + bboxW * 0.30), normY: (minY + maxY) / 2, natW, natH });
   }
 
   return expanded;
@@ -346,20 +346,43 @@ export async function analyzeAutofit(
   }
 
   // Binary search for max scale where body fits in circles
-  // Offset ranking inside tryFit handles noseOk + upward shift preference
   let lo = 0.5;
   let hi = 3.0;
   let best: AutofitResult | null = null;
+  let bestScale = 0;
 
   for (let i = 0; i < 30; i++) {
     const mid = (lo + hi) / 2;
     const r = tryFit(mid);
     if (r.fits) {
+      bestScale = mid;
       best = { scale: Math.round(mid * 100) / 100, offsetX: r.offsetX, offsetY: r.offsetY };
       lo = mid;
     } else {
       hi = mid;
     }
+  }
+
+  // Refinement: try scales near the max (98%, 96%, 94%) for better offset
+  if (best) {
+    let refinedBest = best;
+    let refinedNoseOk = false;
+    const r0 = tryFit(bestScale);
+    if (r0.fits && r0.noseOk) {
+      refinedNoseOk = true;
+      refinedBest = { scale: best.scale, offsetX: r0.offsetX, offsetY: r0.offsetY };
+    }
+    if (!refinedNoseOk) {
+      for (const factor of [0.98, 0.96, 0.94, 0.92]) {
+        const s = bestScale * factor;
+        const r = tryFit(s);
+        if (r.fits && r.noseOk) {
+          refinedBest = { scale: Math.round(s * 100) / 100, offsetX: r.offsetX, offsetY: r.offsetY };
+          break;
+        }
+      }
+    }
+    return refinedBest;
   }
 
   return best;
