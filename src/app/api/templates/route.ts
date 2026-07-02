@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getTemplates, createTemplate, updateTemplate, deleteTemplate, getTemplate } from '@/lib/storage';
-export async function GET() {
-  return NextResponse.json(getTemplates());
+export async function GET(req: NextRequest) {
+  const userId = req.headers.get('x-user-id');
+  const role = req.headers.get('x-user-role');
+  const all = getTemplates();
+  if (role === 'admin') return NextResponse.json(all);
+  if (!userId) return NextResponse.json([]);
+  return NextResponse.json(all.filter(t => t.createdBy === userId));
 }
 export async function POST(req: NextRequest) {
   const userId = req.headers.get('x-user-id');

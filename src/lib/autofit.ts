@@ -138,10 +138,9 @@ export async function analyzeAutofit(
 
     try {
       await new Promise<void>((resolve, reject) => {
-        video.onloadeddata = () => resolve();
+        video.onloadedmetadata = () => resolve();
         video.onerror = () => reject();
         video.src = url;
-        video.load();
       });
       const dur = video.duration;
       const natW = video.videoWidth;
@@ -157,7 +156,10 @@ export async function analyzeAutofit(
     }
   }
 
-  if (clipMeta.length === 0) { landmarker.close(); return null; }
+  if (clipMeta.length === 0) {
+    landmarker.close();
+    return { scale: 0, offsetX: 0, offsetY: 0, debug: `no_clips urls=${uniqueUrls.length}` };
+  }
 
   let processedFrames = 0;
   let detectOk = 0;
@@ -175,13 +177,10 @@ export async function analyzeAutofit(
 
     try {
       await new Promise<void>((resolve, reject) => {
-        video.onloadeddata = () => resolve();
+        video.oncanplaythrough = () => resolve();
         video.onerror = () => reject(new Error('video load error'));
         video.src = url;
-        video.load();
       });
-      try { await video.play(); } catch { /* autoplay may be blocked */ }
-      video.pause();
     } catch {
       video.remove();
       continue;
