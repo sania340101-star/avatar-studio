@@ -32,11 +32,14 @@ export default function DisplayPage() {
   stateRef.current = state;
 
   // BroadcastChannel listener
+  const bcConnected = useRef(false);
+
   useEffect(() => {
     const ch = new BroadcastChannel(`avatar-display-${sessionId}`);
     channelRef.current = ch;
 
     ch.onmessage = (e) => {
+      bcConnected.current = true;
       const msg = e.data;
       if (msg.type === 'init' || msg.type === 'update') {
         setState(prev => ({ ...prev, ...msg.state }));
@@ -49,10 +52,37 @@ export default function DisplayPage() {
       }
     };
 
-    // Request initial state from editor
     ch.postMessage({ type: 'requestState' });
 
     return () => ch.close();
+  }, [sessionId]);
+
+  // Server polling fallback (for cross-device sync)
+  useEffect(() => {
+    let alive = true;
+    const poll = async () => {
+      while (alive) {
+        try {
+          const res = await fetch(`/api/display-sync?id=${sessionId}`);
+          if (res.ok) {
+            const data = await res.json();
+            if (data && !bcConnected.current) {
+              setState(prev => ({
+                ...prev,
+                device: data.device ?? prev.device,
+                transform: data.transform ?? prev.transform,
+                clipUrl: data.clipUrl ?? prev.clipUrl,
+                clipUrls: data.clipUrls ?? prev.clipUrls,
+                activeClipIdx: data.activeClipIdx ?? prev.activeClipIdx,
+              }));
+            }
+          }
+        } catch {}
+        await new Promise(r => setTimeout(r, 300));
+      }
+    };
+    poll();
+    return () => { alive = false; };
   }, [sessionId]);
 
   // Update video when clipUrl changes

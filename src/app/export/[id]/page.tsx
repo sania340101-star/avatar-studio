@@ -92,6 +92,14 @@ function ExportEditorContent() {
 
   useEffect(() => { load(); }, [load]);
 
+  const syncToServer = useCallback((patch: Record<string, unknown>) => {
+    fetch(`/api/display-sync?id=${sessionId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(patch),
+    }).catch(() => {});
+  }, [sessionId]);
+
   // BroadcastChannel for display window sync
   useEffect(() => {
     const ch = new BroadcastChannel(`avatar-display-${sessionId}`);
@@ -100,17 +108,16 @@ function ExportEditorContent() {
       const msg = e.data;
       if (msg.type === 'requestState' && session) {
         const clipUrl = session.clips[activeClipIdx]?.url || '';
-        ch.postMessage({
-          type: 'init',
-          state: {
-            device: session.device,
-            transform: session.transform,
-            clipUrl,
-            clipUrls: session.clips.map(c => c.url),
-            activeClipIdx,
-            loop: true,
-          },
-        });
+        const fullState = {
+          device: session.device,
+          transform: session.transform,
+          clipUrl,
+          clipUrls: session.clips.map(c => c.url),
+          activeClipIdx,
+          loop: true,
+        };
+        ch.postMessage({ type: 'init', state: fullState });
+        syncToServer(fullState);
       }
       if (msg.type === 'transformFromDisplay') {
         updateTransform(msg.transform, true);
@@ -120,7 +127,7 @@ function ExportEditorContent() {
       }
     };
     return () => ch.close();
-  }, [sessionId, session, activeClipIdx]);
+  }, [sessionId, session, activeClipIdx, syncToServer]);
 
   useEffect(() => {
     if (!session) return;
@@ -293,6 +300,7 @@ function ExportEditorContent() {
     setSession({ ...session, transform, updatedAt: Date.now() });
     debouncedSave({ transform });
     displayChannelRef.current?.postMessage({ type: 'transform', transform });
+    syncToServer({ transform });
   }
 
   function undoTransform() {
@@ -426,10 +434,11 @@ function ExportEditorContent() {
 
   // Sync active clip to display window
   useEffect(() => {
-    if (!session || !displayChannelRef.current) return;
+    if (!session) return;
     const clipUrl = session.clips[activeClipIdx]?.url || '';
-    displayChannelRef.current.postMessage({ type: 'clip', clipUrl, activeClipIdx });
-  }, [activeClipIdx, session?.clips.length]);
+    displayChannelRef.current?.postMessage({ type: 'clip', clipUrl, activeClipIdx });
+    syncToServer({ clipUrl, activeClipIdx, clipUrls: session.clips.map(c => c.url) });
+  }, [activeClipIdx, session?.clips.length, syncToServer]);
 
   // Sequential player: advance to next clip when video ends
   const handleVideoEnded = useCallback(() => {
