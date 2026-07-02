@@ -10,9 +10,10 @@ interface MaskPreviewProps {
   onTransformChange: (t: { offsetX: number; offsetY: number; scale: number }) => void;
   loop?: boolean;
   onVideoEnded?: () => void;
+  playKey?: number;
 }
 
-export default function MaskPreview({ device, videoUrl, transform, onTransformChange, loop = true, onVideoEnded }: MaskPreviewProps) {
+export default function MaskPreview({ device, videoUrl, transform, onTransformChange, loop = true, onVideoEnded, playKey }: MaskPreviewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const videoElRef = useRef<HTMLVideoElement>(null);
   const [dragging, setDragging] = useState(false);
@@ -30,7 +31,7 @@ export default function MaskPreview({ device, videoUrl, transform, onTransformCh
       vid.load();
       vid.play().catch(() => {});
     }
-  }, [videoUrl]);
+  }, [videoUrl, playKey]);
 
   useEffect(() => {
     function updateScale() {

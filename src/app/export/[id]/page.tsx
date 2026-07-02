@@ -784,6 +784,7 @@ function ExportEditorContent() {
             onTransformChange={updateTransform}
             loop={isLocked || session.clips.length === 1}
             onVideoEnded={handleVideoEnded}
+            playKey={activeClipIdx}
           />
 
           {/* Auto-fit + Undo */}
@@ -1202,8 +1203,25 @@ function ExportEditorContent() {
               </button>
               <button
                 onClick={async () => {
+                  if (!session) return;
                   const toAdd = browserVideos.filter(g => browserSelected.has(g.id));
-                  for (const gen of toAdd) await addClip(gen);
+                  const newClips: ExportClip[] = [];
+                  for (const gen of toAdd) {
+                    const dur = await probeDuration(gen.resultUrls[0]);
+                    newClips.push({
+                      id: `clip-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+                      generationId: gen.id,
+                      projectId: gen.projectId,
+                      url: gen.resultUrls[0],
+                      label: clipLabel(gen),
+                      duration: dur > 0 ? Math.round(dur * 10) / 10 : undefined,
+                      source: 'generation',
+                      transform: { offsetX: 0, offsetY: 0, scale: 1 },
+                    });
+                  }
+                  const clips = [...session.clips, ...newClips];
+                  setSession({ ...session, clips, updatedAt: Date.now() });
+                  debouncedSave({ clips });
                   setShowBrowser(false);
                 }}
                 disabled={browserSelected.size === 0}
