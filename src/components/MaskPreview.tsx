@@ -47,7 +47,7 @@ export default function MaskPreview({ device, videoUrl, transform, onTransformCh
     e.preventDefault();
     setDragging(true);
     dragStart.current = { x: e.clientX, y: e.clientY, ox: transform.offsetX, oy: transform.offsetY };
-    (e.target as HTMLElement).setPointerCapture(e.pointerId);
+    containerRef.current?.setPointerCapture(e.pointerId);
   }, [transform.offsetX, transform.offsetY]);
 
   const handlePointerMove = useCallback((e: React.PointerEvent) => {
@@ -57,14 +57,20 @@ export default function MaskPreview({ device, videoUrl, transform, onTransformCh
     const dy = (e.clientY - dragStart.current.y) / ds;
     onTransformChange({
       ...transform,
-      offsetX: Math.round(dragStart.current.ox + dx),
-      offsetY: Math.round(dragStart.current.oy + dy),
+      offsetX: dragStart.current.ox + dx,
+      offsetY: dragStart.current.oy + dy,
     });
   }, [dragging, transform, onTransformChange]);
 
-  const handlePointerUp = useCallback(() => {
+  const handlePointerUp = useCallback((e: React.PointerEvent) => {
     setDragging(false);
-  }, []);
+    containerRef.current?.releasePointerCapture(e.pointerId);
+    onTransformChange({
+      ...transform,
+      offsetX: Math.round(transform.offsetX),
+      offsetY: Math.round(transform.offsetY),
+    });
+  }, [transform, onTransformChange]);
 
   const adjustScale = useCallback((delta: number) => {
     const newScale = Math.max(0.5, Math.min(3, transform.scale + delta));

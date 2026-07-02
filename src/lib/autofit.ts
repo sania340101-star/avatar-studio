@@ -24,9 +24,69 @@ interface CollectedPoint {
 
 function seekVideo(video: HTMLVideoElement, time: number): Promise<void> {
   return new Promise((resolve) => {
-    video.onseeked = () => resolve();
+    const onSeeked = () => {
+      video.removeEventListener('seeked', onSeeked);
+      resolve();
+    };
+    video.addEventListener('seeked', onSeeked);
     video.currentTime = time;
   });
+}
+
+// MediaPipe landmarks don't cover body volume — only skeleton joints.
+// Expand landmark positions outward from body center to approximate actual body edges.
+function expandLandmarks(points: CollectedPoint[]): CollectedPoint[] {
+  if (points.length === 0) return points;
+
+  const expanded: CollectedPoint[] = [...points];
+
+  // Group by video dimensions to compute per-frame expansion
+  const byDims = new Map<string, CollectedPoint[]>();
+  for (const p of points) {
+    const key = `${p.natW}x${p.natH}`;
+    if (!byDims.has(key)) byDims.set(key, []);
+    byDims.get(key)!.push(p);
+  }
+
+  for (const [, pts] of byDims) {
+    const natW = pts[0].natW;
+    const natH = pts[0].natH;
+
+    // Find bounding box in normalized coords
+    const minX = Math.min(...pts.map(p => p.normX));
+    const maxX = Math.max(...pts.map(p => p.normX));
+    const minY = Math.min(...pts.map(p => p.normY));
+    const maxY = Math.max(...pts.map(p => p.normY));
+    const bboxW = maxX - minX;
+    const bboxH = maxY - minY;
+
+    // Head top: highest landmark is usually nose/eyes (~forehead level).
+    // Actual head top is ~30% of face height above the nose.
+    // Approximate face height as 15% of body bbox height.
+    const headExtra = bboxH * 0.15;
+    expanded.push({
+      normX: (minX + maxX) / 2,
+      normY: Math.max(0, minY - headExtra),
+      natW, natH,
+    });
+
+    // Side expansion: body/clothing extends ~12% of bbox width beyond skeleton
+    const sideExtra = bboxW * 0.12;
+    // Left edge
+    expanded.push({ normX: Math.max(0, minX - sideExtra), normY: (minY + maxY) / 2, natW, natH });
+    // Right edge
+    expanded.push({ normX: Math.min(1, maxX + sideExtra), normY: (minY + maxY) / 2, natW, natH });
+
+    // Bottom expansion: shoes extend ~5% below ankle landmarks
+    const bottomExtra = bboxH * 0.05;
+    expanded.push({
+      normX: (minX + maxX) / 2,
+      normY: Math.min(1, maxY + bottomExtra),
+      natW, natH,
+    });
+  }
+
+  return expanded;
 }
 
 export async function analyzeAutofit(
@@ -34,7 +94,7 @@ export async function analyzeAutofit(
   device: 'hh1x3' | 'solo',
   onProgress: (p: AutofitProgress) => void,
   sampleIntervalSec = 2,
-  safetyPadding = 0.05,
+  safetyPadding = 0.08,
 ): Promise<AutofitResult | null> {
   const preset = DEVICE_PRESETS[device];
   const mask = DEVICE_MASKS[device];
@@ -62,21 +122,20 @@ export async function analyzeAutofit(
   });
 
   const uniqueUrls = [...new Set(clipUrls)];
-  const allPoints: CollectedPoint[] = [];
+  const rawPoints: CollectedPoint[] = [];
 
   for (let ci = 0; ci < uniqueUrls.length; ci++) {
     const url = uniqueUrls[ci];
 
     const video = document.createElement('video');
-    video.crossOrigin = 'anonymous';
     video.preload = 'auto';
     video.muted = true;
     video.playsInline = true;
 
     try {
       await new Promise<void>((resolve, reject) => {
-        video.onloadeddata = () => resolve();
-        video.onerror = () => reject(new Error(`Failed to load video`));
+        video.oncanplaythrough = () => resolve();
+        video.onerror = () => reject(new Error('Failed to load video'));
         video.src = url;
       });
     } catch {
@@ -115,8 +174,8 @@ export async function analyzeAutofit(
       const result = landmarker.detect(canvas);
       if (result.landmarks && result.landmarks.length > 0) {
         for (const lm of result.landmarks[0]) {
-          if ((lm.visibility ?? 0) > 0.3) {
-            allPoints.push({ normX: lm.x, normY: lm.y, natW, natH });
+          if ((lm.visibility ?? 0) > 0.5 && lm.x >= 0 && lm.x <= 1 && lm.y >= 0 && lm.y <= 1) {
+            rawPoints.push({ normX: lm.x, normY: lm.y, natW, natH });
           }
         }
       }
@@ -128,7 +187,10 @@ export async function analyzeAutofit(
 
   landmarker.close();
 
-  if (allPoints.length === 0) return null;
+  if (rawPoints.length === 0) return null;
+
+  // Expand landmarks to account for body volume beyond skeleton
+  const allPoints = expandLandmarks(rawPoints);
 
   onProgress({
     stage: 'computing', clipIndex: uniqueUrls.length, clipCount: uniqueUrls.length,
@@ -143,20 +205,20 @@ export async function analyzeAutofit(
   const maskCx = mask.circles.reduce((s, c) => s + c.cx, 0) / mask.circles.length;
   const maskCy = mask.circles.reduce((s, c) => s + c.cy, 0) / mask.circles.length;
 
-  function tryFit(scale: number): { fits: boolean; offsetX: number; offsetY: number } {
+  function toElemCoords(scale: number): { x: number; y: number }[] {
     const elemW = preset.width * scale;
     const elemH = preset.height * scale;
-
-    const elemPts: { x: number; y: number }[] = [];
-    for (const p of allPoints) {
+    return allPoints.map(p => {
       const cs = Math.max(elemW / p.natW, elemH / p.natH);
-      const sw = p.natW * cs;
-      const sh = p.natH * cs;
-      elemPts.push({
-        x: sw * (p.normX - 0.5) + elemW / 2,
-        y: sh * (p.normY - 0.5) + elemH / 2,
-      });
-    }
+      return {
+        x: p.natW * cs * (p.normX - 0.5) + elemW / 2,
+        y: p.natH * cs * (p.normY - 0.5) + elemH / 2,
+      };
+    });
+  }
+
+  function tryFit(scale: number): { fits: boolean; offsetX: number; offsetY: number } {
+    const elemPts = toElemCoords(scale);
 
     const bMinX = Math.min(...elemPts.map(p => p.x));
     const bMaxX = Math.max(...elemPts.map(p => p.x));
@@ -168,49 +230,45 @@ export async function analyzeAutofit(
     const baseOffX = maskCx - bCx;
     const baseOffY = maskCy - bCy;
 
-    // Try base offset + small adjustments to find best margin
-    const offsets = [
-      [baseOffX, baseOffY],
-      [baseOffX, baseOffY - 30],
-      [baseOffX, baseOffY + 30],
-      [baseOffX - 20, baseOffY],
-      [baseOffX + 20, baseOffY],
-    ];
-
+    // Grid search around base offset for best margin
+    const steps = [-40, -20, 0, 20, 40];
     let bestMargin = -Infinity;
     let bestOx = Math.round(baseOffX);
     let bestOy = Math.round(baseOffY);
     let bestFits = false;
 
-    for (const [ox, oy] of offsets) {
-      let minMargin = Infinity;
-      let allIn = true;
+    for (const dy of steps) {
+      for (const dx of steps) {
+        const ox = baseOffX + dx;
+        const oy = baseOffY + dy;
+        let minMargin = Infinity;
+        let allIn = true;
 
-      for (const p of elemPts) {
-        const cx = ox + p.x;
-        const cy = oy + p.y;
-
-        let bestCircleMargin = -Infinity;
-        for (const circle of paddedCircles) {
-          const dist = Math.sqrt((cx - circle.cx) ** 2 + (cy - circle.cy) ** 2);
-          const margin = circle.r - dist;
-          if (margin > bestCircleMargin) bestCircleMargin = margin;
+        for (const p of elemPts) {
+          const cx = ox + p.x;
+          const cy = oy + p.y;
+          let bestCircleMargin = -Infinity;
+          for (const circle of paddedCircles) {
+            const dist = Math.sqrt((cx - circle.cx) ** 2 + (cy - circle.cy) ** 2);
+            bestCircleMargin = Math.max(bestCircleMargin, circle.r - dist);
+          }
+          if (bestCircleMargin < 0) allIn = false;
+          minMargin = Math.min(minMargin, bestCircleMargin);
         }
-        if (bestCircleMargin < 0) allIn = false;
-        if (bestCircleMargin < minMargin) minMargin = bestCircleMargin;
-      }
 
-      if (minMargin > bestMargin) {
-        bestMargin = minMargin;
-        bestOx = Math.round(ox);
-        bestOy = Math.round(oy);
-        bestFits = allIn;
+        if (minMargin > bestMargin) {
+          bestMargin = minMargin;
+          bestOx = Math.round(ox);
+          bestOy = Math.round(oy);
+          bestFits = allIn;
+        }
       }
     }
 
     return { fits: bestFits, offsetX: bestOx, offsetY: bestOy };
   }
 
+  // Binary search for max scale where fit works
   let lo = 0.5;
   let hi = 3.0;
   let best: AutofitResult | null = null;

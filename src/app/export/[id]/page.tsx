@@ -56,6 +56,7 @@ function ExportEditorContent() {
   const [uploading, setUploading] = useState(false);
   const [autofitting, setAutofitting] = useState(false);
   const [autofitProgress, setAutofitProgress] = useState<AutofitProgress | null>(null);
+  const [prevTransform, setPrevTransform] = useState<{ offsetX: number; offsetY: number; scale: number } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Sequential player state
@@ -230,6 +231,7 @@ function ExportEditorContent() {
 
   async function runAutofit() {
     if (!session || session.clips.length === 0 || autofitting) return;
+    setPrevTransform({ ...session.transform });
     setAutofitting(true);
     setAutofitProgress(null);
     try {
@@ -241,14 +243,22 @@ function ExportEditorContent() {
       if (result) {
         updateTransform(result);
       } else {
+        setPrevTransform(null);
         alert('No poses detected in any clip. Try adjusting manually.');
       }
     } catch (err) {
+      setPrevTransform(null);
       alert('Auto-fit failed: ' + (err instanceof Error ? err.message : 'unknown error'));
     } finally {
       setAutofitting(false);
       setAutofitProgress(null);
     }
+  }
+
+  function undoAutofit() {
+    if (!prevTransform) return;
+    updateTransform(prevTransform);
+    setPrevTransform(null);
   }
 
   function setDevice(device: 'hh1x3' | 'solo') {
@@ -748,6 +758,18 @@ function ExportEditorContent() {
                 </>
               )}
             </button>
+            {prevTransform && !autofitting && (
+              <button
+                onClick={undoAutofit}
+                className="text-xs px-3 py-1.5 rounded-lg font-medium flex items-center gap-1.5"
+                style={{ background: 'var(--bg-input)', color: 'var(--text2)', border: '1px solid var(--border)' }}
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
+                  <path d="M3 10h10a5 5 0 0 1 0 10H9" /><polyline points="7 14 3 10 7 6" />
+                </svg>
+                Undo
+              </button>
+            )}
             {autofitProgress && (
               <span className="text-[10px] flex-1 truncate" style={{ color: 'var(--text3)' }}>
                 {autofitProgress.message}
