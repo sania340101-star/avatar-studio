@@ -61,7 +61,10 @@ function ExportEditorContent() {
   const [confirmDeleteVersion, setConfirmDeleteVersion] = useState<{ id: string; num: number } | null>(null);
   const [confirmDeleteSession, setConfirmDeleteSession] = useState(false);
   const [safetyPaddingPx, setSafetyPaddingPx] = useState(0);
+  const [displayOpen, setDisplayOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const displayChannelRef = useRef<BroadcastChannel | null>(null);
+  const displayWindowRef = useRef<Window | null>(null);
 
   // Transform undo stack
   const transformHistory = useRef<Array<{ offsetX: number; offsetY: number; scale: number }>>([]);
@@ -88,6 +91,36 @@ function ExportEditorContent() {
   }, [sessionId]);
 
   useEffect(() => { load(); }, [load]);
+
+  // BroadcastChannel for display window sync
+  useEffect(() => {
+    const ch = new BroadcastChannel(`avatar-display-${sessionId}`);
+    displayChannelRef.current = ch;
+    ch.onmessage = (e) => {
+      const msg = e.data;
+      if (msg.type === 'requestState' && session) {
+        const clipUrl = session.clips[activeClipIdx]?.url || '';
+        ch.postMessage({
+          type: 'init',
+          state: {
+            device: session.device,
+            transform: session.transform,
+            clipUrl,
+            clipUrls: session.clips.map(c => c.url),
+            activeClipIdx,
+            loop: true,
+          },
+        });
+      }
+      if (msg.type === 'transformFromDisplay') {
+        updateTransform(msg.transform, true);
+      }
+      if (msg.type === 'clipAdvance') {
+        setActiveClipIdx(msg.activeClipIdx);
+      }
+    };
+    return () => ch.close();
+  }, [sessionId, session, activeClipIdx]);
 
   useEffect(() => {
     if (!session) return;
@@ -259,6 +292,7 @@ function ExportEditorContent() {
     }
     setSession({ ...session, transform, updatedAt: Date.now() });
     debouncedSave({ transform });
+    displayChannelRef.current?.postMessage({ type: 'transform', transform });
   }
 
   function undoTransform() {
@@ -389,6 +423,13 @@ function ExportEditorContent() {
     setDragIdx(null);
     setDragOverIdx(null);
   }
+
+  // Sync active clip to display window
+  useEffect(() => {
+    if (!session || !displayChannelRef.current) return;
+    const clipUrl = session.clips[activeClipIdx]?.url || '';
+    displayChannelRef.current.postMessage({ type: 'clip', clipUrl, activeClipIdx });
+  }, [activeClipIdx, session?.clips.length]);
 
   // Sequential player: advance to next clip when video ends
   const handleVideoEnded = useCallback(() => {
@@ -747,6 +788,51 @@ function ExportEditorContent() {
                   🔒 Clip {lockedClipIdx! + 1} looped
                 </span>
               )}
+              <button
+                onClick={async () => {
+                  if (displayOpen && displayWindowRef.current && !displayWindowRef.current.closed) {
+                    displayWindowRef.current.focus();
+                    return;
+                  }
+                  const displayUrl = `${window.location.origin}/export/${sessionId}/display`;
+                  let left = 0, top = 0, width = 930, height = 2174;
+                  try {
+                    const screenDetails = await (window as any).getScreenDetails?.();
+                    if (screenDetails && screenDetails.screens.length > 1) {
+                      const ext = screenDetails.screens.find((s: any) => s !== screenDetails.currentScreen);
+                      if (ext) {
+                        left = ext.left;
+                        top = ext.top;
+                        width = ext.availWidth;
+                        height = ext.availHeight;
+                      }
+                    }
+                  } catch {}
+                  const w = window.open(
+                    displayUrl,
+                    'avatar-display',
+                    `left=${left},top=${top},width=${width},height=${height}`,
+                  );
+                  if (w) {
+                    displayWindowRef.current = w;
+                    setDisplayOpen(true);
+                    const check = setInterval(() => {
+                      if (w.closed) { setDisplayOpen(false); clearInterval(check); }
+                    }, 1000);
+                  }
+                }}
+                className="text-xs px-3 py-1.5 rounded-lg font-medium flex items-center gap-1.5"
+                style={{
+                  background: displayOpen ? 'var(--accent)' : 'var(--bg-input)',
+                  color: displayOpen ? 'white' : 'var(--text2)',
+                  border: displayOpen ? 'none' : '1px solid var(--border)',
+                }}
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
+                  <rect x="2" y="3" width="20" height="14" rx="2" /><line x1="8" y1="21" x2="16" y2="21" /><line x1="12" y1="17" x2="12" y2="21" />
+                </svg>
+                {displayOpen ? 'Display Open' : 'Open Display'}
+              </button>
             </div>
           </div>
 
