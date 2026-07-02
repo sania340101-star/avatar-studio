@@ -113,8 +113,6 @@ export async function analyzeAutofit(
 
   const uniqueUrls = [...new Set(clipUrls)];
   const rawPoints: CollectedPoint[] = [];
-  // Nose landmarks tracked separately for dead pixel avoidance
-  const nosePoints: CollectedPoint[] = [];
 
   // Pre-scan for progress
   const clipMeta: { url: string; duration: number; natW: number; natH: number; frameCount: number }[] = [];
@@ -203,10 +201,6 @@ export async function analyzeAutofit(
           const lm = lms[li];
           if ((lm.visibility ?? 0) > 0.5 && lm.x >= 0 && lm.x <= 1 && lm.y >= 0 && lm.y <= 1) {
             rawPoints.push({ normX: lm.x, normY: lm.y, natW, natH });
-            // Landmark 0 = nose tip
-            if (li === 0) {
-              nosePoints.push({ normX: lm.x, normY: lm.y, natW, natH });
-            }
           }
         }
       }
@@ -228,106 +222,44 @@ export async function analyzeAutofit(
     cx: c.cx, cy: c.cy, r: Math.max(0, c.r - safetyPaddingPx),
   }));
 
-  // Dead pixel positions: center of each circle
-  const deadPixels = mask.circles.map(c => ({ x: c.cx, y: c.cy }));
+  const HEAD_MARGIN_PX = 20;
+  const maskTopY = Math.min(...mask.circles.map(c => c.cy - c.r));
+  const maskCx = mask.circles.reduce((s, c) => s + c.cx, 0) / mask.circles.length;
 
-  function pointToElem(p: CollectedPoint, elemW: number, elemH: number): { x: number; y: number } {
-    const cs = Math.max(elemW / p.natW, elemH / p.natH);
+  function pointToContainer(p: CollectedPoint, scale: number): { x: number; y: number } {
+    const cs = Math.max(preset.width / p.natW, preset.height / p.natH) * scale;
     return {
-      x: p.natW * cs * (p.normX - 0.5) + elemW / 2,
-      y: p.natH * cs * (p.normY - 0.5) + elemH / 2,
+      x: p.natW * cs * (p.normX - 0.5) + preset.width / 2,
+      y: p.natH * cs * (p.normY - 0.5) + preset.height / 2,
     };
   }
 
-  function tryFit(scale: number): { fits: boolean; offsetX: number; offsetY: number; noseAbove: number; margin: number } {
-    const elemW = preset.width * scale;
-    const elemH = preset.height * scale;
+  function tryFit(scale: number): { fits: boolean; offsetX: number; offsetY: number } {
+    const pts = allPoints.map(p => pointToContainer(p, scale));
 
-    const elemPts = allPoints.map(p => pointToElem(p, elemW, elemH));
-    const nosePts = nosePoints.map(p => pointToElem(p, elemW, elemH));
+    const minX = Math.min(...pts.map(p => p.x));
+    const maxX = Math.max(...pts.map(p => p.x));
+    const minY = Math.min(...pts.map(p => p.y));
 
-    const bMinX = Math.min(...elemPts.map(p => p.x));
-    const bMaxX = Math.max(...elemPts.map(p => p.x));
-    const bMinY = Math.min(...elemPts.map(p => p.y));
-    const bMaxY = Math.max(...elemPts.map(p => p.y));
-    const bCx = (bMinX + bMaxX) / 2;
-    const bCy = (bMinY + bMaxY) / 2;
+    const bodyCx = (minX + maxX) / 2;
+    const offsetX = Math.round(maskCx - bodyCx);
+    const offsetY = Math.round((maskTopY + HEAD_MARGIN_PX) - minY);
 
-    const maskCx = mask.circles.reduce((s, c) => s + c.cx, 0) / mask.circles.length;
-    const maskCy = mask.circles.reduce((s, c) => s + c.cy, 0) / mask.circles.length;
-    const baseOffX = maskCx - bCx;
-    const baseOffY = maskCy - bCy;
-
-    let bestMargin = -Infinity;
-    let bestNoseAbove = -Infinity;
-    let bestOx = Math.round(baseOffX);
-    let bestOy = Math.round(baseOffY);
-    let bestFits = false;
-
-    function evaluate(ox: number, oy: number) {
-      let minMargin = Infinity;
-      let allIn = true;
-
-      for (const p of elemPts) {
-        const cx = ox + p.x;
-        const cy = oy + p.y;
-        let bestCircleMargin = -Infinity;
-        for (const circle of paddedCircles) {
-          const dist = Math.sqrt((cx - circle.cx) ** 2 + (cy - circle.cy) ** 2);
-          bestCircleMargin = Math.max(bestCircleMargin, circle.r - dist);
-        }
-        if (bestCircleMargin < 0) allIn = false;
-        minMargin = Math.min(minMargin, bestCircleMargin);
+    let allIn = true;
+    for (const p of pts) {
+      const cx = offsetX + p.x;
+      const cy = offsetY + p.y;
+      let inside = false;
+      for (const circle of paddedCircles) {
+        const dist = Math.sqrt((cx - circle.cx) ** 2 + (cy - circle.cy) ** 2);
+        if (dist <= circle.r) { inside = true; break; }
       }
-
-      // How far nose is ABOVE the nearest dead pixel (positive = above)
-      let noseAbove = Infinity;
-      for (const np of nosePts) {
-        const ny = oy + np.y;
-        for (const dp of deadPixels) {
-          noseAbove = Math.min(noseAbove, dp.y - ny);
-        }
-      }
-
-      // Ranking: fits first, then maximize nose-above-dead-pixel distance (primary),
-      // then margin (secondary). noseAbove > 0 means nose is above dead pixel.
-      if (allIn && !bestFits) {
-        bestMargin = minMargin; bestNoseAbove = noseAbove;
-        bestOx = Math.round(ox); bestOy = Math.round(oy); bestFits = true;
-      } else if (allIn && bestFits) {
-        if (noseAbove > bestNoseAbove + 2) {
-          bestMargin = minMargin; bestNoseAbove = noseAbove;
-          bestOx = Math.round(ox); bestOy = Math.round(oy);
-        } else if (Math.abs(noseAbove - bestNoseAbove) <= 2 && minMargin > bestMargin) {
-          bestMargin = minMargin; bestNoseAbove = noseAbove;
-          bestOx = Math.round(ox); bestOy = Math.round(oy);
-        }
-      } else if (!allIn && !bestFits && minMargin > bestMargin) {
-        bestMargin = minMargin; bestNoseAbove = noseAbove;
-        bestOx = Math.round(ox); bestOy = Math.round(oy);
-      }
+      if (!inside) { allIn = false; break; }
     }
 
-    // Coarse grid search
-    for (let dy = -600; dy <= 600; dy += 40) {
-      for (let dx = -300; dx <= 300; dx += 40) {
-        evaluate(baseOffX + dx, baseOffY + dy);
-      }
-    }
-
-    // Fine search around coarse best
-    const fineOx = bestOx;
-    const fineOy = bestOy;
-    for (let dy = -50; dy <= 50; dy += 10) {
-      for (let dx = -50; dx <= 50; dx += 10) {
-        evaluate(fineOx + dx, fineOy + dy);
-      }
-    }
-
-    return { fits: bestFits, offsetX: bestOx, offsetY: bestOy, noseAbove: bestNoseAbove, margin: bestMargin };
+    return { fits: allIn, offsetX, offsetY };
   }
 
-  // Binary search for max scale where body fits in circles
   let lo = 0.5;
   let hi = 3.0;
   let best: AutofitResult | null = null;

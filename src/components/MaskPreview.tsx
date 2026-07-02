@@ -17,6 +17,7 @@ export default function MaskPreview({ device, videoUrl, transform, onTransformCh
   const containerRef = useRef<HTMLDivElement>(null);
   const videoElRef = useRef<HTMLVideoElement>(null);
   const [dragging, setDragging] = useState(false);
+  const [videoDims, setVideoDims] = useState<{ w: number; h: number } | null>(null);
   const dragStart = useRef({ x: 0, y: 0, ox: 0, oy: 0 });
   const preset = DEVICE_PRESETS[device];
   const mask = DEVICE_MASKS[device];
@@ -129,14 +130,32 @@ export default function MaskPreview({ device, videoUrl, transform, onTransformCh
                 muted
                 playsInline
                 onEnded={onVideoEnded}
-                style={{
-                  position: 'absolute',
-                  left: transform.offsetX,
-                  top: transform.offsetY,
-                  width: preset.width * transform.scale,
-                  height: preset.height * transform.scale,
-                  objectFit: 'cover',
+                onLoadedMetadata={() => {
+                  const v = videoElRef.current;
+                  if (v && v.videoWidth && v.videoHeight) setVideoDims({ w: v.videoWidth, h: v.videoHeight });
                 }}
+                style={(() => {
+                  if (videoDims) {
+                    const cs = Math.max(preset.width / videoDims.w, preset.height / videoDims.h) * transform.scale;
+                    const vw = videoDims.w * cs;
+                    const vh = videoDims.h * cs;
+                    return {
+                      position: 'absolute' as const,
+                      left: -(vw - preset.width) / 2 + transform.offsetX,
+                      top: -(vh - preset.height) / 2 + transform.offsetY,
+                      width: vw,
+                      height: vh,
+                    };
+                  }
+                  return {
+                    position: 'absolute' as const,
+                    left: transform.offsetX,
+                    top: transform.offsetY,
+                    width: preset.width * transform.scale,
+                    height: preset.height * transform.scale,
+                    objectFit: 'cover' as const,
+                  };
+                })()}
               />
             </div>
           </foreignObject>

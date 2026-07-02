@@ -18,6 +18,7 @@ export default function DisplayPage() {
   const sessionId = params.id as string;
   const channelRef = useRef<BroadcastChannel | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const [videoDims, setVideoDims] = useState<{ w: number; h: number } | null>(null);
   const [showClose, setShowClose] = useState(true);
 
   const [state, setState] = useState<DisplayState>({
@@ -209,14 +210,33 @@ export default function DisplayPage() {
                 muted
                 playsInline
                 onEnded={handleVideoEnded}
-                style={{
-                  position: 'absolute',
-                  left: state.transform.offsetX,
-                  top: state.transform.offsetY,
-                  width: preset.width * state.transform.scale,
-                  height: preset.height * state.transform.scale,
-                  objectFit: 'cover',
+                onLoadedMetadata={() => {
+                  const v = videoRef.current;
+                  if (v && v.videoWidth && v.videoHeight) setVideoDims({ w: v.videoWidth, h: v.videoHeight });
                 }}
+                style={(() => {
+                  const t = state.transform;
+                  if (videoDims) {
+                    const cs = Math.max(preset.width / videoDims.w, preset.height / videoDims.h) * t.scale;
+                    const vw = videoDims.w * cs;
+                    const vh = videoDims.h * cs;
+                    return {
+                      position: 'absolute' as const,
+                      left: -(vw - preset.width) / 2 + t.offsetX,
+                      top: -(vh - preset.height) / 2 + t.offsetY,
+                      width: vw,
+                      height: vh,
+                    };
+                  }
+                  return {
+                    position: 'absolute' as const,
+                    left: t.offsetX,
+                    top: t.offsetY,
+                    width: preset.width * t.scale,
+                    height: preset.height * t.scale,
+                    objectFit: 'cover' as const,
+                  };
+                })()}
               />
             </div>
           </foreignObject>
