@@ -83,6 +83,13 @@ export interface Template {
   updatedAt: number;
 }
 
+export interface RegisteredUser {
+  userId: string;
+  userName: string;
+  email?: string;
+  lastSeen: number;
+}
+
 export interface AppUser {
   userId: string;
   userName: string;

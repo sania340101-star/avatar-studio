@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import AppShell from '@/components/AppShell';
 import { useProject } from '@/lib/ProjectContext';
 import { Template, TemplateSlot, TemplateRef, VideoModelTypeFilter } from '@/lib/types';
+import ShareDialog from '@/components/ShareDialog';
 import {
   VIDEO_MODEL_OPTIONS, VIDEO_MODEL_GROUPS,
   VIDEO_MODEL_TYPE_FILTERS, filterVideoModelsByType,
@@ -115,6 +116,7 @@ function TemplateList({ templates, onEdit, onDelete, onCreate }: {
   onCreate: () => void;
 }) {
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [shareTemplate, setShareTemplate] = useState<{ id: string; name: string } | null>(null);
 
   return (
     <>
@@ -157,6 +159,16 @@ function TemplateList({ templates, onEdit, onDelete, onCreate }: {
                     <span className="text-xs px-2 py-0.5 rounded" style={{ background: 'var(--accent-subtle)', color: 'var(--accent)' }}>
                       {slotCount} slot{slotCount !== 1 ? 's' : ''}
                     </span>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setShareTemplate({ id: tmpl.id, name: tmpl.name }); }}
+                      className="w-7 h-7 rounded-lg flex items-center justify-center opacity-50 hover:opacity-100 flex-shrink-0"
+                      style={{ color: 'var(--text3)' }}
+                      title="Share"
+                    >
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
+                        <circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" /><line x1="8.59" y1="13.51" x2="15.42" y2="17.49" /><line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
+                      </svg>
+                    </button>
                     <button
                       onClick={(e) => { e.stopPropagation(); setConfirmDeleteId(tmpl.id); }}
                       className="w-7 h-7 rounded-lg flex items-center justify-center opacity-50 hover:opacity-100 flex-shrink-0"
@@ -205,6 +217,15 @@ function TemplateList({ templates, onEdit, onDelete, onCreate }: {
             </div>
           </div>
         </div>
+      )}
+
+      {shareTemplate && (
+        <ShareDialog
+          entityType="template"
+          entityId={shareTemplate.id}
+          entityName={shareTemplate.name}
+          onClose={() => setShareTemplate(null)}
+        />
       )}
     </>
   );

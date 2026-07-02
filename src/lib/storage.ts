@@ -1,6 +1,6 @@
 import { readFileSync, writeFileSync, mkdirSync, existsSync, renameSync } from 'fs';
 import { join } from 'path';
-import { Project, Generation, Template, ProjectCacheData, ImageFormCache, VideoFormCache, ExportSession } from './types';
+import { Project, Generation, Template, ProjectCacheData, ImageFormCache, VideoFormCache, ExportSession, RegisteredUser } from './types';
 const DATA_DIR = process.env.DATA_DIR || join(/* turbopackIgnore: true */ process.cwd(), 'data');
 const PROJECTS_FILE = join(DATA_DIR, 'projects.json');
 const GENERATIONS_DIR = join(DATA_DIR, 'generations');
@@ -294,4 +294,105 @@ export function getExportSessionsUsingGeneration(generationId: string): ExportSe
   ensureDirs();
   const all: ExportSession[] = readJson(EXPORTS_FILE, []);
   return all.filter(s => s.clips.some(c => c.generationId === generationId));
+}
+
+// --- User Registry ---
+const USERS_FILE = join(DATA_DIR, 'users.json');
+
+export function registerUser(userId: string, userName: string, email?: string): void {
+  ensureDirs();
+  const all: RegisteredUser[] = readJson(USERS_FILE, []);
+  const idx = all.findIndex(u => u.userId === userId);
+  if (idx !== -1) {
+    all[idx].userName = userName;
+    if (email) all[idx].email = email;
+    all[idx].lastSeen = Date.now();
+  } else {
+    all.push({ userId, userName, email, lastSeen: Date.now() });
+  }
+  writeJson(USERS_FILE, all);
+}
+
+export function getRegisteredUsers(): RegisteredUser[] {
+  ensureDirs();
+  return readJson<RegisteredUser[]>(USERS_FILE, []).sort((a, b) => b.lastSeen - a.lastSeen);
+}
+
+// --- Share (Copy) ---
+function newId(prefix: string): string {
+  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+export function shareProject(sourceProjectId: string, targetUserId: string): { projectId: string; generationCount: number } {
+  ensureDirs();
+  const source = getProject(sourceProjectId);
+  if (!source) throw new Error('Project not found');
+
+  const newProjectId = newId('proj');
+  const project: Project = {
+    id: newProjectId,
+    userId: targetUserId,
+    title: source.title,
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+  };
+
+  const all: Project[] = readJson(PROJECTS_FILE, []);
+  all.push(project);
+  writeJson(PROJECTS_FILE, all);
+
+  const sourceGens: Generation[] = readJson(genFile(sourceProjectId), []);
+  const copiedGens: Generation[] = sourceGens.map(g => ({
+    ...g,
+    id: newId('gen'),
+    projectId: newProjectId,
+    userId: targetUserId,
+    createdAt: g.createdAt,
+  }));
+  if (copiedGens.length > 0) {
+    writeJson(genFile(newProjectId), copiedGens);
+  }
+
+  return { projectId: newProjectId, generationCount: copiedGens.length };
+}
+
+export function shareTemplate(sourceTemplateId: string, targetUserId: string): string {
+  ensureDirs();
+  const source = getTemplate(sourceTemplateId);
+  if (!source) throw new Error('Template not found');
+
+  const all: Template[] = readJson(TEMPLATES_FILE, []);
+  const copy: Template = {
+    ...source,
+    id: newId('tmpl'),
+    createdBy: targetUserId,
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+  };
+  all.push(copy);
+  writeJson(TEMPLATES_FILE, all);
+  return copy.id;
+}
+
+export function shareExportSession(sourceSessionId: string, targetUserId: string): string {
+  ensureDirs();
+  const source = getExportSession(sourceSessionId);
+  if (!source) throw new Error('Export session not found');
+
+  const all: ExportSession[] = readJson(EXPORTS_FILE, []);
+  const copy: ExportSession = {
+    ...source,
+    id: newId('exp'),
+    userId: targetUserId,
+    clips: source.clips.map(c => ({ ...c, id: newId('clip'), generationId: undefined })),
+    status: 'draft',
+    exportUrl: undefined,
+    exports: [],
+    error: undefined,
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+  };
+  all.push(copy);
+  writeJson(EXPORTS_FILE, all);
+  return copy.id;
 }

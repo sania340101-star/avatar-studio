@@ -1,3 +1,18 @@
+## 2026-07-02: Autofit anchor algorithm + Safety Padding fix + Templates isolation (v1.10.37-v1.10.41)
+
+Done:
+- Autofit anchor algorithm: X offset from first-frame pose (all clips share same start/end pose), Y from global topmost point, only scale adjusts for movements (v1.10.40-41)
+- Safety Padding fix: maskTopY now computed from padded circles, not original (v1.10.38)
+- Optimal horizontal centering: valid offsetX range computation (v1.10.39, superseded by anchor approach)
+- Post-search offset shift: best.offsetY -= 80 to raise person above dead pixel zone (v1.10.37)
+- Templates GET endpoint: per-user filtering by createdBy, admin sees all
+- Cloudflare Tunnel: server-side ready (SITE_BASENAME=studio.hypervsn.com), temporarily reverted to local. Need: add route in Cloudflare Dashboard → Zero Trust → Tunnels → D30 tunnel → studio.hypervsn.com → http://localhost:80
+
+Backlog:
+- Cloudflare external access: flip SITE_BASENAME back + add Cloudflare route
+- Server sync needs debugging (polling untested on actual cross-device setup)
+- Navigation cache: tab switching should preserve nested pages, refresh resets
+
 ## 2026-07-02: Dual-window display + server sync (v1.10.17-v1.10.18)
 
 Done:
@@ -10,11 +25,6 @@ Done:
 - Batch add fix: all clips added in single state update (was adding only 1)
 - Duplicate clip fix: playKey prop forces video restart on same URL
 - Playlist continuous loop: clips loop back to first after last
-
-Backlog:
-- Auto-fit algorithm needs tuning (dead pixel avoidance vs max scale tradeoff)
-- Server sync needs debugging (polling untested on actual cross-device setup)
-- Navigation cache: tab switching should preserve nested pages, refresh resets
 
 ## 2026-07-02: Auto-fit + Export UX polish (v1.8.4 → v1.10.0)
 

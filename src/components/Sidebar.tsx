@@ -2,9 +2,10 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useProject } from '@/lib/ProjectContext';
 import { AppUser } from '@/lib/types';
+import ShareDialog from '@/components/ShareDialog';
 
 const GLOBAL_NAV = [
   {
@@ -62,6 +63,9 @@ export default function Sidebar({ open, onClose, user }: { open?: boolean; onClo
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
+  const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
+  const [shareProject, setShareProject] = useState<{ id: string; title: string } | null>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
 
   const fetchSpending = useCallback(async () => {
     if (!user) return;
@@ -76,6 +80,17 @@ export default function Sidebar({ open, onClose, user }: { open?: boolean; onClo
     const iv = setInterval(fetchSpending, 30_000);
     return () => clearInterval(iv);
   }, [fetchSpending]);
+
+  useEffect(() => {
+    if (!menuOpenId) return;
+    function handleClick(e: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpenId(null);
+      }
+    }
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [menuOpenId]);
 
   const filteredProjects = projectSearch
     ? projects.filter(p => p.title.toLowerCase().includes(projectSearch.toLowerCase()))
@@ -197,26 +212,57 @@ export default function Sidebar({ open, onClose, user }: { open?: boolean; onClo
                         <span className="truncate">{p.title}</span>
                       </Link>
                     )}
-                    <button
-                      onClick={e => { e.stopPropagation(); setRenamingId(p.id); setRenameValue(p.title); }}
-                      className="md:opacity-0 md:group-hover:opacity-100 transition-opacity px-1.5 py-2 flex-shrink-0"
-                      style={{ color: 'var(--text3)' }}
-                      title="Rename project"
-                    >
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3 h-3">
-                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-                      </svg>
-                    </button>
-                    <button
-                      onClick={e => { e.stopPropagation(); setConfirmDelete(true); setActiveProjectId(p.id); }}
-                      className="md:opacity-0 md:group-hover:opacity-100 transition-opacity px-1.5 py-2 flex-shrink-0"
-                      style={{ color: 'var(--text3)' }}
-                      title="Delete project"
-                    >
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
-                        <path d="M18 6L6 18M6 6l12 12" />
-                      </svg>
-                    </button>
+                    <div className="relative flex-shrink-0">
+                      <button
+                        onClick={e => { e.stopPropagation(); e.preventDefault(); setMenuOpenId(menuOpenId === p.id ? null : p.id); }}
+                        className="md:opacity-0 md:group-hover:opacity-100 transition-opacity px-1.5 py-2"
+                        style={{ color: 'var(--text3)' }}
+                        title="Project actions"
+                      >
+                        <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4">
+                          <circle cx="12" cy="5" r="2" /><circle cx="12" cy="12" r="2" /><circle cx="12" cy="19" r="2" />
+                        </svg>
+                      </button>
+                      {menuOpenId === p.id && (
+                        <div
+                          ref={menuRef}
+                          className="absolute right-0 top-8 z-50 w-36 rounded-lg shadow-lg py-1 text-sm"
+                          style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}
+                        >
+                          <button
+                            onClick={e => { e.stopPropagation(); setMenuOpenId(null); setRenamingId(p.id); setRenameValue(p.title); }}
+                            className="w-full text-left px-3 py-1.5 flex items-center gap-2 hover:opacity-80"
+                            style={{ color: 'var(--text2)' }}
+                          >
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
+                              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                            </svg>
+                            Rename
+                          </button>
+                          <button
+                            onClick={e => { e.stopPropagation(); setMenuOpenId(null); setShareProject({ id: p.id, title: p.title }); }}
+                            className="w-full text-left px-3 py-1.5 flex items-center gap-2 hover:opacity-80"
+                            style={{ color: 'var(--text2)' }}
+                          >
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
+                              <circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" /><line x1="8.59" y1="13.51" x2="15.42" y2="17.49" /><line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
+                            </svg>
+                            Share
+                          </button>
+                          <div className="my-1" style={{ borderTop: '1px solid var(--border)' }} />
+                          <button
+                            onClick={e => { e.stopPropagation(); setMenuOpenId(null); setConfirmDelete(true); setActiveProjectId(p.id); }}
+                            className="w-full text-left px-3 py-1.5 flex items-center gap-2 hover:opacity-80"
+                            style={{ color: 'var(--red, #ef4444)' }}
+                          >
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
+                              <polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                            </svg>
+                            Delete
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   </div>
 
                 </div>
@@ -325,6 +371,15 @@ export default function Sidebar({ open, onClose, user }: { open?: boolean; onClo
         <span className="flex-shrink-0 ml-2">v{process.env.APP_VERSION || '?'}</span>
       </div>
     </aside>
+
+    {shareProject && (
+      <ShareDialog
+        entityType="project"
+        entityId={shareProject.id}
+        entityName={shareProject.title}
+        onClose={() => setShareProject(null)}
+      />
+    )}
     </>
   );
 }

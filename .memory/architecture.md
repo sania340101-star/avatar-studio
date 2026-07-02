@@ -17,16 +17,18 @@ Key files:
 
 Status: deployed but server sync needs debugging (BroadcastChannel works, server polling untested)
 
-## 2026-07-02: Auto-fit pose detection for export mask
+## 2026-07-02: Auto-fit pose detection for export mask (v1.10.41)
 
 - MediaPipe PoseLandmarker (browser WASM + GPU) analyzes all clips in playlist
-- Multi-frame sampling: every 2 seconds per clip, deduplicates by URL
-- 33 body landmarks per frame, visibility threshold 0.3
-- Binary search: finds max scale where all landmarks fit inside device mask circles
-- 5% safety padding from circle edge
-- Coordinate mapping: normalized landmarks → object-fit:cover element coords → canvas coords
-- Offset optimization: centroid centering + 5-offset grid search for best margin
-- Progress callback: stage (loading/analyzing/computing), clip/frame counters
+- Multi-frame sampling: every 0.5s per clip, deduplicates by URL
+- 33 body landmarks per frame, visibility threshold 0.5
+- First-frame landmarks tagged as `isAnchor` — used for horizontal centering only
+- expandLandmarks: 20% above head, 15% below feet (0.97 for full-body), 30% sides — synthetic boundary points (not anchors)
+- tryFit: X offset = maskCx - first-frame body center. Y offset = maskTopY + 20 - global topmost point
+- Binary search 0.5-3.0 (30 iterations): finds max scale where ALL points fit inside padded mask circles
+- Safety Padding: slider 0-100px, shrinks mask circle radii for autofit. maskTopY computed from padded circles
+- Post-search shift: best.offsetY -= 80 to raise person above dead pixel zone between circles
+- Progress callback: stage (loading/analyzing/computing), clip/frame counters, diagnostic debug string
 - Dynamic import of @mediapipe/tasks-vision (no SSR)
 
 Key files:

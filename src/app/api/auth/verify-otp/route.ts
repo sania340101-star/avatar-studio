@@ -3,6 +3,7 @@ import { verifyOtp } from '@/lib/otp';
 import { createSession } from '@/lib/sessions';
 import { signToken } from '@/lib/token';
 import { audit } from '@/lib/audit';
+import { registerUser } from '@/lib/storage';
 const AF_URL = process.env.AF_INTERNAL_URL || 'http://172.18.32.73:3380';
 const SERVICE_KEY = process.env.INTERNAL_SERVICE_KEY || '';
 export async function POST(req: NextRequest) {
@@ -59,6 +60,7 @@ export async function POST(req: NextRequest) {
     }
     const sessionId = createSession(userId, falKey, anthropicKey);
     const token = await signToken({ userId, sessionId, role });
+    registerUser(userId, userName, userEmail);
     audit({ event: 'login_success', ip, userId, path: '/api/auth/verify-otp' });
     const res = NextResponse.json({
       ok: true,

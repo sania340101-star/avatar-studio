@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { signToken } from '@/lib/token';
 import { createSession } from '@/lib/sessions';
 import { audit } from '@/lib/audit';
+import { registerUser } from '@/lib/storage';
 
 const SSO_JWT_SECRET = process.env.SSO_JWT_SECRET || '';
 
@@ -80,6 +81,7 @@ export async function GET(request: NextRequest) {
 
   const sessionId = createSession(userId, falKey, anthropicKey);
   const sessionToken = await signToken({ userId, sessionId, role });
+  registerUser(userId, userName);
   audit({ event: 'sso_success', ip, userId, path: '/api/auth/sso' });
 
   const host = request.headers.get('host') || request.nextUrl.host;
