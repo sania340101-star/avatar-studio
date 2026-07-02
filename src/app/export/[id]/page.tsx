@@ -251,14 +251,20 @@ function ExportEditorContent() {
   }
 
   // Touch drag-and-drop for mobile
-  const touchState = useRef<{ idx: number; startY: number; el: HTMLElement | null }>({ idx: -1, startY: 0, el: null });
+  const touchState = useRef<{ idx: number; startY: number; originY: number; el: HTMLElement | null }>({ idx: -1, startY: 0, originY: 0, el: null });
   const clipListRef = useRef<HTMLDivElement>(null);
 
   function handleTouchStart(e: React.TouchEvent, idx: number) {
     const handle = (e.target as HTMLElement).closest('[data-drag-handle]');
     if (!handle) return;
     const touch = e.touches[0];
-    touchState.current = { idx, startY: touch.clientY, el: e.currentTarget as HTMLElement };
+    const el = e.currentTarget as HTMLElement;
+    const rect = el.getBoundingClientRect();
+    touchState.current = { idx, startY: touch.clientY, originY: rect.top, el };
+    el.style.transition = 'none';
+    el.style.zIndex = '50';
+    el.style.boxShadow = '0 8px 25px rgba(0,0,0,0.25)';
+    el.style.transform = 'scale(1.03)';
     setDragIdx(idx);
   }
 
@@ -266,21 +272,37 @@ function ExportEditorContent() {
     if (touchState.current.idx < 0 || !clipListRef.current) return;
     e.preventDefault();
     const touch = e.touches[0];
+    const deltaY = touch.clientY - touchState.current.startY;
+    const el = touchState.current.el;
+    if (el) {
+      el.style.transform = `translateY(${deltaY}px) scale(1.03)`;
+    }
     const items = clipListRef.current.querySelectorAll<HTMLElement>('[data-clip-item]');
+    let newOver: number | null = null;
     for (let i = 0; i < items.length; i++) {
       const rect = items[i].getBoundingClientRect();
-      if (touch.clientY >= rect.top && touch.clientY <= rect.bottom && i !== touchState.current.idx) {
-        setDragOverIdx(i);
-        return;
+      const midY = rect.top + rect.height / 2;
+      if (i !== touchState.current.idx && touch.clientY >= rect.top && touch.clientY <= rect.bottom) {
+        newOver = touch.clientY < midY ? i : i;
+        break;
       }
     }
+    if (newOver !== null) setDragOverIdx(newOver);
   }
 
   function handleTouchEnd() {
+    const el = touchState.current.el;
+    if (el) {
+      el.style.transition = 'transform 0.2s ease, box-shadow 0.2s ease';
+      el.style.transform = '';
+      el.style.boxShadow = '';
+      el.style.zIndex = '';
+      setTimeout(() => { el.style.transition = ''; }, 200);
+    }
     if (touchState.current.idx >= 0 && dragOverIdx !== null && dragOverIdx !== touchState.current.idx) {
       moveClip(touchState.current.idx, dragOverIdx);
     }
-    touchState.current = { idx: -1, startY: 0, el: null };
+    touchState.current = { idx: -1, startY: 0, originY: 0, el: null };
     setDragIdx(null);
     setDragOverIdx(null);
   }
@@ -507,25 +529,31 @@ function ExportEditorContent() {
         ) : (
           <div className="space-y-2" ref={clipListRef}>
             {session.clips.map((clip, idx) => (
-              <div
-                key={clip.id}
-                data-clip-item
-                draggable
-                onDragStart={() => handleDragStart(idx)}
-                onDragOver={(e) => handleDragOver(e, idx)}
-                onDrop={() => handleDrop(idx)}
-                onDragEnd={handleDragEnd}
-                onTouchStart={(e) => handleTouchStart(e, idx)}
-                onTouchMove={(e) => handleTouchMove(e)}
-                onTouchEnd={handleTouchEnd}
-                className={`flex items-center gap-3 p-2 rounded-lg border transition-all ${
-                  dragOverIdx === idx ? 'border-[var(--accent)]' : ''
-                } ${dragIdx === idx ? 'opacity-40' : ''}`}
-                style={{
-                  borderColor: dragOverIdx === idx ? 'var(--accent)' : idx === activeClipIdx ? 'var(--accent)' : 'var(--border)',
-                  background: idx === activeClipIdx ? 'var(--bg-input)' : 'var(--bg)',
-                }}
-              >
+              <div key={clip.id} className="relative">
+                {/* Drop indicator line */}
+                {dragOverIdx === idx && dragIdx !== null && dragIdx !== idx && (
+                  <div className="absolute -top-1.5 left-0 right-0 flex items-center z-10">
+                    <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: 'var(--accent)' }} />
+                    <div className="flex-1 h-0.5" style={{ background: 'var(--accent)' }} />
+                    <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: 'var(--accent)' }} />
+                  </div>
+                )}
+                <div
+                  data-clip-item
+                  draggable
+                  onDragStart={() => handleDragStart(idx)}
+                  onDragOver={(e) => handleDragOver(e, idx)}
+                  onDrop={() => handleDrop(idx)}
+                  onDragEnd={handleDragEnd}
+                  onTouchStart={(e) => handleTouchStart(e, idx)}
+                  onTouchMove={(e) => handleTouchMove(e)}
+                  onTouchEnd={handleTouchEnd}
+                  className="flex items-center gap-3 p-2 rounded-lg border transition-all"
+                  style={{
+                    borderColor: idx === activeClipIdx ? 'var(--accent)' : 'var(--border)',
+                    background: idx === activeClipIdx ? 'var(--bg-input)' : 'var(--bg)',
+                  }}
+                >
                 {/* Drag handle */}
                 <div data-drag-handle className="cursor-grab active:cursor-grabbing flex-shrink-0 px-1 touch-none" style={{ color: 'var(--text3)' }}>
                   <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4">
@@ -618,6 +646,7 @@ function ExportEditorContent() {
                     </svg>
                   </button>
                 </div>
+              </div>
               </div>
             ))}
           </div>
