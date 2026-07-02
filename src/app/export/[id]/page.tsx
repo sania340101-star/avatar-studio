@@ -65,6 +65,7 @@ function ExportEditorContent() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const displayChannelRef = useRef<BroadcastChannel | null>(null);
   const displayWindowRef = useRef<Window | null>(null);
+  const lastSyncPushTs = useRef(0);
 
   // Transform undo stack
   const transformHistory = useRef<Array<{ offsetX: number; offsetY: number; scale: number }>>([]);
@@ -97,6 +98,8 @@ function ExportEditorContent() {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(patch),
+    }).then(r => r.ok ? r.json() : null).then(d => {
+      if (d?.updatedAt) lastSyncPushTs.current = d.updatedAt;
     }).catch(() => {});
   }, [sessionId]);
 
@@ -128,6 +131,31 @@ function ExportEditorContent() {
     };
     return () => ch.close();
   }, [sessionId, session, activeClipIdx, syncToServer]);
+
+  // Poll server for remote transform changes (mobile → desktop)
+  useEffect(() => {
+    if (!session) return;
+    let alive = true;
+    const poll = async () => {
+      while (alive) {
+        try {
+          const res = await fetch(`/api/display-sync?id=${sessionId}`);
+          if (res.ok) {
+            const data = await res.json();
+            if (data?.updatedAt && data.updatedAt > lastSyncPushTs.current) {
+              lastSyncPushTs.current = data.updatedAt;
+              if (data.transform) {
+                setSession(prev => prev ? { ...prev, transform: data.transform } : prev);
+              }
+            }
+          }
+        } catch {}
+        await new Promise(r => setTimeout(r, 500));
+      }
+    };
+    poll();
+    return () => { alive = false; };
+  }, [sessionId, !!session]);
 
   useEffect(() => {
     if (!session) return;

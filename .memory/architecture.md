@@ -1,3 +1,22 @@
+## 2026-07-02: Dual-window display + server sync for HDMI output
+
+- `/export/[id]/display` page — fullscreen black background + mask SVG, no AppShell
+- BroadcastChannel (`avatar-display-{sessionId}`) for same-browser real-time sync
+- `/api/display-sync` — in-memory state store for cross-device sync (polling 300ms)
+- Editor PATCHes transform/clip state to server on every change
+- Display polls server as fallback when BroadcastChannel unavailable (different device)
+- Window Management API to auto-open display on second monitor (HDMI)
+- Keyboard controls on display: arrows (5px, +Shift 20px), +/- (scale), Escape (exit fullscreen)
+- Auto-fullscreen on display page load
+- "Open Display" button in MASK PREVIEW section, tracks window state
+
+Key files:
+- `src/app/export/[id]/display/page.tsx` — fullscreen display page
+- `src/app/export/[id]/page.tsx` — BroadcastChannel setup, syncToServer(), Open Display button
+- `src/app/api/display-sync/route.ts` — in-memory GET/PATCH with 1h auto-cleanup
+
+Status: deployed but server sync needs debugging (BroadcastChannel works, server polling untested)
+
 ## 2026-07-02: Auto-fit pose detection for export mask
 
 - MediaPipe PoseLandmarker (browser WASM + GPU) analyzes all clips in playlist

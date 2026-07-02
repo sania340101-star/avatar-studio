@@ -1,3 +1,21 @@
+## 2026-07-02: Dual-window display + server sync (v1.10.17-v1.10.18)
+
+Done:
+- Dual-window display page for HDMI output (/export/[id]/display) (v1.10.17)
+- BroadcastChannel sync for same-browser real-time transform/clip updates
+- "Open Display" button with Window Management API for second monitor
+- Keyboard controls: arrows (position), +/- (scale), Escape (exit fullscreen)
+- Server-side display sync via /api/display-sync for cross-device control (v1.10.18)
+- Video browser: click toggles selection, "Add (N)" batch adds, "Cancel" adds nothing
+- Batch add fix: all clips added in single state update (was adding only 1)
+- Duplicate clip fix: playKey prop forces video restart on same URL
+- Playlist continuous loop: clips loop back to first after last
+
+Backlog:
+- Auto-fit algorithm needs tuning (dead pixel avoidance vs max scale tradeoff)
+- Server sync needs debugging (polling untested on actual cross-device setup)
+- Navigation cache: tab switching should preserve nested pages, refresh resets
+
 ## 2026-07-02: Auto-fit + Export UX polish (v1.8.4 → v1.10.0)
 
 Done:

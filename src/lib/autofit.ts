@@ -289,12 +289,16 @@ export async function analyzeAutofit(
         }
       }
 
-      // Ranking: fits first, then maximize nose-above-dead-pixel distance
+      // Ranking: fits first, then maximize nose-above-dead-pixel distance (primary),
+      // then margin (secondary). noseAbove > 0 means nose is above dead pixel.
       if (allIn && !bestFits) {
         bestMargin = minMargin; bestNoseAbove = noseAbove;
         bestOx = Math.round(ox); bestOy = Math.round(oy); bestFits = true;
       } else if (allIn && bestFits) {
-        if (noseAbove > bestNoseAbove + 5 || (Math.abs(noseAbove - bestNoseAbove) <= 5 && minMargin > bestMargin)) {
+        if (noseAbove > bestNoseAbove + 2) {
+          bestMargin = minMargin; bestNoseAbove = noseAbove;
+          bestOx = Math.round(ox); bestOy = Math.round(oy);
+        } else if (Math.abs(noseAbove - bestNoseAbove) <= 2 && minMargin > bestMargin) {
           bestMargin = minMargin; bestNoseAbove = noseAbove;
           bestOx = Math.round(ox); bestOy = Math.round(oy);
         }
