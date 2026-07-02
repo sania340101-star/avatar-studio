@@ -251,7 +251,7 @@ export async function analyzeAutofit(
   }));
 
   const HEAD_MARGIN_PX = 20;
-  const maskTopY = Math.min(...mask.circles.map(c => c.cy - c.r));
+  const maskTopY = Math.min(...paddedCircles.map(c => c.cy - c.r));
   const maskCx = mask.circles.reduce((s, c) => s + c.cx, 0) / mask.circles.length;
 
   function pointToContainer(p: CollectedPoint, scale: number): { x: number; y: number } {
