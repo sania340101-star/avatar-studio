@@ -25,7 +25,7 @@ export default function MaskPreview({ device, videoUrl, transform, onTransformCh
 
   useEffect(() => {
     const vid = videoElRef.current;
-    if (vid && vid.src !== videoUrl) {
+    if (vid) {
       vid.src = videoUrl;
       vid.load();
       vid.play().catch(() => {});

@@ -49,6 +49,7 @@ function ExportEditorContent() {
   const [browserVideos, setBrowserVideos] = useState<Generation[]>([]);
   const [browserFilter, setBrowserFilter] = useState('all');
   const [browserLoading, setBrowserLoading] = useState(false);
+  const [browserSelected, setBrowserSelected] = useState<Set<string>>(new Set());
 
   const [dragIdx, setDragIdx] = useState<number | null>(null);
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
@@ -138,7 +139,10 @@ function ExportEditorContent() {
   }
 
   useEffect(() => {
-    if (showBrowser) loadBrowserVideos();
+    if (showBrowser) {
+      loadBrowserVideos();
+      setBrowserSelected(new Set());
+    }
   }, [showBrowser, browserFilter]);
 
   function clipLabel(gen: Generation): string {
@@ -1149,16 +1153,25 @@ function ExportEditorContent() {
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                   {browserVideos.map(gen => {
                     const alreadyAdded = session.clips.some(c => c.generationId === gen.id);
+                    const isSelected = browserSelected.has(gen.id);
                     return (
                       <div
                         key={gen.id}
-                        className={`rounded-lg border overflow-hidden transition-colors ${alreadyAdded ? 'opacity-50' : 'cursor-pointer hover:border-[var(--accent)]'}`}
-                        style={{ borderColor: 'var(--border)' }}
-                        onClick={() => { if (!alreadyAdded) addClip(gen); }}
+                        className={`rounded-lg border-2 overflow-hidden transition-colors ${alreadyAdded ? 'opacity-50' : 'cursor-pointer'}`}
+                        style={{ borderColor: isSelected ? 'var(--accent)' : 'var(--border)' }}
+                        onClick={() => {
+                          if (alreadyAdded) return;
+                          setBrowserSelected(prev => {
+                            const next = new Set(prev);
+                            if (next.has(gen.id)) next.delete(gen.id);
+                            else next.add(gen.id);
+                            return next;
+                          });
+                        }}
                       >
                         <div className="aspect-video relative" style={{ background: 'var(--bg-input)' }}>
                           <video src={gen.resultUrls[0]} className="w-full h-full object-cover" muted />
-                          {alreadyAdded && (
+                          {(alreadyAdded || isSelected) && (
                             <div className="absolute inset-0 flex items-center justify-center bg-black/40">
                               <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" className="w-6 h-6">
                                 <polyline points="20 6 9 17 4 12" />
@@ -1188,11 +1201,16 @@ function ExportEditorContent() {
                 Cancel
               </button>
               <button
-                onClick={() => setShowBrowser(false)}
-                className="px-5 py-2 rounded-lg text-sm font-medium text-white"
+                onClick={async () => {
+                  const toAdd = browserVideos.filter(g => browserSelected.has(g.id));
+                  for (const gen of toAdd) await addClip(gen);
+                  setShowBrowser(false);
+                }}
+                disabled={browserSelected.size === 0}
+                className="px-5 py-2 rounded-lg text-sm font-medium text-white disabled:opacity-50"
                 style={{ background: 'var(--accent)' }}
               >
-                Done
+                Add {browserSelected.size > 0 ? `(${browserSelected.size})` : ''}
               </button>
             </div>
           </div>

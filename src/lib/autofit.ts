@@ -230,7 +230,6 @@ export async function analyzeAutofit(
 
   // Dead pixel positions: center of each circle
   const deadPixels = mask.circles.map(c => ({ x: c.cx, y: c.cy }));
-  const DEAD_PIXEL_CLEARANCE = 250;
 
   function pointToElem(p: CollectedPoint, elemW: number, elemH: number): { x: number; y: number } {
     const cs = Math.max(elemW / p.natW, elemH / p.natH);
@@ -240,14 +239,13 @@ export async function analyzeAutofit(
     };
   }
 
-  function tryFit(scale: number): { fits: boolean; offsetX: number; offsetY: number; noseOk: boolean; margin: number } {
+  function tryFit(scale: number): { fits: boolean; offsetX: number; offsetY: number; noseAbove: number; margin: number } {
     const elemW = preset.width * scale;
     const elemH = preset.height * scale;
 
     const elemPts = allPoints.map(p => pointToElem(p, elemW, elemH));
     const nosePts = nosePoints.map(p => pointToElem(p, elemW, elemH));
 
-    // Body center for initial estimate
     const bMinX = Math.min(...elemPts.map(p => p.x));
     const bMaxX = Math.max(...elemPts.map(p => p.x));
     const bMinY = Math.min(...elemPts.map(p => p.y));
@@ -260,18 +258,11 @@ export async function analyzeAutofit(
     const baseOffX = maskCx - bCx;
     const baseOffY = maskCy - bCy;
 
-    // Two-pass offset search
-    // Pass 1: coarse grid — wide range to find the right zone
-    const coarseStepX = 40;
-    const coarseStepY = 40;
-    const coarseRangeX = 300;
-    const coarseRangeY = 600;
-
     let bestMargin = -Infinity;
+    let bestNoseAbove = -Infinity;
     let bestOx = Math.round(baseOffX);
     let bestOy = Math.round(baseOffY);
     let bestFits = false;
-    let bestNoseOk = false;
 
     function evaluate(ox: number, oy: number) {
       let minMargin = Infinity;
@@ -289,51 +280,38 @@ export async function analyzeAutofit(
         minMargin = Math.min(minMargin, bestCircleMargin);
       }
 
-      // Nose must stay clear of dead pixels (circle centers)
-      let noseOk = true;
+      // How far nose is ABOVE the nearest dead pixel (positive = above)
+      let noseAbove = Infinity;
       for (const np of nosePts) {
-        const nx = ox + np.x;
         const ny = oy + np.y;
         for (const dp of deadPixels) {
-          const dist = Math.sqrt((nx - dp.x) ** 2 + (ny - dp.y) ** 2);
-          if (dist < DEAD_PIXEL_CLEARANCE) {
-            noseOk = false;
-          }
+          noseAbove = Math.min(noseAbove, dp.y - ny);
         }
       }
 
-      const rank = (allIn ? 2 : 0) + (noseOk ? 1 : 0);
-      const bestRank = (bestFits ? 2 : 0) + (bestNoseOk ? 1 : 0);
-      let shouldUpdate = false;
-      if (rank > bestRank) {
-        shouldUpdate = true;
-      } else if (rank === bestRank) {
-        if (rank === 3) {
-          // fits+noseOk: prefer body shifted UP (more negative oy → dead pixel on chest)
-          if (oy < bestOy - 5 || (Math.abs(oy - bestOy) <= 5 && minMargin > bestMargin)) {
-            shouldUpdate = true;
-          }
-        } else {
-          if (minMargin > bestMargin) shouldUpdate = true;
+      // Ranking: fits first, then maximize nose-above-dead-pixel distance
+      if (allIn && !bestFits) {
+        bestMargin = minMargin; bestNoseAbove = noseAbove;
+        bestOx = Math.round(ox); bestOy = Math.round(oy); bestFits = true;
+      } else if (allIn && bestFits) {
+        if (noseAbove > bestNoseAbove + 5 || (Math.abs(noseAbove - bestNoseAbove) <= 5 && minMargin > bestMargin)) {
+          bestMargin = minMargin; bestNoseAbove = noseAbove;
+          bestOx = Math.round(ox); bestOy = Math.round(oy);
         }
-      }
-      if (shouldUpdate) {
-        bestMargin = minMargin;
-        bestOx = Math.round(ox);
-        bestOy = Math.round(oy);
-        bestFits = allIn;
-        bestNoseOk = noseOk;
+      } else if (!allIn && !bestFits && minMargin > bestMargin) {
+        bestMargin = minMargin; bestNoseAbove = noseAbove;
+        bestOx = Math.round(ox); bestOy = Math.round(oy);
       }
     }
 
-    // Pass 1: coarse
-    for (let dy = -coarseRangeY; dy <= coarseRangeY; dy += coarseStepY) {
-      for (let dx = -coarseRangeX; dx <= coarseRangeX; dx += coarseStepX) {
+    // Coarse grid search
+    for (let dy = -600; dy <= 600; dy += 40) {
+      for (let dx = -300; dx <= 300; dx += 40) {
         evaluate(baseOffX + dx, baseOffY + dy);
       }
     }
 
-    // Pass 2: fine around best coarse result
+    // Fine search around coarse best
     const fineOx = bestOx;
     const fineOy = bestOy;
     for (let dy = -50; dy <= 50; dy += 10) {
@@ -342,47 +320,23 @@ export async function analyzeAutofit(
       }
     }
 
-    return { fits: bestFits, offsetX: bestOx, offsetY: bestOy, noseOk: bestNoseOk, margin: bestMargin };
+    return { fits: bestFits, offsetX: bestOx, offsetY: bestOy, noseAbove: bestNoseAbove, margin: bestMargin };
   }
 
   // Binary search for max scale where body fits in circles
   let lo = 0.5;
   let hi = 3.0;
   let best: AutofitResult | null = null;
-  let bestScale = 0;
 
   for (let i = 0; i < 30; i++) {
     const mid = (lo + hi) / 2;
     const r = tryFit(mid);
     if (r.fits) {
-      bestScale = mid;
       best = { scale: Math.round(mid * 100) / 100, offsetX: r.offsetX, offsetY: r.offsetY };
       lo = mid;
     } else {
       hi = mid;
     }
-  }
-
-  // Refinement: try scales near the max (98%, 96%, 94%) for better offset
-  if (best) {
-    let refinedBest = best;
-    let refinedNoseOk = false;
-    const r0 = tryFit(bestScale);
-    if (r0.fits && r0.noseOk) {
-      refinedNoseOk = true;
-      refinedBest = { scale: best.scale, offsetX: r0.offsetX, offsetY: r0.offsetY };
-    }
-    if (!refinedNoseOk) {
-      for (const factor of [0.98, 0.96, 0.94, 0.92]) {
-        const s = bestScale * factor;
-        const r = tryFit(s);
-        if (r.fits && r.noseOk) {
-          refinedBest = { scale: Math.round(s * 100) / 100, offsetX: r.offsetX, offsetY: r.offsetY };
-          break;
-        }
-      }
-    }
-    return refinedBest;
   }
 
   return best;
