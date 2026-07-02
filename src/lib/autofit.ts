@@ -103,27 +103,15 @@ export async function analyzeAutofit(
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let landmarker: any;
-  try {
-    landmarker = await PoseLandmarker.createFromOptions(vision, {
-      baseOptions: {
-        modelAssetPath:
-          'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/latest/pose_landmarker_lite.task',
-        delegate: 'GPU',
-      },
-      runningMode: 'IMAGE',
-      numPoses: 1,
-    });
-  } catch {
-    landmarker = await PoseLandmarker.createFromOptions(vision, {
-      baseOptions: {
-        modelAssetPath:
-          'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/latest/pose_landmarker_lite.task',
-        delegate: 'CPU',
-      },
-      runningMode: 'IMAGE',
-      numPoses: 1,
-    });
-  }
+  landmarker = await PoseLandmarker.createFromOptions(vision, {
+    baseOptions: {
+      modelAssetPath:
+        'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/latest/pose_landmarker_lite.task',
+      delegate: 'CPU',
+    },
+    runningMode: 'IMAGE',
+    numPoses: 1,
+  });
 
   const uniqueUrls = [...new Set(clipUrls)];
   const rawPoints: CollectedPoint[] = [];
@@ -141,9 +129,10 @@ export async function analyzeAutofit(
 
     try {
       await new Promise<void>((resolve, reject) => {
-        video.onloadedmetadata = () => resolve();
+        video.onloadeddata = () => resolve();
         video.onerror = () => reject();
         video.src = url;
+        video.load();
       });
       const dur = video.duration;
       const natW = video.videoWidth;
@@ -174,10 +163,14 @@ export async function analyzeAutofit(
 
     try {
       await new Promise<void>((resolve, reject) => {
-        video.oncanplaythrough = () => resolve();
+        video.onloadeddata = () => resolve();
         video.onerror = () => reject();
         video.src = url;
+        video.load();
       });
+      // Kick mobile decoder: brief play then pause
+      try { await video.play(); } catch { /* autoplay may be blocked */ }
+      video.pause();
     } catch {
       video.remove();
       continue;
