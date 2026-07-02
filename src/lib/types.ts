@@ -206,11 +206,12 @@ export interface JobData {
 
 export interface ExportClip {
   id: string;
-  generationId: string;
-  projectId: string;
+  generationId?: string;
+  projectId?: string;
   url: string;
   label: string;
   duration?: number;
+  source?: 'generation' | 'upload';
   transform: {
     offsetX: number;
     offsetY: number;

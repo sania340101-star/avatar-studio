@@ -88,7 +88,7 @@ async function processExport(sessionId: string, userId: string) {
 
     const gen: Generation = {
       id: `gen-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-      projectId: session.clips[0].projectId,
+      projectId: session.clips.find(c => c.projectId)?.projectId || 'exports',
       userId,
       type: 'export',
       modelId: 'ffmpeg',

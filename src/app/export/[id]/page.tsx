@@ -45,6 +45,8 @@ function ExportEditorContent() {
   const [dragIdx, setDragIdx] = useState<number | null>(null);
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Sequential player state
   const [activeClipIdx, setActiveClipIdx] = useState<number>(0);
@@ -137,11 +139,46 @@ function ExportEditorContent() {
       url: gen.resultUrls[0],
       label: clipLabel(gen),
       duration: dur > 0 ? Math.round(dur * 10) / 10 : undefined,
+      source: 'generation',
       transform: { offsetX: 0, offsetY: 0, scale: 1 },
     };
     const updated = { clips: [...session.clips, clip] };
     setSession({ ...session, ...updated, updatedAt: Date.now() });
     debouncedSave(updated);
+  }
+
+  async function addUploadedClip(file: File) {
+    if (!session) return;
+    setUploading(true);
+    try {
+      const form = new FormData();
+      form.append('file', file);
+      const res = await fetch('/api/upload', {
+        method: 'POST',
+        headers: { 'x-user-id': session.userId },
+        body: form,
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        alert(err.error || 'Upload failed');
+        return;
+      }
+      const { url } = await res.json();
+      const dur = await probeDuration(url);
+      const clip: ExportClip = {
+        id: `clip-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        url,
+        label: file.name.replace(/\.[^.]+$/, ''),
+        duration: dur > 0 ? Math.round(dur * 10) / 10 : undefined,
+        source: 'upload',
+        transform: { offsetX: 0, offsetY: 0, scale: 1 },
+      };
+      const updated = { clips: [...session.clips, clip] };
+      setSession({ ...session, ...updated, updatedAt: Date.now() });
+      debouncedSave(updated);
+    } finally {
+      setUploading(false);
+    }
   }
 
   function removeClip(idx: number) {
@@ -387,13 +424,36 @@ function ExportEditorContent() {
               </span>
             )}
           </p>
-          <button
-            onClick={() => setShowBrowser(true)}
-            className="text-xs px-3 py-1.5 rounded-lg font-medium text-white"
-            style={{ background: 'var(--accent)' }}
-          >
-            + Add Videos
-          </button>
+          <div className="flex gap-2">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="video/mp4,video/webm,video/quicktime,.mp4,.webm,.mov"
+              multiple
+              className="hidden"
+              onChange={async (e) => {
+                const files = e.target.files;
+                if (!files) return;
+                for (const f of Array.from(files)) await addUploadedClip(f);
+                e.target.value = '';
+              }}
+            />
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploading}
+              className="text-xs px-3 py-1.5 rounded-lg font-medium"
+              style={{ border: '1px solid var(--border)', color: 'var(--text2)' }}
+            >
+              {uploading ? 'Uploading...' : '↑ Upload'}
+            </button>
+            <button
+              onClick={() => setShowBrowser(true)}
+              className="text-xs px-3 py-1.5 rounded-lg font-medium text-white"
+              style={{ background: 'var(--accent)' }}
+            >
+              + Add Videos
+            </button>
+          </div>
         </div>
 
         {session.clips.length === 0 ? (
@@ -406,7 +466,7 @@ function ExportEditorContent() {
               <circle cx="12" cy="12" r="10" /><path d="M12 8v8M8 12h8" />
             </svg>
             <p className="text-sm" style={{ color: 'var(--text3)' }}>
-              Add videos from your projects to build a playlist
+              Add videos from your projects or upload from your device
             </p>
           </div>
         ) : (
@@ -466,8 +526,11 @@ function ExportEditorContent() {
                       </span>
                     )}
                   </div>
-                  {projectMap[clip.projectId] && (
+                  {clip.projectId && projectMap[clip.projectId] && (
                     <p className="text-xs truncate" style={{ color: 'var(--text3)' }}>{projectMap[clip.projectId]}</p>
+                  )}
+                  {clip.source === 'upload' && (
+                    <p className="text-xs truncate" style={{ color: 'var(--text3)' }}>Uploaded</p>
                   )}
                 </div>
 
@@ -714,6 +777,27 @@ function ExportEditorContent() {
                   <option key={p.id} value={p.id}>{p.title}</option>
                 ))}
               </select>
+            </div>
+
+            {/* Upload zone inside modal */}
+            <div className="px-4 pt-2">
+              <div
+                className="rounded-lg border-2 border-dashed p-3 text-center cursor-pointer hover:border-[var(--accent)] transition-colors"
+                style={{ borderColor: 'var(--border)' }}
+                onClick={() => fileInputRef.current?.click()}
+                onDragOver={e => { e.preventDefault(); e.currentTarget.style.borderColor = 'var(--accent)'; }}
+                onDragLeave={e => { e.currentTarget.style.borderColor = ''; }}
+                onDrop={async e => {
+                  e.preventDefault();
+                  e.currentTarget.style.borderColor = '';
+                  const files = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith('video/'));
+                  for (const f of files) await addUploadedClip(f);
+                }}
+              >
+                <p className="text-xs" style={{ color: 'var(--text3)' }}>
+                  {uploading ? 'Uploading...' : 'Drop video files here or click to upload from device'}
+                </p>
+              </div>
             </div>
 
             <div className="flex-1 overflow-auto p-4 pt-2">
