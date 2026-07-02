@@ -252,7 +252,6 @@ export async function analyzeAutofit(
 
   const HEAD_MARGIN_PX = 20;
   const maskTopY = Math.min(...paddedCircles.map(c => c.cy - c.r));
-  const maskCx = mask.circles.reduce((s, c) => s + c.cx, 0) / mask.circles.length;
 
   function pointToContainer(p: CollectedPoint, scale: number): { x: number; y: number } {
     if (device === 'solo') {
@@ -273,29 +272,36 @@ export async function analyzeAutofit(
 
   function tryFit(scale: number): { fits: boolean; offsetX: number; offsetY: number } {
     const pts = allPoints.map(p => pointToContainer(p, scale));
-
-    const minX = Math.min(...pts.map(p => p.x));
-    const maxX = Math.max(...pts.map(p => p.x));
-
     const minY = Math.min(...pts.map(p => p.y));
-
-    const bodyCx = (minX + maxX) / 2;
-    const offsetX = Math.round(maskCx - bodyCx);
     const offsetY = Math.round((maskTopY + HEAD_MARGIN_PX) - minY);
 
-    let allIn = true;
+    // Find optimal offsetX: center of the valid range where ALL points fit
+    let validMin = -Infinity;
+    let validMax = Infinity;
+
     for (const p of pts) {
-      const cx = offsetX + p.x;
-      const cy = offsetY + p.y;
-      let inside = false;
-      for (const circle of paddedCircles) {
-        const dist = Math.sqrt((cx - circle.cx) ** 2 + (cy - circle.cy) ** 2);
-        if (dist <= circle.r) { inside = true; break; }
+      const py = offsetY + p.y;
+      let pLo = Infinity;
+      let pHi = -Infinity;
+
+      for (const c of paddedCircles) {
+        const dy = py - c.cy;
+        const rem = c.r * c.r - dy * dy;
+        if (rem < 0) continue;
+        const dx = Math.sqrt(rem);
+        pLo = Math.min(pLo, c.cx - dx - p.x);
+        pHi = Math.max(pHi, c.cx + dx - p.x);
       }
-      if (!inside) { allIn = false; break; }
+
+      if (pLo > pHi) return { fits: false, offsetX: 0, offsetY };
+
+      validMin = Math.max(validMin, pLo);
+      validMax = Math.min(validMax, pHi);
     }
 
-    return { fits: allIn, offsetX, offsetY };
+    if (validMin > validMax) return { fits: false, offsetX: 0, offsetY };
+
+    return { fits: true, offsetX: Math.round((validMin + validMax) / 2), offsetY };
   }
 
   let lo = 0.5;
