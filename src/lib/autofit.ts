@@ -110,13 +110,11 @@ export async function analyzeAutofit(
     'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.35/wasm',
   );
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let landmarker: any;
-  landmarker = await PoseLandmarker.createFromOptions(vision, {
+  const landmarker = await PoseLandmarker.createFromOptions(vision, {
     baseOptions: {
       modelAssetPath:
         'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/latest/pose_landmarker_lite.task',
-      delegate: 'CPU',
+      delegate: 'GPU',
     },
     runningMode: 'IMAGE',
     numPoses: 1,
@@ -195,6 +193,11 @@ export async function analyzeAutofit(
       sampleTimes.push(duration - 0.1);
     }
 
+    const canvas = document.createElement('canvas');
+    canvas.width = natW;
+    canvas.height = natH;
+    const ctx = canvas.getContext('2d')!;
+
     for (let fi = 0; fi < sampleTimes.length; fi++) {
       processedFrames++;
       const pct = Math.round((processedFrames / totalFrames) * 100);
@@ -207,15 +210,16 @@ export async function analyzeAutofit(
       });
 
       await seekVideo(video, sampleTimes[fi]);
+      ctx.drawImage(video, 0, 0, natW, natH);
 
       try {
-        const result = landmarker.detect(video);
+        const result = landmarker.detect(canvas);
         if (result.landmarks && result.landmarks.length > 0) {
           detectOk++;
           const lms = result.landmarks[0];
           for (let li = 0; li < lms.length; li++) {
             const lm = lms[li];
-            if ((lm.visibility ?? 0) > 0.3 && lm.x >= 0 && lm.x <= 1 && lm.y >= 0 && lm.y <= 1) {
+            if ((lm.visibility ?? 0) > 0.5 && lm.x >= 0 && lm.x <= 1 && lm.y >= 0 && lm.y <= 1) {
               rawPoints.push({ normX: lm.x, normY: lm.y, natW, natH });
               if (li <= 10) {
                 headPoints.push({ normX: lm.x, normY: lm.y, natW, natH });
@@ -232,6 +236,7 @@ export async function analyzeAutofit(
     }
 
     video.remove();
+    canvas.remove();
   }
 
   landmarker.close();
