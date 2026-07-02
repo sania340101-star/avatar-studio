@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getGenerations, getAllUserGenerations, addGeneration, deleteGeneration, getProject } from '@/lib/storage';
+import { getGenerations, getAllUserGenerations, addGeneration, deleteGeneration, getProject, getExportSessionsUsingGeneration } from '@/lib/storage';
 
 export async function GET(req: NextRequest) {
   const userId = req.headers.get('x-user-id');
@@ -52,6 +52,12 @@ export async function DELETE(req: NextRequest) {
   if (!project) return NextResponse.json({ error: 'Project not found' }, { status: 404 });
   if (project.userId !== userId) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
-  deleteGeneration(projectId, generationId);
-  return NextResponse.json({ ok: true });
+  const checkOnly = req.nextUrl.searchParams.get('checkOnly') === 'true';
+  if (checkOnly) {
+    const usedIn = getExportSessionsUsingGeneration(generationId);
+    return NextResponse.json({ usedInExports: usedIn.map(s => ({ id: s.id, name: s.name })) });
+  }
+
+  const result = deleteGeneration(projectId, generationId);
+  return NextResponse.json({ ok: result.deleted, cascadedExports: result.cascadedExports });
 }

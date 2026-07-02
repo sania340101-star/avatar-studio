@@ -519,6 +519,20 @@ function ExportEditorContent() {
             {saving && <span className="text-xs" style={{ color: 'var(--accent)' }}>Saving...</span>}
           </div>
         </div>
+        <button
+          onClick={async () => {
+            if (!confirm('Delete this export session and all its versions?')) return;
+            await fetch(`/api/exports?id=${session.id}`, { method: 'DELETE' });
+            router.push('/export');
+          }}
+          className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
+          style={{ color: 'var(--text3)' }}
+          title="Delete export"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
+            <polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+          </svg>
+        </button>
       </div>
 
       {/* Device selector */}
@@ -920,24 +934,40 @@ function ExportEditorContent() {
                             {new Date(exp.createdAt).toLocaleString()}
                           </p>
                         </div>
-                        <button
-                          onClick={async () => {
-                            const res = await fetch(exp.url);
-                            const blob = await res.blob();
-                            const a = document.createElement('a');
-                            a.href = URL.createObjectURL(blob);
-                            a.download = `${session.name}-v${vNum}.mp4`;
-                            a.click();
-                            URL.revokeObjectURL(a.href);
-                          }}
-                          className="text-xs px-3 py-1.5 rounded-lg font-medium flex-shrink-0 flex items-center gap-1"
-                          style={{ background: 'var(--accent)', color: 'white' }}
-                        >
-                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3 h-3">
-                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" />
-                          </svg>
-                          Download
-                        </button>
+                        <div className="flex items-center gap-1 flex-shrink-0">
+                          <button
+                            onClick={async () => {
+                              const res = await fetch(exp.url);
+                              const blob = await res.blob();
+                              const a = document.createElement('a');
+                              a.href = URL.createObjectURL(blob);
+                              a.download = `${session.name}-v${vNum}.mp4`;
+                              a.click();
+                              URL.revokeObjectURL(a.href);
+                            }}
+                            className="text-xs px-3 py-1.5 rounded-lg font-medium flex items-center gap-1"
+                            style={{ background: 'var(--accent)', color: 'white' }}
+                          >
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3 h-3">
+                              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" />
+                            </svg>
+                            Download
+                          </button>
+                          <button
+                            onClick={async () => {
+                              if (!confirm(`Delete version ${vNum}?`)) return;
+                              await fetch(`/api/exports?id=${session.id}&versionId=${exp.id}`, { method: 'DELETE' });
+                              load();
+                            }}
+                            className="w-7 h-7 rounded-lg flex items-center justify-center"
+                            style={{ color: 'var(--text3)' }}
+                            title="Delete version"
+                          >
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
+                              <polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                            </svg>
+                          </button>
+                        </div>
                       </div>
                     </div>
                   );

@@ -660,7 +660,6 @@ function GalleryContent() {
         if (!gen && !batchGens) return null;
         const isBatch = !!batchGens;
         const count = isBatch ? batchGens!.length : 1;
-        const typeName = isBatch ? `${count} template generations` : `${gen!.type} generation`;
         return (
           <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => setConfirmDeleteId(null)}>
             <div className="absolute inset-0 bg-black/50" />
@@ -677,6 +676,8 @@ function GalleryContent() {
               <h3 className="text-sm font-semibold text-center mb-1" style={{ color: 'var(--text1)' }}>Delete {isBatch ? 'batch' : 'generation'}?</h3>
               <p className="text-xs text-center mb-4" style={{ color: 'var(--text3)' }}>
                 {isBatch ? `All ${count} slots in this template batch` : `This ${gen!.type} generation`} will be permanently deleted.
+                {!isBatch && gen!.type === 'video' && ' It will also be removed from any exports using it.'}
+                {!isBatch && gen!.type === 'export' && ' It will also be removed from the export version history.'}
               </p>
               <div className="flex gap-2">
                 <button

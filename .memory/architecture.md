@@ -1,3 +1,73 @@
+## 2026-07-02: Auto-fit pose detection for export mask
+
+- MediaPipe PoseLandmarker (browser WASM + GPU) analyzes all clips in playlist
+- Multi-frame sampling: every 2 seconds per clip, deduplicates by URL
+- 33 body landmarks per frame, visibility threshold 0.3
+- Binary search: finds max scale where all landmarks fit inside device mask circles
+- 5% safety padding from circle edge
+- Coordinate mapping: normalized landmarks → object-fit:cover element coords → canvas coords
+- Offset optimization: centroid centering + 5-offset grid search for best margin
+- Progress callback: stage (loading/analyzing/computing), clip/frame counters
+- Dynamic import of @mediapipe/tasks-vision (no SSR)
+
+Key files:
+- `src/lib/autofit.ts` — analyzeAutofit() module: MediaPipe loading, frame sampling, pose detection, binary search
+- `src/app/export/[id]/page.tsx` — Auto-fit button, progress UI, runAutofit() handler
+- `package.json` — @mediapipe/tasks-vision dependency
+
+## 2026-07-02: Upload from device + touch drag + audio export
+
+- ExportClip: generationId/projectId now optional, added `source: 'generation' | 'upload'`
+- Upload via existing /api/upload → /api/files/{filename} — FFmpeg resolveLocalPath() works unchanged
+- Touch drag-n-drop: touchstart/touchmove/touchend on [data-drag-handle], visual lift (scale+shadow), translateY follow, drop indicator line
+- Audio: removed hardcoded `-an`, now conditionally: `muteAudio ? -an : -map 0:a? -c:a aac -b:a 128k`
+- ExportSession.muteAudio: boolean field, persisted, checkbox in RENDER section
+- Sidebar spending: always rendered with placeholder "—" to prevent layout shift
+- Clip tags: fileHash() extracts last 6 chars of filename, duplicate count via url equality check
+
+Key files:
+- `src/app/export/[id]/page.tsx` — addUploadedClip(), handleTouchStart/Move/End, fileHash(), mute checkbox
+- `src/app/api/exports/render/route.ts` — conditional -an vs audio passthrough
+- `src/components/Sidebar.tsx` — spending always rendered
+- `src/lib/types.ts` — ExportClip.source, ExportSession.muteAudio
+
+## 2026-07-01: FFmpeg export pipeline + version history
+
+- `/api/exports/render` (route.ts): background FFmpeg processing via floating Promise
+- FFmpeg filter per clip: `scale=${scaledW}:${scaledH}:force_original_aspect_ratio=increase,crop=${scaledW}:${scaledH},setsar=1` → overlay on black canvas at transform offset
+- Concat demuxer: process clips individually → concat list → copy-mux final output
+- Output: device resolution (930×2174 HH 1x3 / 880×880 Solo) @ 60fps, libx264 CRF 18
+- Dockerfile: `RUN apk add --no-cache ffmpeg` in runner stage
+- Generation type extended: `'image' | 'video' | 'export'` — exports saved as Generation records
+- ExportVersion[] on ExportSession — each render appends new version
+- MaskPreview: ref-based video switching (useRef + useEffect on src change, no React remount)
+- Client-side duration: hidden video element + loadedmetadata event
+- Gallery: GalleryEntry union type handles single + batch, batch delete via batchMap lookup
+
+Key files:
+- `src/app/api/exports/render/route.ts` — FFmpeg pipeline, processExport(), resolveLocalPath()
+- `src/components/MaskPreview.tsx` — SVG clip-path masks, pointer drag, scale slider
+- `src/app/export/[id]/page.tsx` — export editor, version history, duration probing
+- `src/app/gallery/page.tsx` — batch grouping + delete, export tab filter
+- `Dockerfile` — FFmpeg in runner stage
+
+## 2026-07-01: Batch grouping + enriched generation records
+
+- Generation type: added optional `batchId?: string` field
+- BatchRunner saves batchId + enriched params (instruction, duration, aspectRatio, quality, fps, strategy, templateDefined:true) per slot
+- VersionHistory: groups generations by batchId into single card with mosaic, template name, slot count, per-slot details
+- Gallery (gallery/page.tsx): same grouping logic, batch checkbox selects/deselects all gens in batch
+- UpdateBanner component: polls /api/version every 30s, shows floating banner on version mismatch
+- MediaPreview component: universal lightbox for image/video/audio, fetch+blob download stays in-app
+- Cost estimation: agent/server.js fetches fal.ai pricing, caches in pricingCache, estimates cost for per-second models
+
+Key files:
+- `src/components/VersionHistory.tsx` — HistoryEntry union type (single|batch), grouping by batchId
+- `src/components/MediaPreview.tsx` — universal media lightbox
+- `src/components/UpdateBanner.tsx` — version polling + update notification
+- `src/app/api/version/route.ts` — returns APP_VERSION from build-time env
+- `src/app/gallery/page.tsx` — GalleryEntry grouping, batch selection
+
 ## 2026-06-29: Template v2 with batch generation
 
 - Templates redesigned: single model config → slots[] array (each slot = full generation config)

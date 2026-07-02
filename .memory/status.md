@@ -1,3 +1,70 @@
+## 2026-07-02: Auto-fit + Export UX polish (v1.8.4 → v1.10.0)
+
+Done:
+- Upload from device: mp4/webm/mov, multi-file, drag-drop zone in browser modal (v1.8.4)
+- Touch drag-n-drop: mobile playlist reorder with visual feedback — lift, follow finger, drop indicator (v1.8.5-1.8.6)
+- Removed up/down arrows (drag is sufficient) (v1.8.7)
+- Sidebar layout fix: spending section always rendered with placeholder, no shift on load (v1.9.0)
+- Clip distinguishability: file hash tag (#abc123), duplicate count badge (×2), two-line labels, source tags (v1.9.0)
+- Audio export: preserves original audio by default (removed -an), "Mute audio" checkbox toggle (v1.9.0)
+- Auto-fit pose detection: MediaPipe WASM in browser, all clips analyzed, binary search max scale, 5% safety padding (v1.10.0)
+
+Decided NOT needed:
+- Per-clip transform — global transform is correct behavior, all clips should match
+- Email OTP — already works via SSO D32
+
+Pending:
+- Testing auto-fit with real avatar clips — may need tuning
+
+## 2026-07-01: Phase 4 complete — Export v1.8.3
+
+All done (v1.6.0 → v1.8.3):
+- Steps 4.1+4.2: ExportSession/ExportClip types, storage CRUD, playlist builder, video browser
+- Step 4.3: MaskPreview component (SVG clip-path, drag reposition, scale slider, device masks)
+- Step 4.5: FFmpeg export (scale→crop→overlay filter chain, concat demuxer, 60fps, libx264 CRF 18)
+- FFmpeg in Docker runner stage (apk add ffmpeg)
+- Ref-based video switching (no React remount flash)
+- Sequential player with clip lock/loop
+- Export versioning: each Export creates new ExportVersion, version history with thumbnails
+- Client-side duration probing, per-clip + total duration display
+- Gallery: Exports tab, batch delete, status badge → version count
+- Mobile fixes: Reset button overflow, scale controls spacing
+
+## 2026-07-01: Gallery collapsed/expanded redesign + lightbox UX (v1.5.7)
+
+Done:
+- Gallery cards now collapsed by default (like VersionHistory): thumbnail, badges, prompt preview, expand arrow
+- Expanded view: full prompt, instruction, agent reasoning, params, results with lightbox + download
+- Batch cards: 2x2 mosaic thumbnail, left accent border, per-slot cards on expand
+- Checkboxes work independently from expand/collapse (stopPropagation)
+- Project name badge: blue with folder icon, always visible (not just "All Projects" filter)
+- Lightbox buttons unified across all components (Gallery, VersionHistory, BatchRunner):
+  gap-6, 44x44px rounded-full tap targets for mobile
+- VersionHistory lightbox: added missing download button
+- Batch slot cards enriched: instruction, aspectRatio, quality, fps, strategy params
+
+## 2026-07-01: Batch grouping, gallery grouping, enriched params (v1.5.5-1.5.6)
+
+Done:
+- Version notification system: UpdateBanner polls /api/version every 30s, shows "Update available" on mismatch
+- Cost estimation for template batch generation (fal.ai pricing API with caching in agent)
+- Per-slot cost display in BatchRunner slot summary + total estimate
+- MediaPreview component: universal lightbox for image/video/audio with in-app fetch+blob download
+- Preview/lightbox for all reference types (ReferenceUpload, ImagePicker, image page inline refs)
+- Video references as visual thumbnails with play icon (not text rows)
+- Batch grouping in Version History: generations with same batchId shown as single card
+  - Collapsed: 2x2 mosaic, template name, slot count, total cost
+  - Expanded: per-slot cards with model, cost, video preview, instruction, params (duration, aspectRatio, quality, fps)
+- Batch grouping in Gallery: same batchId logic, "template" badge, slot cards, total cost, batch checkbox
+- Enriched batch save: instruction, duration, aspectRatio, quality, fps, strategy saved in params
+- batchId field added to Generation type
+
+Pending:
+- Phase 3c: Email OTP — SMTP not configured on D30
+- Phase 4a: Mask preview with canvas overlay
+- Phase 4b: Export with FFmpeg
+- Phase 5: Post-processing pipeline (video review, resize, reorder, export/concatenate)
+
 ## 2026-06-30: UX Polish + fal.ai CDN upload fix
 
 Done:

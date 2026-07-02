@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getExportSessions, getExportSession, createExportSession, updateExportSession, deleteExportSession } from '@/lib/storage';
+import { getExportSessions, getExportSession, createExportSession, updateExportSession, deleteExportSession, deleteExportVersion } from '@/lib/storage';
 import { ExportSession } from '@/lib/types';
 
 export async function GET(req: NextRequest) {
@@ -62,6 +62,12 @@ export async function DELETE(req: NextRequest) {
   const existing = getExportSession(id);
   if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 });
   if (existing.userId !== userId) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+
+  const versionId = req.nextUrl.searchParams.get('versionId');
+  if (versionId) {
+    const result = deleteExportVersion(id, versionId);
+    return NextResponse.json({ ok: result.deleted, removedGeneration: result.removedGeneration });
+  }
 
   deleteExportSession(id);
   return NextResponse.json({ ok: true });

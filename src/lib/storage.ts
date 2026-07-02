@@ -111,15 +111,51 @@ export function addGeneration(gen: Generation): Generation {
   }
   return gen;
 }
-export function deleteGeneration(projectId: string, generationId: string): boolean {
+export function deleteGeneration(projectId: string, generationId: string): { deleted: boolean; cascadedExports: string[] } {
   ensureDirs();
   const file = genFile(projectId);
   const all: Generation[] = readJson(file, []);
   const idx = all.findIndex(g => g.id === generationId);
-  if (idx === -1) return false;
+  if (idx === -1) return { deleted: false, cascadedExports: [] };
+  const gen = all[idx];
   all.splice(idx, 1);
   writeJson(file, all);
-  return true;
+
+  const cascadedExports: string[] = [];
+  const sessions: ExportSession[] = readJson(EXPORTS_FILE, []);
+  let sessionsChanged = false;
+
+  if (gen.type === 'export' && gen.resultUrls?.length > 0) {
+    const url = gen.resultUrls[0];
+    for (const s of sessions) {
+      if (!s.exports) continue;
+      const before = s.exports.length;
+      s.exports = s.exports.filter(v => v.url !== url);
+      if (s.exports.length < before) {
+        s.updatedAt = Date.now();
+        sessionsChanged = true;
+        cascadedExports.push(s.id);
+      }
+    }
+  } else {
+    for (let si = sessions.length - 1; si >= 0; si--) {
+      const s = sessions[si];
+      const before = s.clips.length;
+      s.clips = s.clips.filter(c => c.generationId !== generationId);
+      if (s.clips.length < before) {
+        cascadedExports.push(s.id);
+        if (s.clips.length === 0) {
+          sessions.splice(si, 1);
+        } else {
+          s.updatedAt = Date.now();
+        }
+        sessionsChanged = true;
+      }
+    }
+  }
+
+  if (sessionsChanged) writeJson(EXPORTS_FILE, sessions);
+  return { deleted: true, cascadedExports };
 }
 export function getUploadsDir(): string {
   ensureDirs();
@@ -216,4 +252,46 @@ export function deleteExportSession(id: string): boolean {
   all.splice(idx, 1);
   writeJson(EXPORTS_FILE, all);
   return true;
+}
+
+export function deleteExportVersion(sessionId: string, versionId: string): { deleted: boolean; removedGeneration: boolean } {
+  ensureDirs();
+  const all: ExportSession[] = readJson(EXPORTS_FILE, []);
+  const session = all.find(s => s.id === sessionId);
+  if (!session || !session.exports) return { deleted: false, removedGeneration: false };
+
+  const version = session.exports.find(v => v.id === versionId);
+  if (!version) return { deleted: false, removedGeneration: false };
+
+  session.exports = session.exports.filter(v => v.id !== versionId);
+  if (session.exports.length > 0) {
+    session.exportUrl = session.exports[session.exports.length - 1].url;
+  } else {
+    session.exportUrl = undefined;
+    session.status = 'draft';
+  }
+  session.updatedAt = Date.now();
+  writeJson(EXPORTS_FILE, all);
+
+  let removedGeneration = false;
+  const projects: Project[] = readJson(PROJECTS_FILE, []);
+  for (const p of projects) {
+    if (p.userId !== session.userId) continue;
+    const file = genFile(p.id);
+    const gens: Generation[] = readJson(file, []);
+    const before = gens.length;
+    const filtered = gens.filter(g => !(g.type === 'export' && g.resultUrls?.includes(version.url)));
+    if (filtered.length < before) {
+      writeJson(file, filtered);
+      removedGeneration = true;
+    }
+  }
+
+  return { deleted: true, removedGeneration };
+}
+
+export function getExportSessionsUsingGeneration(generationId: string): ExportSession[] {
+  ensureDirs();
+  const all: ExportSession[] = readJson(EXPORTS_FILE, []);
+  return all.filter(s => s.clips.some(c => c.generationId === generationId));
 }
