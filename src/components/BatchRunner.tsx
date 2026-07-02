@@ -272,7 +272,7 @@ export default function BatchRunner({ template, projectId, onBack, inline, exter
           >
             {running ? (
               <span className="flex items-center justify-center gap-2">
-                <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" role="status" aria-label="Starting batch" />
                 Starting batch...
               </span>
             ) : `Generate ${slots.length} Video${slots.length !== 1 ? 's' : ''}`}

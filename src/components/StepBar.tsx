@@ -36,7 +36,7 @@ export default function StepBar({ current, hasPrepared, isPreparing, onStepClick
         </span>
         Configure
         {isPreparing && (
-          <span className="w-3.5 h-3.5 border-2 rounded-full animate-spin"
+          <span className="w-3.5 h-3.5 border-2 rounded-full animate-spin" role="status" aria-label="Preparing"
             style={{ borderColor: step1Active ? 'rgba(255,255,255,0.3)' : 'var(--border)', borderTopColor: step1Active ? 'white' : 'var(--accent)' }} />
         )}
       </button>
@@ -59,7 +59,7 @@ export default function StepBar({ current, hasPrepared, isPreparing, onStepClick
           }}>2</span>
         Review
         {isGenerating && (
-          <span className="w-3.5 h-3.5 border-2 rounded-full animate-spin"
+          <span className="w-3.5 h-3.5 border-2 rounded-full animate-spin" role="status" aria-label="Generating"
             style={{ borderColor: 'rgba(255,255,255,0.3)', borderTopColor: 'white' }} />
         )}
       </button>

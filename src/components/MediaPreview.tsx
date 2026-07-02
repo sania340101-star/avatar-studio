@@ -74,7 +74,7 @@ export default function MediaPreview({ url, type, name, onClose }: Props) {
         )}
         {type === 'audio' && (
           <div className="rounded-2xl p-8 flex flex-col items-center gap-4 min-w-[300px]" style={{ background: 'rgba(255,255,255,0.1)' }}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-16 h-16 text-white/60">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-16 h-16 text-white/60">
               <path d="M9 18V5l12-2v13" /><circle cx="6" cy="18" r="3" /><circle cx="18" cy="16" r="3" />
             </svg>
             {name && <p className="text-white/80 text-sm text-center">{name}</p>}

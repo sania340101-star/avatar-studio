@@ -124,7 +124,7 @@ export default function ReferenceUpload({ references, onChange, accept, label = 
                 return (
                   <div key={i} className="relative w-24 h-16 rounded-lg overflow-hidden border cursor-pointer" style={{ borderColor: 'var(--border)', background: 'var(--bg-input)' }} onClick={() => setPreview(ref)}>
                     <div className="absolute inset-0 flex items-center justify-center">
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-7 h-7" style={{ color: 'var(--green)' }}>
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-7 h-7" style={{ color: 'var(--green)' }}>
                         <path d="M9 18V5l12-2v13" /><circle cx="6" cy="18" r="3" /><circle cx="18" cy="16" r="3" />
                       </svg>
                     </div>
