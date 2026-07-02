@@ -7,6 +7,7 @@ import { useProject } from '@/lib/ProjectContext';
 import { ExportSession, ExportClip, Generation } from '@/lib/types';
 import { DEVICE_PRESETS } from '@/lib/models';
 import MaskPreview from '@/components/MaskPreview';
+import { analyzeAutofit, AutofitProgress } from '@/lib/autofit';
 
 function probeDuration(url: string): Promise<number> {
   return new Promise((resolve) => {
@@ -53,6 +54,8 @@ function ExportEditorContent() {
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [autofitting, setAutofitting] = useState(false);
+  const [autofitProgress, setAutofitProgress] = useState<AutofitProgress | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Sequential player state
@@ -223,6 +226,29 @@ function ExportEditorContent() {
     if (!session) return;
     setSession({ ...session, transform, updatedAt: Date.now() });
     debouncedSave({ transform });
+  }
+
+  async function runAutofit() {
+    if (!session || session.clips.length === 0 || autofitting) return;
+    setAutofitting(true);
+    setAutofitProgress(null);
+    try {
+      const result = await analyzeAutofit(
+        session.clips.map(c => c.url),
+        session.device,
+        (p) => setAutofitProgress(p),
+      );
+      if (result) {
+        updateTransform(result);
+      } else {
+        alert('No poses detected in any clip. Try adjusting manually.');
+      }
+    } catch (err) {
+      alert('Auto-fit failed: ' + (err instanceof Error ? err.message : 'unknown error'));
+    } finally {
+      setAutofitting(false);
+      setAutofitProgress(null);
+    }
   }
 
   function setDevice(device: 'hh1x3' | 'solo') {
@@ -699,6 +725,35 @@ function ExportEditorContent() {
             loop={isLocked}
             onVideoEnded={handleVideoEnded}
           />
+
+          {/* Auto-fit */}
+          <div className="mt-2 flex items-center gap-2">
+            <button
+              onClick={runAutofit}
+              disabled={autofitting || session.clips.length === 0}
+              className="text-xs px-3 py-1.5 rounded-lg font-medium disabled:opacity-50 flex items-center gap-1.5"
+              style={{ background: 'var(--bg-input)', color: 'var(--text2)', border: '1px solid var(--border)' }}
+            >
+              {autofitting ? (
+                <>
+                  <div className="w-3 h-3 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: 'var(--accent)', borderTopColor: 'transparent' }} />
+                  Analyzing...
+                </>
+              ) : (
+                <>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
+                    <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
+                  </svg>
+                  Auto-fit
+                </>
+              )}
+            </button>
+            {autofitProgress && (
+              <span className="text-[10px] flex-1 truncate" style={{ color: 'var(--text3)' }}>
+                {autofitProgress.message}
+              </span>
+            )}
+          </div>
         </div>
       )}
 
