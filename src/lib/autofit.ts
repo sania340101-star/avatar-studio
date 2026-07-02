@@ -57,13 +57,20 @@ function expandLandmarks(points: CollectedPoint[]): CollectedPoint[] {
     const bboxW = maxX - minX;
     const bboxH = maxY - minY;
 
-    // Head top: hair/hat extends above nose
-    expanded.push({ normX: (minX + maxX) / 2, normY: Math.max(0, minY - bboxH * 0.30), natW, natH });
+    const cx = (minX + maxX) / 2;
+    const isFullBody = bboxH > 0.35;
+
+    if (isFullBody) {
+      // Full-body: MediaPipe often misses feet — extend to frame edges
+      expanded.push({ normX: cx, normY: Math.max(0, Math.min(minY - bboxH * 0.30, 0.02)), natW, natH });
+      expanded.push({ normX: cx, normY: Math.min(1, Math.max(maxY + bboxH * 0.15, 0.97)), natW, natH });
+    } else {
+      expanded.push({ normX: cx, normY: Math.max(0, minY - bboxH * 0.30), natW, natH });
+      expanded.push({ normX: cx, normY: Math.min(1, maxY + bboxH * 0.15), natW, natH });
+    }
     // Sides: clothing extends beyond wrist landmarks
     expanded.push({ normX: Math.max(0, minX - bboxW * 0.25), normY: (minY + maxY) / 2, natW, natH });
     expanded.push({ normX: Math.min(1, maxX + bboxW * 0.25), normY: (minY + maxY) / 2, natW, natH });
-    // Bottom: shoes/feet below toe landmarks
-    expanded.push({ normX: (minX + maxX) / 2, normY: Math.min(1, maxY + bboxH * 0.15), natW, natH });
   }
 
   return expanded;
