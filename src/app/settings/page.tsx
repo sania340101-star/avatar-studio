@@ -43,7 +43,7 @@ export default function SettingsPage() {
     <AppShell>
       <div>
         <h2 className="text-xl font-semibold mb-6">Settings</h2>
-        <div className="space-y-4 max-w-xl">
+        <div className="space-y-4">
           <div className="rounded-xl p-5" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
             <h3 className="font-medium mb-3">Account</h3>
             <div className="space-y-2 text-sm">
