@@ -38,7 +38,6 @@ function seekVideo(video: HTMLVideoElement, time: number): Promise<void> {
 
 function expandLandmarks(points: CollectedPoint[]): CollectedPoint[] {
   if (points.length === 0) return points;
-
   const expanded: CollectedPoint[] = [...points];
 
   const byDims = new Map<string, CollectedPoint[]>();
@@ -51,7 +50,6 @@ function expandLandmarks(points: CollectedPoint[]): CollectedPoint[] {
   for (const [, pts] of byDims) {
     const natW = pts[0].natW;
     const natH = pts[0].natH;
-
     const minX = Math.min(...pts.map(p => p.normX));
     const maxX = Math.max(...pts.map(p => p.normX));
     const minY = Math.min(...pts.map(p => p.normY));
@@ -59,18 +57,13 @@ function expandLandmarks(points: CollectedPoint[]): CollectedPoint[] {
     const bboxW = maxX - minX;
     const bboxH = maxY - minY;
 
-    // Head top: hair/hat extends well above nose landmark
-    const headExtra = bboxH * 0.22;
-    expanded.push({ normX: (minX + maxX) / 2, normY: Math.max(0, minY - headExtra), natW, natH });
-
-    // Sides: jacket/clothing extends significantly beyond wrist landmarks
-    const sideExtra = bboxW * 0.20;
-    expanded.push({ normX: Math.max(0, minX - sideExtra), normY: (minY + maxY) / 2, natW, natH });
-    expanded.push({ normX: Math.min(1, maxX + sideExtra), normY: (minY + maxY) / 2, natW, natH });
-
-    // Bottom: shoes extend below ankle/toe landmarks
-    const bottomExtra = bboxH * 0.08;
-    expanded.push({ normX: (minX + maxX) / 2, normY: Math.min(1, maxY + bottomExtra), natW, natH });
+    // Head top: hair/hat extends above nose
+    expanded.push({ normX: (minX + maxX) / 2, normY: Math.max(0, minY - bboxH * 0.22), natW, natH });
+    // Sides: clothing extends beyond wrist landmarks
+    expanded.push({ normX: Math.max(0, minX - bboxW * 0.20), normY: (minY + maxY) / 2, natW, natH });
+    expanded.push({ normX: Math.min(1, maxX + bboxW * 0.20), normY: (minY + maxY) / 2, natW, natH });
+    // Bottom: shoes below toe landmarks
+    expanded.push({ normX: (minX + maxX) / 2, normY: Math.min(1, maxY + bboxH * 0.08), natW, natH });
   }
 
   return expanded;
@@ -114,8 +107,10 @@ export async function analyzeAutofit(
 
   const uniqueUrls = [...new Set(clipUrls)];
   const rawPoints: CollectedPoint[] = [];
+  // Nose landmarks tracked separately for dead pixel avoidance
+  const nosePoints: CollectedPoint[] = [];
 
-  // Pre-scan: count total frames for progress percentage
+  // Pre-scan for progress
   const clipMeta: { url: string; duration: number; natW: number; natH: number; frameCount: number }[] = [];
   let totalFrames = 0;
 
@@ -197,9 +192,15 @@ export async function analyzeAutofit(
 
       const result = landmarker.detect(canvas);
       if (result.landmarks && result.landmarks.length > 0) {
-        for (const lm of result.landmarks[0]) {
+        const lms = result.landmarks[0];
+        for (let li = 0; li < lms.length; li++) {
+          const lm = lms[li];
           if ((lm.visibility ?? 0) > 0.5 && lm.x >= 0 && lm.x <= 1 && lm.y >= 0 && lm.y <= 1) {
             rawPoints.push({ normX: lm.x, normY: lm.y, natW, natH });
+            // Landmark 0 = nose tip
+            if (li === 0) {
+              nosePoints.push({ normX: lm.x, normY: lm.y, natW, natH });
+            }
           }
         }
       }
@@ -221,24 +222,26 @@ export async function analyzeAutofit(
     cx: c.cx, cy: c.cy, r: c.r * (1 - safetyPadding),
   }));
 
-  const maskCx = mask.circles.reduce((s, c) => s + c.cx, 0) / mask.circles.length;
-  const maskCy = mask.circles.reduce((s, c) => s + c.cy, 0) / mask.circles.length;
+  // Dead pixel positions: center of each circle
+  const deadPixels = mask.circles.map(c => ({ x: c.cx, y: c.cy }));
+  const DEAD_PIXEL_CLEARANCE = 50;
 
-  function toElemCoords(scale: number): { x: number; y: number }[] {
-    const elemW = preset.width * scale;
-    const elemH = preset.height * scale;
-    return allPoints.map(p => {
-      const cs = Math.max(elemW / p.natW, elemH / p.natH);
-      return {
-        x: p.natW * cs * (p.normX - 0.5) + elemW / 2,
-        y: p.natH * cs * (p.normY - 0.5) + elemH / 2,
-      };
-    });
+  function pointToElem(p: CollectedPoint, elemW: number, elemH: number): { x: number; y: number } {
+    const cs = Math.max(elemW / p.natW, elemH / p.natH);
+    return {
+      x: p.natW * cs * (p.normX - 0.5) + elemW / 2,
+      y: p.natH * cs * (p.normY - 0.5) + elemH / 2,
+    };
   }
 
-  function tryFit(scale: number): { fits: boolean; offsetX: number; offsetY: number } {
-    const elemPts = toElemCoords(scale);
+  function tryFit(scale: number): { fits: boolean; offsetX: number; offsetY: number; noseOk: boolean; margin: number } {
+    const elemW = preset.width * scale;
+    const elemH = preset.height * scale;
 
+    const elemPts = allPoints.map(p => pointToElem(p, elemW, elemH));
+    const nosePts = nosePoints.map(p => pointToElem(p, elemW, elemH));
+
+    // Body center for initial estimate
     const bMinX = Math.min(...elemPts.map(p => p.x));
     const bMaxX = Math.max(...elemPts.map(p => p.x));
     const bMinY = Math.min(...elemPts.map(p => p.y));
@@ -246,46 +249,83 @@ export async function analyzeAutofit(
     const bCx = (bMinX + bMaxX) / 2;
     const bCy = (bMinY + bMaxY) / 2;
 
+    const maskCx = mask.circles.reduce((s, c) => s + c.cx, 0) / mask.circles.length;
+    const maskCy = mask.circles.reduce((s, c) => s + c.cy, 0) / mask.circles.length;
     const baseOffX = maskCx - bCx;
     const baseOffY = maskCy - bCy;
 
-    const steps = [-60, -30, -15, 0, 15, 30, 60];
+    // Two-pass offset search
+    // Pass 1: coarse grid — wide range to find the right zone
+    const coarseStepX = 50;
+    const coarseStepY = 50;
+    const coarseRangeX = 150;
+    const coarseRangeY = 300;
+
     let bestMargin = -Infinity;
     let bestOx = Math.round(baseOffX);
     let bestOy = Math.round(baseOffY);
     let bestFits = false;
+    let bestNoseOk = false;
 
-    for (const dy of steps) {
-      for (const dx of steps) {
-        const ox = baseOffX + dx;
-        const oy = baseOffY + dy;
-        let minMargin = Infinity;
-        let allIn = true;
+    function evaluate(ox: number, oy: number) {
+      let minMargin = Infinity;
+      let allIn = true;
 
-        for (const p of elemPts) {
-          const cx = ox + p.x;
-          const cy = oy + p.y;
-          let bestCircleMargin = -Infinity;
-          for (const circle of paddedCircles) {
-            const dist = Math.sqrt((cx - circle.cx) ** 2 + (cy - circle.cy) ** 2);
-            bestCircleMargin = Math.max(bestCircleMargin, circle.r - dist);
+      for (const p of elemPts) {
+        const cx = ox + p.x;
+        const cy = oy + p.y;
+        let bestCircleMargin = -Infinity;
+        for (const circle of paddedCircles) {
+          const dist = Math.sqrt((cx - circle.cx) ** 2 + (cy - circle.cy) ** 2);
+          bestCircleMargin = Math.max(bestCircleMargin, circle.r - dist);
+        }
+        if (bestCircleMargin < 0) allIn = false;
+        minMargin = Math.min(minMargin, bestCircleMargin);
+      }
+
+      // Nose must stay clear of dead pixels (circle centers)
+      let noseOk = true;
+      for (const np of nosePts) {
+        const ny = oy + np.y;
+        for (const dp of deadPixels) {
+          if (Math.abs(ny - dp.y) < DEAD_PIXEL_CLEARANCE) {
+            noseOk = false;
           }
-          if (bestCircleMargin < 0) allIn = false;
-          minMargin = Math.min(minMargin, bestCircleMargin);
         }
+      }
 
-        if (minMargin > bestMargin) {
-          bestMargin = minMargin;
-          bestOx = Math.round(ox);
-          bestOy = Math.round(oy);
-          bestFits = allIn;
-        }
+      // Rank: fits+noseOk > fits > noseOk > neither. Within same rank, prefer higher margin.
+      const rank = (allIn ? 2 : 0) + (noseOk ? 1 : 0);
+      const bestRank = (bestFits ? 2 : 0) + (bestNoseOk ? 1 : 0);
+      if (rank > bestRank || (rank === bestRank && minMargin > bestMargin)) {
+        bestMargin = minMargin;
+        bestOx = Math.round(ox);
+        bestOy = Math.round(oy);
+        bestFits = allIn;
+        bestNoseOk = noseOk;
       }
     }
 
-    return { fits: bestFits, offsetX: bestOx, offsetY: bestOy };
+    // Pass 1: coarse
+    for (let dy = -coarseRangeY; dy <= coarseRangeY; dy += coarseStepY) {
+      for (let dx = -coarseRangeX; dx <= coarseRangeX; dx += coarseStepX) {
+        evaluate(baseOffX + dx, baseOffY + dy);
+      }
+    }
+
+    // Pass 2: fine around best coarse result
+    const fineOx = bestOx;
+    const fineOy = bestOy;
+    for (let dy = -50; dy <= 50; dy += 10) {
+      for (let dx = -50; dx <= 50; dx += 10) {
+        evaluate(fineOx + dx, fineOy + dy);
+      }
+    }
+
+    return { fits: bestFits, offsetX: bestOx, offsetY: bestOy, noseOk: bestNoseOk, margin: bestMargin };
   }
 
+  // Binary search for max scale
   let lo = 0.5;
   let hi = 3.0;
   let best: AutofitResult | null = null;

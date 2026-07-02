@@ -762,7 +762,7 @@ function ExportEditorContent() {
             videoUrl={currentClipUrl || ''}
             transform={session.transform}
             onTransformChange={updateTransform}
-            loop={isLocked}
+            loop={isLocked || session.clips.length === 1}
             onVideoEnded={handleVideoEnded}
           />
 
