@@ -55,37 +55,6 @@ export default function DisplayPage() {
     return () => ch.close();
   }, [sessionId]);
 
-  // Server polling (for cross-device sync)
-  const lastServerTs = useRef(0);
-
-  useEffect(() => {
-    let alive = true;
-    const poll = async () => {
-      while (alive) {
-        try {
-          const res = await fetch(`/api/display-sync?id=${sessionId}&_t=${Date.now()}`);
-          if (res.ok) {
-            const data = await res.json();
-            if (data && data.updatedAt && data.updatedAt > lastServerTs.current) {
-              lastServerTs.current = data.updatedAt;
-              setState(prev => ({
-                ...prev,
-                device: data.device ?? prev.device,
-                transform: data.transform ?? prev.transform,
-                clipUrl: data.clipUrl ?? prev.clipUrl,
-                clipUrls: data.clipUrls ?? prev.clipUrls,
-                activeClipIdx: data.activeClipIdx ?? prev.activeClipIdx,
-              }));
-            }
-          }
-        } catch {}
-        await new Promise(r => setTimeout(r, 300));
-      }
-    };
-    poll();
-    return () => { alive = false; };
-  }, [sessionId]);
-
   // Update video when clipUrl changes
   useEffect(() => {
     const vid = videoRef.current;

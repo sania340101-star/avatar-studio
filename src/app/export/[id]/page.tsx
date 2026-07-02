@@ -65,7 +65,6 @@ function ExportEditorContent() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const displayChannelRef = useRef<BroadcastChannel | null>(null);
   const displayWindowRef = useRef<Window | null>(null);
-  const lastSyncPushTs = useRef(0);
 
   // Transform undo stack
   const transformHistory = useRef<Array<{ offsetX: number; offsetY: number; scale: number }>>([]);
@@ -93,17 +92,7 @@ function ExportEditorContent() {
 
   useEffect(() => { load(); }, [load]);
 
-  const syncToServer = useCallback((patch: Record<string, unknown>) => {
-    fetch(`/api/display-sync?id=${sessionId}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(patch),
-    }).then(r => r.ok ? r.json() : null).then(d => {
-      if (d?.updatedAt) lastSyncPushTs.current = d.updatedAt;
-    }).catch(() => {});
-  }, [sessionId]);
-
-  // BroadcastChannel for display window sync
+  // BroadcastChannel for display window sync (same browser only)
   useEffect(() => {
     const ch = new BroadcastChannel(`avatar-display-${sessionId}`);
     displayChannelRef.current = ch;
@@ -111,16 +100,14 @@ function ExportEditorContent() {
       const msg = e.data;
       if (msg.type === 'requestState' && session) {
         const clipUrl = session.clips[activeClipIdx]?.url || '';
-        const fullState = {
+        ch.postMessage({ type: 'init', state: {
           device: session.device,
           transform: session.transform,
           clipUrl,
           clipUrls: session.clips.map(c => c.url),
           activeClipIdx,
           loop: true,
-        };
-        ch.postMessage({ type: 'init', state: fullState });
-        syncToServer(fullState);
+        }});
       }
       if (msg.type === 'transformFromDisplay') {
         updateTransform(msg.transform, true);
@@ -130,32 +117,7 @@ function ExportEditorContent() {
       }
     };
     return () => ch.close();
-  }, [sessionId, session, activeClipIdx, syncToServer]);
-
-  // Poll server for remote transform changes (mobile → desktop)
-  useEffect(() => {
-    if (!session) return;
-    let alive = true;
-    const poll = async () => {
-      while (alive) {
-        try {
-          const res = await fetch(`/api/display-sync?id=${sessionId}&_t=${Date.now()}`);
-          if (res.ok) {
-            const data = await res.json();
-            if (data?.updatedAt && data.updatedAt > lastSyncPushTs.current) {
-              lastSyncPushTs.current = data.updatedAt;
-              if (data.transform) {
-                setSession(prev => prev ? { ...prev, transform: data.transform } : prev);
-              }
-            }
-          }
-        } catch {}
-        await new Promise(r => setTimeout(r, 500));
-      }
-    };
-    poll();
-    return () => { alive = false; };
-  }, [sessionId, !!session]);
+  }, [sessionId, session, activeClipIdx]);
 
   useEffect(() => {
     if (!session) return;
@@ -328,7 +290,6 @@ function ExportEditorContent() {
     setSession({ ...session, transform, updatedAt: Date.now() });
     debouncedSave({ transform });
     displayChannelRef.current?.postMessage({ type: 'transform', transform });
-    syncToServer({ transform });
   }
 
   function undoTransform() {
@@ -465,8 +426,7 @@ function ExportEditorContent() {
     if (!session) return;
     const clipUrl = session.clips[activeClipIdx]?.url || '';
     displayChannelRef.current?.postMessage({ type: 'clip', clipUrl, activeClipIdx });
-    syncToServer({ clipUrl, activeClipIdx, clipUrls: session.clips.map(c => c.url) });
-  }, [activeClipIdx, session?.clips.length, syncToServer]);
+  }, [activeClipIdx, session?.clips.length]);
 
   // Sequential player: advance to next clip when video ends
   const handleVideoEnded = useCallback(() => {
