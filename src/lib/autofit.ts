@@ -16,6 +16,7 @@ export interface AutofitResult {
   scale: number;
   offsetX: number;
   offsetY: number;
+  debug?: string;
 }
 
 interface CollectedPoint {
@@ -27,12 +28,20 @@ interface CollectedPoint {
 
 function seekVideo(video: HTMLVideoElement, time: number): Promise<void> {
   return new Promise((resolve) => {
+    if (Math.abs(video.currentTime - time) < 0.01) {
+      resolve();
+      return;
+    }
     const onSeeked = () => {
       video.removeEventListener('seeked', onSeeked);
       resolve();
     };
     video.addEventListener('seeked', onSeeked);
     video.currentTime = time;
+    setTimeout(() => {
+      video.removeEventListener('seeked', onSeeked);
+      resolve();
+    }, 3000);
   });
 }
 
@@ -151,6 +160,10 @@ export async function analyzeAutofit(
   if (clipMeta.length === 0) { landmarker.close(); return null; }
 
   let processedFrames = 0;
+  let detectOk = 0;
+  let detectEmpty = 0;
+  let detectErr = 0;
+  let lastError = '';
 
   for (let ci = 0; ci < clipMeta.length; ci++) {
     const { url, duration, natW, natH } = clipMeta[ci];
@@ -160,15 +173,13 @@ export async function analyzeAutofit(
     video.muted = true;
     video.playsInline = true;
 
-
     try {
       await new Promise<void>((resolve, reject) => {
         video.onloadeddata = () => resolve();
-        video.onerror = () => reject();
+        video.onerror = () => reject(new Error('video load error'));
         video.src = url;
         video.load();
       });
-      // Kick mobile decoder: brief play then pause
       try { await video.play(); } catch { /* autoplay may be blocked */ }
       video.pause();
     } catch {
@@ -185,11 +196,6 @@ export async function analyzeAutofit(
       sampleTimes.push(duration - 0.1);
     }
 
-    const canvas = document.createElement('canvas');
-    canvas.width = natW;
-    canvas.height = natH;
-    const ctx = canvas.getContext('2d')!;
-
     for (let fi = 0; fi < sampleTimes.length; fi++) {
       processedFrames++;
       const pct = Math.round((processedFrames / totalFrames) * 100);
@@ -202,11 +208,11 @@ export async function analyzeAutofit(
       });
 
       await seekVideo(video, sampleTimes[fi]);
-      ctx.drawImage(video, 0, 0, natW, natH);
 
       try {
-        const result = landmarker.detect(canvas);
+        const result = landmarker.detect(video);
         if (result.landmarks && result.landmarks.length > 0) {
+          detectOk++;
           const lms = result.landmarks[0];
           for (let li = 0; li < lms.length; li++) {
             const lm = lms[li];
@@ -217,19 +223,24 @@ export async function analyzeAutofit(
               }
             }
           }
+        } else {
+          detectEmpty++;
         }
-      } catch {
-        // Detection failed for this frame — continue with others
+      } catch (e) {
+        detectErr++;
+        lastError = e instanceof Error ? e.message : String(e);
       }
     }
 
     video.remove();
-    canvas.remove();
   }
 
   landmarker.close();
 
-  if (rawPoints.length === 0) return null;
+  const debugInfo = `frames=${processedFrames} ok=${detectOk} empty=${detectEmpty} err=${detectErr} pts=${rawPoints.length}` +
+    (lastError ? ` last_err=${lastError}` : '');
+
+  if (rawPoints.length === 0) return { scale: 0, offsetX: 0, offsetY: 0, debug: debugInfo } as AutofitResult & { debug: string };
 
   const allPoints = expandLandmarks(rawPoints);
 

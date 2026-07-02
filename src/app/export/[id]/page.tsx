@@ -320,12 +320,13 @@ function ExportEditorContent() {
         0.5,
         safetyPaddingPx,
       );
-      if (result) {
+      if (result && result.scale > 0) {
         updateTransform(result, true);
       } else {
         transformHistory.current.pop();
         setHistoryLen(transformHistory.current.length);
-        setAutofitError('No poses detected. Try adjusting manually.');
+        const debug = result?.debug ? ` [${result.debug}]` : '';
+        setAutofitError(`No poses detected. Try adjusting manually.${debug}`);
       }
     } catch (err) {
       transformHistory.current.pop();
