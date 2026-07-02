@@ -56,6 +56,9 @@ function ExportEditorContent() {
   const [uploading, setUploading] = useState(false);
   const [autofitting, setAutofitting] = useState(false);
   const [autofitProgress, setAutofitProgress] = useState<AutofitProgress | null>(null);
+  const [versionHistoryOpen, setVersionHistoryOpen] = useState(true);
+  const [confirmDeleteVersion, setConfirmDeleteVersion] = useState<{ id: string; num: number } | null>(null);
+  const [confirmDeleteSession, setConfirmDeleteSession] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Transform undo stack
@@ -520,13 +523,9 @@ function ExportEditorContent() {
           </div>
         </div>
         <button
-          onClick={async () => {
-            if (!confirm('Delete this export session and all its versions?')) return;
-            await fetch(`/api/exports?id=${session.id}`, { method: 'DELETE' });
-            router.push('/export');
-          }}
-          className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
-          style={{ color: 'var(--text3)' }}
+          onClick={() => setConfirmDeleteSession(true)}
+          className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 opacity-50 hover:opacity-100"
+          style={{ color: 'var(--red)' }}
           title="Delete export"
         >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
@@ -890,91 +889,179 @@ function ExportEditorContent() {
             </div>
           )}
 
-          {/* Version history */}
+          {/* Version History */}
           {session.exports && session.exports.length > 0 && (
             <div className="mt-4 pt-3 border-t" style={{ borderColor: 'var(--border)' }}>
-              <p className="text-xs font-semibold mb-2" style={{ color: 'var(--text3)' }}>
-                VERSIONS ({session.exports.length})
-              </p>
-              <div className="space-y-2">
-                {[...session.exports].reverse().map((exp, i) => {
-                  const vNum = session.exports!.length - i;
-                  const isLatest = i === 0;
-                  return (
-                    <div
-                      key={exp.id}
-                      className="rounded-lg border overflow-hidden"
-                      style={{ borderColor: isLatest ? 'var(--accent)' : 'var(--border)', background: 'var(--bg)' }}
-                    >
-                      <div className="flex items-center gap-3 p-2">
-                        <button
-                          onClick={() => setPreviewUrl(exp.url)}
-                          className="w-16 h-10 rounded overflow-hidden flex-shrink-0 relative group cursor-pointer"
-                          style={{ background: 'var(--bg-input)' }}
-                        >
-                          <video src={exp.url} className="w-full h-full object-cover" muted />
-                          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                            <svg viewBox="0 0 24 24" fill="white" className="w-4 h-4">
-                              <polygon points="5 3 19 12 5 21 5 3" />
-                            </svg>
-                          </div>
-                        </button>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2">
-                            <p className="text-xs font-medium" style={{ color: 'var(--text1)' }}>
-                              Version {vNum}
+              <button
+                onClick={() => setVersionHistoryOpen(!versionHistoryOpen)}
+                className="flex items-center gap-2 text-sm font-semibold mb-3 w-full"
+                style={{ color: 'var(--text1)' }}
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={`w-4 h-4 transition-transform ${versionHistoryOpen ? 'rotate-90' : ''}`}>
+                  <path d="M9 18l6-6-6-6" />
+                </svg>
+                Version History ({session.exports.length})
+              </button>
+              {versionHistoryOpen && (
+                <div className="space-y-2">
+                  {[...session.exports].reverse().map((exp, i) => {
+                    const vNum = session.exports!.length - i;
+                    const isLatest = i === 0;
+                    return (
+                      <div
+                        key={exp.id}
+                        className="rounded-lg border overflow-hidden"
+                        style={{ borderColor: isLatest ? 'var(--accent)' : 'var(--border)', background: 'var(--bg)' }}
+                      >
+                        <div className="flex items-center gap-3 p-2">
+                          <button
+                            onClick={() => setPreviewUrl(exp.url)}
+                            className="w-16 h-10 rounded overflow-hidden flex-shrink-0 relative group cursor-pointer"
+                            style={{ background: 'var(--bg-input)' }}
+                          >
+                            <video src={exp.url} className="w-full h-full object-cover" muted />
+                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                              <svg viewBox="0 0 24 24" fill="white" className="w-4 h-4">
+                                <polygon points="5 3 19 12 5 21 5 3" />
+                              </svg>
+                            </div>
+                          </button>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <p className="text-xs font-medium" style={{ color: 'var(--text1)' }}>
+                                Version {vNum}
+                              </p>
+                              {isLatest && (
+                                <span className="text-[10px] px-1.5 py-0.5 rounded-full font-medium" style={{ background: 'var(--accent)', color: 'white' }}>
+                                  latest
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-[10px]" style={{ color: 'var(--text3)' }}>
+                              {new Date(exp.createdAt).toLocaleString()}
                             </p>
-                            {isLatest && (
-                              <span className="text-[10px] px-1.5 py-0.5 rounded-full font-medium" style={{ background: 'var(--accent)', color: 'white' }}>
-                                latest
-                              </span>
-                            )}
                           </div>
-                          <p className="text-[10px]" style={{ color: 'var(--text3)' }}>
-                            {new Date(exp.createdAt).toLocaleString()}
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-1 flex-shrink-0">
-                          <button
-                            onClick={async () => {
-                              const res = await fetch(exp.url);
-                              const blob = await res.blob();
-                              const a = document.createElement('a');
-                              a.href = URL.createObjectURL(blob);
-                              a.download = `${session.name}-v${vNum}.mp4`;
-                              a.click();
-                              URL.revokeObjectURL(a.href);
-                            }}
-                            className="text-xs px-3 py-1.5 rounded-lg font-medium flex items-center gap-1"
-                            style={{ background: 'var(--accent)', color: 'white' }}
-                          >
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3 h-3">
-                              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" />
-                            </svg>
-                            Download
-                          </button>
-                          <button
-                            onClick={async () => {
-                              if (!confirm(`Delete version ${vNum}?`)) return;
-                              await fetch(`/api/exports?id=${session.id}&versionId=${exp.id}`, { method: 'DELETE' });
-                              load();
-                            }}
-                            className="w-7 h-7 rounded-lg flex items-center justify-center"
-                            style={{ color: 'var(--text3)' }}
-                            title="Delete version"
-                          >
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
-                              <polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                            </svg>
-                          </button>
+                          <div className="flex items-center gap-1 flex-shrink-0">
+                            <button
+                              onClick={async () => {
+                                const res = await fetch(exp.url);
+                                const blob = await res.blob();
+                                const a = document.createElement('a');
+                                a.href = URL.createObjectURL(blob);
+                                a.download = `${session.name}-v${vNum}.mp4`;
+                                a.click();
+                                URL.revokeObjectURL(a.href);
+                              }}
+                              className="text-xs px-3 py-1.5 rounded-lg font-medium flex items-center gap-1"
+                              style={{ background: 'var(--accent)', color: 'white' }}
+                            >
+                              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3 h-3">
+                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" />
+                              </svg>
+                              Download
+                            </button>
+                            <button
+                              onClick={() => setConfirmDeleteVersion({ id: exp.id, num: vNum })}
+                              className="w-7 h-7 rounded-lg flex items-center justify-center opacity-50 hover:opacity-100"
+                              style={{ color: 'var(--red)' }}
+                              title="Delete version"
+                            >
+                              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
+                                <polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                              </svg>
+                            </button>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  );
-                })}
-              </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           )}
+        </div>
+      )}
+
+      {/* Delete session confirmation */}
+      {confirmDeleteSession && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => setConfirmDeleteSession(false)}>
+          <div className="absolute inset-0 bg-black/50" />
+          <div
+            className="relative rounded-xl p-5 w-80 shadow-xl"
+            style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="w-10 h-10 rounded-full flex items-center justify-center mx-auto mb-3" style={{ background: 'rgba(239,68,68,0.1)' }}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5" style={{ color: 'var(--red)' }}>
+                <polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+              </svg>
+            </div>
+            <h3 className="text-sm font-semibold text-center mb-1" style={{ color: 'var(--text1)' }}>Delete export?</h3>
+            <p className="text-xs text-center mb-4" style={{ color: 'var(--text3)' }}>
+              This export session and all its versions will be permanently deleted.
+            </p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setConfirmDeleteSession(false)}
+                className="flex-1 py-2 rounded-lg text-sm font-medium"
+                style={{ border: '1px solid var(--border)', color: 'var(--text2)' }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={async () => {
+                  await fetch(`/api/exports?id=${session!.id}`, { method: 'DELETE' });
+                  router.push('/export');
+                }}
+                className="flex-1 py-2 rounded-lg text-sm font-medium text-white"
+                style={{ background: 'var(--red, #ef4444)' }}
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete version confirmation */}
+      {confirmDeleteVersion && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => setConfirmDeleteVersion(null)}>
+          <div className="absolute inset-0 bg-black/50" />
+          <div
+            className="relative rounded-xl p-5 w-80 shadow-xl"
+            style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="w-10 h-10 rounded-full flex items-center justify-center mx-auto mb-3" style={{ background: 'rgba(239,68,68,0.1)' }}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5" style={{ color: 'var(--red)' }}>
+                <polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+              </svg>
+            </div>
+            <h3 className="text-sm font-semibold text-center mb-1" style={{ color: 'var(--text1)' }}>Delete version {confirmDeleteVersion.num}?</h3>
+            <p className="text-xs text-center mb-4" style={{ color: 'var(--text3)' }}>
+              This version will be permanently deleted from both the export history and gallery.
+            </p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setConfirmDeleteVersion(null)}
+                className="flex-1 py-2 rounded-lg text-sm font-medium"
+                style={{ border: '1px solid var(--border)', color: 'var(--text2)' }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={async () => {
+                  await fetch(`/api/exports?id=${session!.id}&versionId=${confirmDeleteVersion.id}`, { method: 'DELETE' });
+                  setConfirmDeleteVersion(null);
+                  load();
+                }}
+                className="flex-1 py-2 rounded-lg text-sm font-medium text-white"
+                style={{ background: 'var(--red, #ef4444)' }}
+              >
+                Delete
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
