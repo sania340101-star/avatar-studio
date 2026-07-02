@@ -110,29 +110,15 @@ export default function DisplayPage() {
           sendTransform({ ...t, offsetY: Math.round(t.offsetY + step) });
           break;
         case '+':
-        case '=': {
+        case '=':
           e.preventDefault();
-          const newUp = Math.min(3, Math.round((t.scale + scaleStep) * 100) / 100);
-          if (stateRef.current.device === 'solo' && t.scale > 0) {
-            const r = newUp / t.scale;
-            sendTransform({ scale: newUp, offsetX: Math.round(t.offsetX * r), offsetY: Math.round(t.offsetY * r) });
-          } else {
-            sendTransform({ ...t, scale: newUp });
-          }
+          sendTransform({ ...t, scale: Math.min(3, Math.round((t.scale + scaleStep) * 100) / 100) });
           break;
-        }
         case '-':
-        case '_': {
+        case '_':
           e.preventDefault();
-          const newDn = Math.max(0.5, Math.round((t.scale - scaleStep) * 100) / 100);
-          if (stateRef.current.device === 'solo' && t.scale > 0) {
-            const r = newDn / t.scale;
-            sendTransform({ scale: newDn, offsetX: Math.round(t.offsetX * r), offsetY: Math.round(t.offsetY * r) });
-          } else {
-            sendTransform({ ...t, scale: newDn });
-          }
+          sendTransform({ ...t, scale: Math.max(0.5, Math.round((t.scale - scaleStep) * 100) / 100) });
           break;
-        }
         case 'Escape':
           if (document.fullscreenElement) {
             document.exitFullscreen().catch(() => {});
@@ -231,7 +217,7 @@ export default function DisplayPage() {
                 style={(() => {
                   const t = state.transform;
                   if (state.device === 'solo' && videoDims) {
-                    const cs = Math.max(preset.width / videoDims.w, preset.height / videoDims.h) * t.scale;
+                    const cs = Math.max(preset.width / videoDims.w, preset.height / videoDims.h);
                     const vw = videoDims.w * cs;
                     const vh = videoDims.h * cs;
                     return {
@@ -240,6 +226,8 @@ export default function DisplayPage() {
                       top: -(vh - preset.height) / 2 + t.offsetY,
                       width: vw,
                       height: vh,
+                      transform: `scale(${t.scale})`,
+                      transformOrigin: `${vw / 2 - t.offsetX}px ${vh / 2 - t.offsetY}px`,
                     };
                   }
                   return {

@@ -12,9 +12,9 @@ import {
 } from '@/lib/models';
 import ImagePicker from '@/components/ImagePicker';
 import ReferenceUpload from '@/components/ReferenceUpload';
+import { getTemplateView, setTemplateView } from '@/lib/nav-state';
 
 type View = 'list' | 'create' | 'edit';
-const TEMPLATE_VIEW_KEY = 'avatar-studio:template-view';
 const TEMPLATE_FORM_KEY = 'avatar-studio:template-form';
 
 function makeSlotId(): string {
@@ -48,19 +48,14 @@ function cloneSlot(slot: TemplateSlot): TemplateSlot {
 function TemplatesContent() {
   const { user, activeProject } = useProject();
   const [view, setView] = useState<View>(() => {
-    try {
-      const s = sessionStorage.getItem(TEMPLATE_VIEW_KEY);
-      if (s) { const d = JSON.parse(s); if (d.view) return d.view; }
-    } catch {}
+    const saved = getTemplateView();
+    if (saved?.view === 'create' || saved?.view === 'edit') return saved.view as View;
     return 'list';
   });
   const [templates, setTemplates] = useState<Template[]>([]);
   const [editingTemplate, setEditingTemplate] = useState<Template | null>(() => {
-    try {
-      const s = sessionStorage.getItem(TEMPLATE_VIEW_KEY);
-      if (s) { const d = JSON.parse(s); return d.editingTemplate || null; }
-    } catch {}
-    return null;
+    const saved = getTemplateView();
+    return (saved?.data as Template) || null;
   });
 
   const load = useCallback(async () => {
@@ -73,10 +68,10 @@ function TemplatesContent() {
 
   useEffect(() => {
     if (view === 'list') {
-      sessionStorage.removeItem(TEMPLATE_VIEW_KEY);
+      setTemplateView(null);
       sessionStorage.removeItem(TEMPLATE_FORM_KEY);
     } else {
-      sessionStorage.setItem(TEMPLATE_VIEW_KEY, JSON.stringify({ view, editingTemplate }));
+      setTemplateView(view, editingTemplate);
     }
   }, [view, editingTemplate]);
 
@@ -147,15 +142,32 @@ function TemplateList({ templates, onEdit, onDelete, onCreate }: {
             const totalRefs = slots.reduce((sum, s) => sum + s.references.length, 0);
 
             return (
-              <div key={tmpl.id} className="rounded-xl border p-4" style={{ borderColor: 'var(--border)', background: 'var(--bg-card)' }}>
+              <div
+                key={tmpl.id}
+                className="rounded-xl border p-4 cursor-pointer hover:border-[var(--accent)] transition-colors"
+                style={{ borderColor: 'var(--border)', background: 'var(--bg-card)' }}
+                onClick={() => onEdit(tmpl)}
+              >
                 <div className="flex items-start justify-between mb-2">
                   <div>
                     <h3 className="font-semibold">{tmpl.name}</h3>
                     {tmpl.description && <p className="text-sm mt-0.5" style={{ color: 'var(--text2)' }}>{tmpl.description}</p>}
                   </div>
-                  <span className="text-xs px-2 py-0.5 rounded" style={{ background: 'var(--accent-subtle)', color: 'var(--accent)' }}>
-                    {slotCount} slot{slotCount !== 1 ? 's' : ''}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs px-2 py-0.5 rounded" style={{ background: 'var(--accent-subtle)', color: 'var(--accent)' }}>
+                      {slotCount} slot{slotCount !== 1 ? 's' : ''}
+                    </span>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setConfirmDeleteId(tmpl.id); }}
+                      className="w-7 h-7 rounded-lg flex items-center justify-center opacity-50 hover:opacity-100 flex-shrink-0"
+                      style={{ color: 'var(--red)' }}
+                      title="Delete"
+                    >
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
+                        <polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                      </svg>
+                    </button>
+                  </div>
                 </div>
 
                 <div className="flex flex-wrap gap-1.5 mb-2">
@@ -168,17 +180,8 @@ function TemplateList({ templates, onEdit, onDelete, onCreate }: {
                 </div>
 
                 {tmpl.promptTemplate && (
-                  <p className="text-sm mb-4 line-clamp-2" style={{ color: 'var(--text2)' }}>{tmpl.promptTemplate}</p>
+                  <p className="text-sm line-clamp-2" style={{ color: 'var(--text2)' }}>{tmpl.promptTemplate}</p>
                 )}
-
-                <div className="flex gap-2">
-                  <button onClick={() => onEdit(tmpl)} className="flex-1 py-2 rounded-lg text-sm font-medium" style={{ border: '1px solid var(--border)', color: 'var(--text2)' }}>
-                    Edit
-                  </button>
-                  <button onClick={() => setConfirmDeleteId(tmpl.id)} className="px-3 py-2 rounded-lg text-sm" style={{ color: 'var(--red)', background: 'rgba(239,68,68,0.08)' }}>
-                    Del
-                  </button>
-                </div>
               </div>
             );
           })}

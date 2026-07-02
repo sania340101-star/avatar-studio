@@ -55,14 +55,15 @@ export default function MaskPreview({ device, videoUrl, transform, onTransformCh
   const handlePointerMove = useCallback((e: React.PointerEvent) => {
     if (!dragging) return;
     const ds = displayScale.current;
-    const dx = (e.clientX - dragStart.current.x) / ds;
-    const dy = (e.clientY - dragStart.current.y) / ds;
+    const sf = device === 'solo' ? transform.scale : 1;
+    const dx = (e.clientX - dragStart.current.x) / ds / sf;
+    const dy = (e.clientY - dragStart.current.y) / ds / sf;
     onTransformChange({
       ...transform,
       offsetX: Math.round(dragStart.current.ox + dx),
       offsetY: Math.round(dragStart.current.oy + dy),
     });
-  }, [dragging, transform, onTransformChange]);
+  }, [dragging, transform, onTransformChange, device]);
 
   const handlePointerUp = useCallback((e: React.PointerEvent) => {
     setDragging(false);
@@ -76,19 +77,8 @@ export default function MaskPreview({ device, videoUrl, transform, onTransformCh
 
   const adjustScale = useCallback((delta: number) => {
     const newScale = Math.max(0.5, Math.min(3, transform.scale + delta));
-    const s = Math.round(newScale * 100) / 100;
-    if (device === 'solo' && transform.scale > 0) {
-      const ratio = s / transform.scale;
-      onTransformChange({
-        ...transform,
-        scale: s,
-        offsetX: Math.round(transform.offsetX * ratio),
-        offsetY: Math.round(transform.offsetY * ratio),
-      });
-    } else {
-      onTransformChange({ ...transform, scale: s });
-    }
-  }, [transform, onTransformChange, device]);
+    onTransformChange({ ...transform, scale: Math.round(newScale * 100) / 100 });
+  }, [transform, onTransformChange]);
 
   return (
     <div className="space-y-3">
@@ -147,7 +137,7 @@ export default function MaskPreview({ device, videoUrl, transform, onTransformCh
                 }}
                 style={(() => {
                   if (device === 'solo' && videoDims) {
-                    const cs = Math.max(preset.width / videoDims.w, preset.height / videoDims.h) * transform.scale;
+                    const cs = Math.max(preset.width / videoDims.w, preset.height / videoDims.h);
                     const vw = videoDims.w * cs;
                     const vh = videoDims.h * cs;
                     return {
@@ -156,6 +146,8 @@ export default function MaskPreview({ device, videoUrl, transform, onTransformCh
                       top: -(vh - preset.height) / 2 + transform.offsetY,
                       width: vw,
                       height: vh,
+                      transform: `scale(${transform.scale})`,
+                      transformOrigin: `${vw / 2 - transform.offsetX}px ${vh / 2 - transform.offsetY}px`,
                     };
                   }
                   return {
@@ -221,20 +213,7 @@ export default function MaskPreview({ device, videoUrl, transform, onTransformCh
           max="3"
           step="0.01"
           value={transform.scale}
-          onChange={e => {
-            const newScale = parseFloat(e.target.value);
-            if (device === 'solo' && transform.scale > 0) {
-              const ratio = newScale / transform.scale;
-              onTransformChange({
-                ...transform,
-                scale: newScale,
-                offsetX: Math.round(transform.offsetX * ratio),
-                offsetY: Math.round(transform.offsetY * ratio),
-              });
-            } else {
-              onTransformChange({ ...transform, scale: newScale });
-            }
-          }}
+          onChange={e => onTransformChange({ ...transform, scale: parseFloat(e.target.value) })}
           className="flex-1 accent-[var(--accent)]"
           style={{ background: 'transparent', border: 'none', padding: 0, minWidth: 0 }}
         />

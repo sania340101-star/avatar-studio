@@ -101,15 +101,29 @@ export async function analyzeAutofit(
     'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.35/wasm',
   );
 
-  const landmarker = await PoseLandmarker.createFromOptions(vision, {
-    baseOptions: {
-      modelAssetPath:
-        'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/latest/pose_landmarker_lite.task',
-      delegate: 'GPU',
-    },
-    runningMode: 'IMAGE',
-    numPoses: 1,
-  });
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let landmarker: any;
+  try {
+    landmarker = await PoseLandmarker.createFromOptions(vision, {
+      baseOptions: {
+        modelAssetPath:
+          'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/latest/pose_landmarker_lite.task',
+        delegate: 'GPU',
+      },
+      runningMode: 'IMAGE',
+      numPoses: 1,
+    });
+  } catch {
+    landmarker = await PoseLandmarker.createFromOptions(vision, {
+      baseOptions: {
+        modelAssetPath:
+          'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/latest/pose_landmarker_lite.task',
+        delegate: 'CPU',
+      },
+      runningMode: 'IMAGE',
+      numPoses: 1,
+    });
+  }
 
   const uniqueUrls = [...new Set(clipUrls)];
   const rawPoints: CollectedPoint[] = [];
@@ -124,6 +138,7 @@ export async function analyzeAutofit(
     video.preload = 'metadata';
     video.muted = true;
     video.playsInline = true;
+    video.crossOrigin = 'anonymous';
     try {
       await new Promise<void>((resolve, reject) => {
         video.onloadedmetadata = () => resolve();
@@ -155,6 +170,7 @@ export async function analyzeAutofit(
     video.preload = 'auto';
     video.muted = true;
     video.playsInline = true;
+    video.crossOrigin = 'anonymous';
 
     try {
       await new Promise<void>((resolve, reject) => {
@@ -195,18 +211,22 @@ export async function analyzeAutofit(
       await seekVideo(video, sampleTimes[fi]);
       ctx.drawImage(video, 0, 0, natW, natH);
 
-      const result = landmarker.detect(canvas);
-      if (result.landmarks && result.landmarks.length > 0) {
-        const lms = result.landmarks[0];
-        for (let li = 0; li < lms.length; li++) {
-          const lm = lms[li];
-          if ((lm.visibility ?? 0) > 0.5 && lm.x >= 0 && lm.x <= 1 && lm.y >= 0 && lm.y <= 1) {
-            rawPoints.push({ normX: lm.x, normY: lm.y, natW, natH });
-            if (li <= 10) {
-              headPoints.push({ normX: lm.x, normY: lm.y, natW, natH });
+      try {
+        const result = landmarker.detect(canvas);
+        if (result.landmarks && result.landmarks.length > 0) {
+          const lms = result.landmarks[0];
+          for (let li = 0; li < lms.length; li++) {
+            const lm = lms[li];
+            if ((lm.visibility ?? 0) > 0.3 && lm.x >= 0 && lm.x <= 1 && lm.y >= 0 && lm.y <= 1) {
+              rawPoints.push({ normX: lm.x, normY: lm.y, natW, natH });
+              if (li <= 10) {
+                headPoints.push({ normX: lm.x, normY: lm.y, natW, natH });
+              }
             }
           }
         }
+      } catch {
+        // Detection failed for this frame — continue with others
       }
     }
 
