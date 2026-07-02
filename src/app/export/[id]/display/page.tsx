@@ -18,6 +18,7 @@ export default function DisplayPage() {
   const sessionId = params.id as string;
   const channelRef = useRef<BroadcastChannel | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const [showClose, setShowClose] = useState(true);
 
   const [state, setState] = useState<DisplayState>({
     device: 'hh1x3',
@@ -32,14 +33,11 @@ export default function DisplayPage() {
   stateRef.current = state;
 
   // BroadcastChannel listener
-  const bcConnected = useRef(false);
-
   useEffect(() => {
     const ch = new BroadcastChannel(`avatar-display-${sessionId}`);
     channelRef.current = ch;
 
     ch.onmessage = (e) => {
-      bcConnected.current = true;
       const msg = e.data;
       if (msg.type === 'init' || msg.type === 'update') {
         setState(prev => ({ ...prev, ...msg.state }));
@@ -57,7 +55,9 @@ export default function DisplayPage() {
     return () => ch.close();
   }, [sessionId]);
 
-  // Server polling fallback (for cross-device sync)
+  // Server polling (for cross-device sync)
+  const lastServerTs = useRef(0);
+
   useEffect(() => {
     let alive = true;
     const poll = async () => {
@@ -66,7 +66,8 @@ export default function DisplayPage() {
           const res = await fetch(`/api/display-sync?id=${sessionId}`);
           if (res.ok) {
             const data = await res.json();
-            if (data && !bcConnected.current) {
+            if (data && data.updatedAt && data.updatedAt > lastServerTs.current) {
+              lastServerTs.current = data.updatedAt;
               setState(prev => ({
                 ...prev,
                 device: data.device ?? prev.device,
@@ -101,6 +102,12 @@ export default function DisplayPage() {
     if (el.requestFullscreen) {
       el.requestFullscreen().catch(() => {});
     }
+  }, []);
+
+  // Auto-hide close button after 5s
+  useEffect(() => {
+    const timer = setTimeout(() => setShowClose(false), 5000);
+    return () => clearTimeout(timer);
   }, []);
 
   // Keyboard controls
@@ -171,14 +178,42 @@ export default function DisplayPage() {
 
   if (!state.clipUrl) {
     return (
-      <div style={{ background: '#000', width: '100vw', height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div
+        style={{ background: '#000', width: '100vw', height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 16 }}
+        onClick={() => setShowClose(true)}
+      >
         <p style={{ color: '#666', fontSize: 14 }}>Waiting for connection from editor...</p>
+        <button
+          onClick={() => window.close()}
+          style={{ padding: '8px 24px', borderRadius: 8, background: '#333', color: '#aaa', border: 'none', fontSize: 13, cursor: 'pointer' }}
+        >
+          Close
+        </button>
       </div>
     );
   }
 
   return (
-    <div style={{ background: '#000', width: '100vw', height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+    <div
+      style={{ background: '#000', width: '100vw', height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', position: 'relative' }}
+      onClick={() => setShowClose(prev => !prev)}
+    >
+      {/* Close button */}
+      {showClose && (
+        <button
+          onClick={(e) => { e.stopPropagation(); window.close(); }}
+          style={{
+            position: 'absolute', top: 16, right: 16, zIndex: 10,
+            width: 44, height: 44, borderRadius: '50%',
+            background: 'rgba(0,0,0,0.6)', border: '1px solid rgba(255,255,255,0.2)',
+            color: 'white', fontSize: 20, cursor: 'pointer',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}
+        >
+          ✕
+        </button>
+      )}
+
       <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <svg
           viewBox={`0 0 ${preset.width} ${preset.height}`}
