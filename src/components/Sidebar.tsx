@@ -288,16 +288,16 @@ export default function Sidebar({ open, onClose, user }: { open?: boolean; onClo
         </div>
       )}
 
-      {/* Spending */}
-      {spending && (
-        <div className="px-3 pt-2 pb-1 border-t" style={{ borderColor: 'var(--border)' }}>
-          <div className="flex items-center justify-between mb-1.5">
-            <span className="text-xs font-medium" style={{ color: 'var(--text2)' }}>Daily spend</span>
-            <span className="text-xs" style={{ color: 'var(--text3)' }}>
-              ${spending.spent.toFixed(2)} / ${spending.limit.toFixed(2)}
-            </span>
-          </div>
-          <div className="w-full h-1.5 rounded-full overflow-hidden" style={{ background: 'var(--border)' }}>
+      {/* Spending — always rendered to prevent layout shift */}
+      <div className="px-3 pt-2 pb-1 border-t" style={{ borderColor: 'var(--border)' }}>
+        <div className="flex items-center justify-between mb-1.5">
+          <span className="text-xs font-medium" style={{ color: 'var(--text2)' }}>Daily spend</span>
+          <span className="text-xs" style={{ color: 'var(--text3)' }}>
+            {spending ? `$${spending.spent.toFixed(2)} / $${spending.limit.toFixed(2)}` : '—'}
+          </span>
+        </div>
+        <div className="w-full h-1.5 rounded-full overflow-hidden" style={{ background: 'var(--border)' }}>
+          {spending && (
             <div
               className="h-full rounded-full transition-all duration-300"
               style={{
@@ -305,17 +305,15 @@ export default function Sidebar({ open, onClose, user }: { open?: boolean; onClo
                 background: spending.spent >= spending.limit ? 'var(--red, #ef4444)' : spending.spent >= spending.limit * 0.8 ? '#f59e0b' : 'var(--accent)',
               }}
             />
-          </div>
-          {spending.falBalance !== null && (
-            <div className="flex items-center justify-between mt-1.5">
-              <span className="text-xs" style={{ color: 'var(--text3)' }}>fal.ai balance</span>
-              <span className="text-xs font-medium" style={{ color: 'var(--text2)' }}>
-                ${spending.falBalance.toFixed(2)}
-              </span>
-            </div>
           )}
         </div>
-      )}
+        <div className="flex items-center justify-between mt-1.5">
+          <span className="text-xs" style={{ color: 'var(--text3)' }}>fal.ai balance</span>
+          <span className="text-xs font-medium" style={{ color: 'var(--text2)' }}>
+            {spending?.falBalance !== null && spending?.falBalance !== undefined ? `$${spending.falBalance.toFixed(2)}` : '—'}
+          </span>
+        </div>
+      </div>
 
       {/* Footer */}
       <div className="px-3 py-2 border-t flex items-center justify-between text-xs" style={{ borderColor: 'var(--border)', color: 'var(--text3)' }}>

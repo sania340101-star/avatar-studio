@@ -232,6 +232,7 @@ export interface ExportSession {
   device: 'hh1x3' | 'solo';
   clips: ExportClip[];
   transform: { offsetX: number; offsetY: number; scale: number };
+  muteAudio?: boolean;
   status: 'draft' | 'exporting' | 'done' | 'error';
   exportUrl?: string;
   exports?: ExportVersion[];

@@ -25,6 +25,13 @@ function formatDuration(s: number): string {
   return m > 0 ? `${m}:${sec.toString().padStart(2, '0')}` : `${sec}s`;
 }
 
+function fileHash(url: string): string {
+  const match = url.match(/\/([^/]+)\.[^.]+$/);
+  if (!match) return '';
+  const name = match[1];
+  return name.length > 8 ? name.slice(-6) : name;
+}
+
 function ExportEditorContent() {
   const params = useParams();
   const router = useRouter();
@@ -583,22 +590,34 @@ function ExportEditorContent() {
                   </div>
                 </button>
 
-                {/* Label + project + duration */}
+                {/* Label + tags + duration */}
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <p className="text-sm truncate" style={{ color: 'var(--text1)' }}>{clip.label}</p>
+                  <p className="text-sm line-clamp-2 leading-tight" style={{ color: 'var(--text1)' }}>{clip.label}</p>
+                  <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
                     {clip.duration != null && (
                       <span className="text-[10px] px-1.5 py-0.5 rounded flex-shrink-0" style={{ background: 'var(--bg-input)', color: 'var(--text3)' }}>
                         {formatDuration(clip.duration)}
                       </span>
                     )}
+                    <span className="text-[10px] px-1.5 py-0.5 rounded flex-shrink-0 font-mono" style={{ background: 'var(--bg-input)', color: 'var(--text3)' }}>
+                      #{fileHash(clip.url)}
+                    </span>
+                    {session.clips.filter(c => c.url === clip.url).length > 1 && (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded flex-shrink-0" style={{ background: 'rgba(var(--accent-rgb, 99,102,241), 0.15)', color: 'var(--accent)' }}>
+                        ×{session.clips.filter(c => c.url === clip.url).length}
+                      </span>
+                    )}
+                    {clip.source === 'upload' && (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded flex-shrink-0" style={{ background: 'var(--bg-input)', color: 'var(--text3)' }}>
+                        ↑ upload
+                      </span>
+                    )}
+                    {clip.projectId && projectMap[clip.projectId] && (
+                      <span className="text-[10px] truncate max-w-[80px]" style={{ color: 'var(--text3)' }}>
+                        {projectMap[clip.projectId]}
+                      </span>
+                    )}
                   </div>
-                  {clip.projectId && projectMap[clip.projectId] && (
-                    <p className="text-xs truncate" style={{ color: 'var(--text3)' }}>{projectMap[clip.projectId]}</p>
-                  )}
-                  {clip.source === 'upload' && (
-                    <p className="text-xs truncate" style={{ color: 'var(--text3)' }}>Uploaded</p>
-                  )}
                 </div>
 
                 {/* Actions */}
@@ -693,6 +712,19 @@ function ExportEditorContent() {
                 {preset.width}x{preset.height} @ 60fps &middot; {session.clips.length} clip{session.clips.length !== 1 ? 's' : ''}
                 {totalDuration > 0 && ` · ${formatDuration(totalDuration)}`}
               </p>
+              <label className="flex items-center gap-2 mt-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={session.muteAudio || false}
+                  onChange={e => {
+                    const muteAudio = e.target.checked;
+                    setSession({ ...session, muteAudio, updatedAt: Date.now() });
+                    debouncedSave({ muteAudio });
+                  }}
+                  className="w-3.5 h-3.5 rounded"
+                />
+                <span className="text-xs" style={{ color: 'var(--text2)' }}>Mute audio</span>
+              </label>
             </div>
             <button
               onClick={startExport}

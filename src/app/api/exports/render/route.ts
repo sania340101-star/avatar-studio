@@ -49,7 +49,7 @@ async function processExport(sessionId: string, userId: string) {
       const tempOut = join(uploadsDir, `_export_tmp_${sessionId}_${i}.mp4`);
       tempFiles.push(tempOut);
 
-      await runFfmpeg([
+      const ffArgs = [
         '-i', inputPath,
         '-filter_complex',
         `[0:v]scale=${scaledW}:${scaledH}:force_original_aspect_ratio=increase,crop=${scaledW}:${scaledH},setsar=1[scaled];` +
@@ -61,10 +61,14 @@ async function processExport(sessionId: string, userId: string) {
         '-preset', 'fast',
         '-crf', '18',
         '-pix_fmt', 'yuv420p',
-        '-an',
-        '-y',
-        tempOut,
-      ]);
+      ];
+      if (session.muteAudio) {
+        ffArgs.push('-an');
+      } else {
+        ffArgs.push('-map', '0:a?', '-c:a', 'aac', '-b:a', '128k');
+      }
+      ffArgs.push('-y', tempOut);
+      await runFfmpeg(ffArgs);
     }
 
     const concatListPath = join(uploadsDir, `_export_concat_${sessionId}.txt`);
