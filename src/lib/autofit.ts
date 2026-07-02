@@ -230,7 +230,7 @@ export async function analyzeAutofit(
 
   // Dead pixel positions: center of each circle
   const deadPixels = mask.circles.map(c => ({ x: c.cx, y: c.cy }));
-  const DEAD_PIXEL_CLEARANCE = 120;
+  const DEAD_PIXEL_CLEARANCE = 250;
 
   function pointToElem(p: CollectedPoint, elemW: number, elemH: number): { x: number; y: number } {
     const cs = Math.max(elemW / p.natW, elemH / p.natH);
