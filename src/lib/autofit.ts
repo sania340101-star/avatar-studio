@@ -24,6 +24,7 @@ interface CollectedPoint {
   normY: number;
   natW: number;
   natH: number;
+  isAnchor?: boolean;
 }
 
 function seekVideo(video: HTMLVideoElement, time: number): Promise<void> {
@@ -219,7 +220,7 @@ export async function analyzeAutofit(
           for (let li = 0; li < lms.length; li++) {
             const lm = lms[li];
             if ((lm.visibility ?? 0) > 0.5 && lm.x >= 0 && lm.x <= 1 && lm.y >= 0 && lm.y <= 1) {
-              rawPoints.push({ normX: lm.x, normY: lm.y, natW, natH });
+              rawPoints.push({ normX: lm.x, normY: lm.y, natW, natH, isAnchor: fi === 0 });
             }
           }
         } else {
@@ -252,6 +253,9 @@ export async function analyzeAutofit(
 
   const HEAD_MARGIN_PX = 20;
   const maskTopY = Math.min(...paddedCircles.map(c => c.cy - c.r));
+  const maskCx = mask.circles.reduce((s, c) => s + c.cx, 0) / mask.circles.length;
+
+  const anchorPoints = allPoints.filter(p => p.isAnchor);
 
   function pointToContainer(p: CollectedPoint, scale: number): { x: number; y: number } {
     if (device === 'solo') {
@@ -271,37 +275,34 @@ export async function analyzeAutofit(
   }
 
   function tryFit(scale: number): { fits: boolean; offsetX: number; offsetY: number } {
-    const pts = allPoints.map(p => pointToContainer(p, scale));
-    const minY = Math.min(...pts.map(p => p.y));
-    const offsetY = Math.round((maskTopY + HEAD_MARGIN_PX) - minY);
+    const allPts = allPoints.map(p => pointToContainer(p, scale));
 
-    // Find optimal offsetX: center of the valid range where ALL points fit
-    let validMin = -Infinity;
-    let validMax = Infinity;
+    // Offset anchored to first-frame pose (identical across clips)
+    const refPts = anchorPoints.length > 0
+      ? anchorPoints.map(p => pointToContainer(p, scale))
+      : allPts;
 
-    for (const p of pts) {
-      const py = offsetY + p.y;
-      let pLo = Infinity;
-      let pHi = -Infinity;
+    const refMinX = Math.min(...refPts.map(p => p.x));
+    const refMaxX = Math.max(...refPts.map(p => p.x));
+    const refMinY = Math.min(...refPts.map(p => p.y));
 
-      for (const c of paddedCircles) {
-        const dy = py - c.cy;
-        const rem = c.r * c.r - dy * dy;
-        if (rem < 0) continue;
-        const dx = Math.sqrt(rem);
-        pLo = Math.min(pLo, c.cx - dx - p.x);
-        pHi = Math.max(pHi, c.cx + dx - p.x);
+    const bodyCx = (refMinX + refMaxX) / 2;
+    const offsetX = Math.round(maskCx - bodyCx);
+    const offsetY = Math.round((maskTopY + HEAD_MARGIN_PX) - refMinY);
+
+    // Check ALL points (all frames) fit at the anchor-based offset
+    for (const p of allPts) {
+      const cx = offsetX + p.x;
+      const cy = offsetY + p.y;
+      let inside = false;
+      for (const circle of paddedCircles) {
+        const dist = Math.sqrt((cx - circle.cx) ** 2 + (cy - circle.cy) ** 2);
+        if (dist <= circle.r) { inside = true; break; }
       }
-
-      if (pLo > pHi) return { fits: false, offsetX: 0, offsetY };
-
-      validMin = Math.max(validMin, pLo);
-      validMax = Math.min(validMax, pHi);
+      if (!inside) return { fits: false, offsetX, offsetY };
     }
 
-    if (validMin > validMax) return { fits: false, offsetX: 0, offsetY };
-
-    return { fits: true, offsetX: Math.round((validMin + validMax) / 2), offsetY };
+    return { fits: true, offsetX, offsetY };
   }
 
   let lo = 0.5;
