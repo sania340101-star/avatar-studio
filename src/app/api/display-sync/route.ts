@@ -27,10 +27,14 @@ function writeState(id: string, state: Record<string, unknown>): void {
   fs.writeFileSync(filePath(id), JSON.stringify(state));
 }
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(req: NextRequest) {
   const id = req.nextUrl.searchParams.get('id');
   if (!id) return NextResponse.json({ error: 'Missing id' }, { status: 400 });
-  return NextResponse.json(readState(id));
+  return NextResponse.json(readState(id), {
+    headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate', 'Pragma': 'no-cache' },
+  });
 }
 
 export async function PATCH(req: NextRequest) {

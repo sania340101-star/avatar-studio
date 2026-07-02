@@ -63,7 +63,7 @@ export default function DisplayPage() {
     const poll = async () => {
       while (alive) {
         try {
-          const res = await fetch(`/api/display-sync?id=${sessionId}`);
+          const res = await fetch(`/api/display-sync?id=${sessionId}&_t=${Date.now()}`);
           if (res.ok) {
             const data = await res.json();
             if (data && data.updatedAt && data.updatedAt > lastServerTs.current) {

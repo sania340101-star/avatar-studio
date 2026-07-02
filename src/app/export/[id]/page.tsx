@@ -139,7 +139,7 @@ function ExportEditorContent() {
     const poll = async () => {
       while (alive) {
         try {
-          const res = await fetch(`/api/display-sync?id=${sessionId}`);
+          const res = await fetch(`/api/display-sync?id=${sessionId}&_t=${Date.now()}`);
           if (res.ok) {
             const data = await res.json();
             if (data?.updatedAt && data.updatedAt > lastSyncPushTs.current) {
