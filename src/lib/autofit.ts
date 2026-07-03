@@ -302,7 +302,7 @@ export async function analyzeAutofit(
 
   let best: AutofitResult | null = null;
 
-  for (const marginPx of [15, 0]) {
+  for (const marginPx of [25, 10, 0]) {
     let lo = 0.5;
     let hi = 3.0;
     for (let i = 0; i < 30; i++) {
