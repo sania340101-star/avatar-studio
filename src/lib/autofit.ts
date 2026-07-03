@@ -50,7 +50,7 @@ export async function analyzeAutofit(
   clipUrls: string[],
   device: 'hh1x3' | 'solo',
   onProgress: (p: AutofitProgress) => void,
-  sampleIntervalSec = 1 / 15,
+  sampleIntervalSec = 1 / 30,
   safetyPaddingPx = 0,
 ): Promise<AutofitResult | null> {
   const preset = DEVICE_PRESETS[device];
@@ -67,7 +67,7 @@ export async function analyzeAutofit(
   prog({ stage: 'loading', message: 'Preparing video analysis...' });
 
   const PIXEL_THRESHOLD = 10;
-  const SCAN_ROW_STEP = 2;
+  const SCAN_ROW_STEP = 4;
   const MIN_RUN_LENGTH = 3;
 
   const uniqueUrls = [...new Set(clipUrls)];
@@ -139,7 +139,7 @@ export async function analyzeAutofit(
       sampleTimes.push(duration - 0.1);
     }
 
-    const SCAN_MAX = 480;
+    const SCAN_MAX = 360;
     const scanScale = Math.min(1, SCAN_MAX / Math.min(natW, natH));
     const canvasW = Math.round(natW * scanScale);
     const canvasH = Math.round(natH * scanScale);
@@ -253,27 +253,35 @@ export async function analyzeAutofit(
     return m;
   }
 
+  const maskTopY = Math.min(...circles.map(c => c.cy - c.r));
+  const circleRSq = circles.map(c => c.r * c.r);
+
   function tryFit(scale: number): { fits: boolean; offsetX: number; offsetY: number } {
-    const maskTopY = Math.min(...circles.map(c => c.cy - c.r));
-    const allPts = allPoints.map(p => pointToContainer(p, scale));
+    const refSource = anchorPoints.length > 0 ? anchorPoints : allPoints;
+    let refMinX = Infinity, refMaxX = -Infinity, globalMinY = Infinity;
 
-    const refPts = anchorPoints.length > 0
-      ? anchorPoints.map(p => pointToContainer(p, scale))
-      : allPts;
+    for (const p of refSource) {
+      const pt = pointToContainer(p, scale);
+      if (pt.x < refMinX) refMinX = pt.x;
+      if (pt.x > refMaxX) refMaxX = pt.x;
+    }
+    for (const p of allPoints) {
+      const pt = pointToContainer(p, scale);
+      if (pt.y < globalMinY) globalMinY = pt.y;
+    }
 
-    const refXs = refPts.map(p => p.x);
-    const bodyCx = (minOf(refXs) + maxOf(refXs)) / 2;
-    const offsetX = Math.round(maskCx - bodyCx);
-    const globalMinY = minOf(allPts.map(p => p.y));
+    const offsetX = Math.round(maskCx - (refMinX + refMaxX) / 2);
     const offsetY = Math.round((maskTopY + HEAD_MARGIN_PX) - globalMinY);
 
-    for (const p of allPts) {
-      const cx = offsetX + p.x;
-      const cy = offsetY + p.y;
+    for (const p of allPoints) {
+      const pt = pointToContainer(p, scale);
+      const cx = offsetX + pt.x;
+      const cy = offsetY + pt.y;
       let inside = false;
-      for (const circle of circles) {
-        const dist = Math.sqrt((cx - circle.cx) ** 2 + (cy - circle.cy) ** 2);
-        if (dist <= circle.r) { inside = true; break; }
+      for (let ci = 0; ci < circles.length; ci++) {
+        const dx = cx - circles[ci].cx;
+        const dy = cy - circles[ci].cy;
+        if (dx * dx + dy * dy <= circleRSq[ci]) { inside = true; break; }
       }
       if (!inside) return { fits: false, offsetX, offsetY };
     }
