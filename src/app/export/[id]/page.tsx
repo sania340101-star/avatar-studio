@@ -325,6 +325,7 @@ function ExportEditorContent() {
       );
       if (result && result.scale > 0) {
         updateTransform(result, true);
+        if (result.debug) console.log('[autofit]', result.debug);
       } else {
         transformHistory.current.pop();
         setHistoryLen(transformHistory.current.length);

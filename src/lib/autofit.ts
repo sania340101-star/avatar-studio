@@ -111,15 +111,30 @@ export async function analyzeAutofit(
     'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.35/wasm',
   );
 
-  const landmarker = await PoseLandmarker.createFromOptions(vision, {
-    baseOptions: {
-      modelAssetPath:
-        'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/latest/pose_landmarker_lite.task',
-      delegate: 'GPU',
-    },
-    runningMode: 'IMAGE',
-    numPoses: 1,
-  });
+  let landmarker: Awaited<ReturnType<typeof PoseLandmarker.createFromOptions>>;
+  let usedDelegate: 'GPU' | 'CPU' = 'GPU';
+  try {
+    landmarker = await PoseLandmarker.createFromOptions(vision, {
+      baseOptions: {
+        modelAssetPath:
+          'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/latest/pose_landmarker_lite.task',
+        delegate: 'GPU',
+      },
+      runningMode: 'IMAGE',
+      numPoses: 1,
+    });
+  } catch {
+    usedDelegate = 'CPU';
+    landmarker = await PoseLandmarker.createFromOptions(vision, {
+      baseOptions: {
+        modelAssetPath:
+          'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/latest/pose_landmarker_lite.task',
+        delegate: 'CPU',
+      },
+      runningMode: 'IMAGE',
+      numPoses: 1,
+    });
+  }
 
   const uniqueUrls = [...new Set(clipUrls)];
   const rawPoints: CollectedPoint[] = [];
@@ -193,9 +208,13 @@ export async function analyzeAutofit(
       sampleTimes.push(duration - 0.1);
     }
 
+    const DETECT_MAX = 720;
+    const detectScale = Math.min(1, DETECT_MAX / Math.min(natW, natH));
+    const canvasW = Math.round(natW * detectScale);
+    const canvasH = Math.round(natH * detectScale);
     const canvas = document.createElement('canvas');
-    canvas.width = natW;
-    canvas.height = natH;
+    canvas.width = canvasW;
+    canvas.height = canvasH;
     const ctx = canvas.getContext('2d')!;
 
     for (let fi = 0; fi < sampleTimes.length; fi++) {
@@ -210,7 +229,7 @@ export async function analyzeAutofit(
       });
 
       await seekVideo(video, sampleTimes[fi]);
-      ctx.drawImage(video, 0, 0, natW, natH);
+      ctx.drawImage(video, 0, 0, canvasW, canvasH);
 
       try {
         const result = landmarker.detect(canvas);
@@ -238,7 +257,8 @@ export async function analyzeAutofit(
 
   landmarker.close();
 
-  const debugInfo = `frames=${processedFrames} ok=${detectOk} empty=${detectEmpty} err=${detectErr} pts=${rawPoints.length}` +
+  const natDims = clipMeta.map(c => `${c.natW}x${c.natH}`).join(',');
+  const debugInfo = `${usedDelegate} ${natDims} frames=${processedFrames} ok=${detectOk} empty=${detectEmpty} err=${detectErr} pts=${rawPoints.length}` +
     (lastError ? ` last_err=${lastError}` : '');
 
   if (rawPoints.length === 0) return { scale: 0, offsetX: 0, offsetY: 0, debug: debugInfo } as AutofitResult & { debug: string };
@@ -325,5 +345,6 @@ export async function analyzeAutofit(
     return { scale: 0, offsetX: 0, offsetY: 0, debug: `${debugInfo} no_fit` };
   }
   best.offsetY -= 80;
+  best.debug = debugInfo;
   return best;
 }
