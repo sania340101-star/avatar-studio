@@ -9,6 +9,7 @@ const PUBLIC_PATHS = new Set([
   '/api/auth/sso',
   '/api/auth/me',
   '/api/auth/logout',
+  '/api/upload',
 ]);
 
 const INTERNAL_SERVICE_KEY = process.env.INTERNAL_SERVICE_KEY || '';
