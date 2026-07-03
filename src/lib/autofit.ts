@@ -72,7 +72,7 @@ function expandLandmarks(points: CollectedPoint[]): CollectedPoint[] {
 
     const padTop = Math.min(bboxH * 0.20, 0.14);
     const padBottom = Math.min(bboxH * 0.15, 0.10);
-    const padSide = Math.min(bboxW * 0.30, 0.08);
+    const padSide = Math.min(bboxW * 0.30, 0.10);
 
     expanded.push({ normX: cx, normY: Math.max(0, minY - padTop), natW, natH });
     if (isFullBody) {
