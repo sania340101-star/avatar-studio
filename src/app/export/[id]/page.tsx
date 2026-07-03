@@ -99,6 +99,20 @@ function ExportEditorContent() {
 
   useEffect(() => { setLastExportId(sessionId); }, [sessionId]);
 
+  useEffect(() => {
+    let wl: WakeLockSentinel | null = null;
+    async function acquire() {
+      try { wl = await navigator.wakeLock.request('screen'); } catch {}
+    }
+    acquire();
+    function reacquire() { if (document.visibilityState === 'visible') acquire(); }
+    document.addEventListener('visibilitychange', reacquire);
+    return () => {
+      document.removeEventListener('visibilitychange', reacquire);
+      wl?.release();
+    };
+  }, []);
+
   // BroadcastChannel for display window sync (same browser only)
   useEffect(() => {
     const ch = new BroadcastChannel(`avatar-display-${sessionId}`);
