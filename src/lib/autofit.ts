@@ -300,7 +300,7 @@ export async function analyzeAutofit(
     const globalMinY = Math.min(...allPts.map(p => p.y));
     const offsetY = Math.round((maskTopY + HEAD_MARGIN_PX) - globalMinY);
 
-    const BODY_BUFFER_PX = 20;
+    const BODY_BUFFER_PX = 30;
     for (const p of allPts) {
       const cx = offsetX + p.x;
       const cy = offsetY + p.y;
