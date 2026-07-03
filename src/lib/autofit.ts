@@ -275,36 +275,34 @@ export async function analyzeAutofit(
     return m;
   }
 
+  const HEAD_MARGIN_PX = 10;
   const maskTopY = Math.min(...circles.map(c => c.cy - c.r));
-  const maskBottomY = Math.max(...circles.map(c => c.cy + c.r));
-  const maskCy = (maskTopY + maskBottomY) / 2;
   const circleRSq = circles.map(c => c.r * c.r);
 
   function tryFit(scale: number): { fits: boolean; offsetX: number; offsetY: number; insideCount: number; totalCount: number } {
-    let ancMinX = Infinity, ancMaxX = -Infinity, ancMinY = Infinity, ancMaxY = -Infinity;
-    let allMinX = Infinity, allMaxX = -Infinity, allMinY = Infinity, allMaxY = -Infinity;
+    let ancMinX = Infinity, ancMaxX = -Infinity, ancTopY = Infinity;
 
     for (const p of allPoints) {
+      if (!p.isAnchor) continue;
       const pt = pointToContainer(p, scale);
-      if (pt.x < allMinX) allMinX = pt.x;
-      if (pt.x > allMaxX) allMaxX = pt.x;
-      if (pt.y < allMinY) allMinY = pt.y;
-      if (pt.y > allMaxY) allMaxY = pt.y;
-      if (p.isAnchor) {
-        if (pt.x < ancMinX) ancMinX = pt.x;
-        if (pt.x > ancMaxX) ancMaxX = pt.x;
-        if (pt.y < ancMinY) ancMinY = pt.y;
-        if (pt.y > ancMaxY) ancMaxY = pt.y;
-      }
+      if (pt.x < ancMinX) ancMinX = pt.x;
+      if (pt.x > ancMaxX) ancMaxX = pt.x;
+      if (pt.y < ancTopY) ancTopY = pt.y;
     }
 
-    const cxRef = ancMinX !== Infinity ? (ancMinX + ancMaxX) / 2 : (allMinX + allMaxX) / 2;
-    const hasAnc = ancMinY !== Infinity;
-    const alignY = hasAnc
-      ? ancMinY + 0.30 * (ancMaxY - ancMinY)
-      : allMinY + 0.30 * (allMaxY - allMinY);
-    const offsetX = Math.round(maskCx - cxRef);
-    const offsetY = Math.round(maskCy - alignY);
+    if (ancMinX === Infinity) {
+      let aMinX = Infinity, aMaxX = -Infinity, aTopY = Infinity;
+      for (const p of allPoints) {
+        const pt = pointToContainer(p, scale);
+        if (pt.x < aMinX) aMinX = pt.x;
+        if (pt.x > aMaxX) aMaxX = pt.x;
+        if (pt.y < aTopY) aTopY = pt.y;
+      }
+      ancMinX = aMinX; ancMaxX = aMaxX; ancTopY = aTopY;
+    }
+
+    const offsetX = Math.round(maskCx - (ancMinX + ancMaxX) / 2);
+    const offsetY = Math.round((maskTopY + HEAD_MARGIN_PX) - ancTopY);
 
     let insideCount = 0;
     let anchorCount = 0;
@@ -344,7 +342,7 @@ export async function analyzeAutofit(
 
   console.log('[autofit] debug:', debugInfo);
   console.log('[autofit] binary search: lo=%s hi=%s finalScale=%s fits=%s', lo.toFixed(4), hi.toFixed(4), finalScale, finalFit.fits);
-  console.log('[autofit] offset: x=%d y=%d, circles r=%d (safety=%d+%d), maskCy=%d', finalFit.offsetX, finalFit.offsetY, circles[0].r, safetyPaddingPx, BUILTIN_SAFETY_PX, maskCy);
+  console.log('[autofit] offset: x=%d y=%d, circles r=%d (safety=%d+%d), maskTopY=%d', finalFit.offsetX, finalFit.offsetY, circles[0].r, safetyPaddingPx, BUILTIN_SAFETY_PX, maskTopY);
 
   if (!finalFit.fits) {
     const ACCEPTABLE_RATIO = 0.95;
