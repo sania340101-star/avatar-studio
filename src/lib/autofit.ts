@@ -227,6 +227,16 @@ export async function analyzeAutofit(
 
   if (rawPoints.length === 0) return { scale: 0, offsetX: 0, offsetY: 0, debug: debugInfo } as AutofitResult & { debug: string };
 
+  const yExpandNorm = 0.025;
+  const refNatW = clipMeta[0].natW;
+  const refNatH = clipMeta[0].natH;
+  rawPoints.push(
+    { normX: minNX, normY: Math.max(0, minNY - yExpandNorm), natW: refNatW, natH: refNatH },
+    { normX: maxNX, normY: Math.max(0, minNY - yExpandNorm), natW: refNatW, natH: refNatH },
+    { normX: minNX, normY: Math.min(1, maxNY + yExpandNorm), natW: refNatW, natH: refNatH },
+    { normX: maxNX, normY: Math.min(1, maxNY + yExpandNorm), natW: refNatW, natH: refNatH },
+  );
+
   const allPoints = rawPoints;
 
   prog({ stage: 'computing', percent: 100, message: 'Computing optimal fit...' });
@@ -255,8 +265,6 @@ export async function analyzeAutofit(
     };
   }
 
-  const anchorPoints = allPoints.filter(p => p.isAnchor);
-
   function minOf(arr: number[]): number {
     let m = arr[0];
     for (let i = 1; i < arr.length; i++) if (arr[i] < m) m = arr[i];
@@ -272,16 +280,12 @@ export async function analyzeAutofit(
   const circleRSq = circles.map(c => c.r * c.r);
 
   function tryFit(scale: number): { fits: boolean; offsetX: number; offsetY: number } {
-    const refSource = anchorPoints.length > 0 ? anchorPoints : allPoints;
     let refMinX = Infinity, refMaxX = -Infinity, globalMinY = Infinity;
 
-    for (const p of refSource) {
+    for (const p of allPoints) {
       const pt = pointToContainer(p, scale);
       if (pt.x < refMinX) refMinX = pt.x;
       if (pt.x > refMaxX) refMaxX = pt.x;
-    }
-    for (const p of allPoints) {
-      const pt = pointToContainer(p, scale);
       if (pt.y < globalMinY) globalMinY = pt.y;
     }
 
