@@ -111,7 +111,7 @@ export async function analyzeAutofit(
     const { url, duration, natW, natH } = clipMeta[ci];
 
     prog({
-      stage: 'analyzing', percent: Math.round(((ci + 1) / clipMeta.length) * 50),
+      stage: 'analyzing', percent: 0,
       clipIndex: ci, clipCount: clipMeta.length,
       message: `Analyzing clip ${ci + 1}/${clipMeta.length}...`,
     });
