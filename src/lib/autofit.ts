@@ -67,8 +67,9 @@ export async function analyzeAutofit(
   prog({ stage: 'loading', message: 'Preparing video analysis...' });
 
   const PIXEL_THRESHOLD = 10;
-  const SCAN_ROW_STEP = 4;
+  const SCAN_ROW_STEP = 2;
   const MIN_RUN_LENGTH = 3;
+  const BOUNDARY_EXPAND_PX = 3;
 
   const uniqueUrls = [...new Set(clipUrls)];
   const rawPoints: CollectedPoint[] = [];
@@ -139,7 +140,7 @@ export async function analyzeAutofit(
       sampleTimes.push(duration - 0.1);
     }
 
-    const SCAN_MAX = 360;
+    const SCAN_MAX = 480;
     const scanScale = Math.min(1, SCAN_MAX / Math.min(natW, natH));
     const canvasW = Math.round(natW * scanScale);
     const canvasH = Math.round(natH * scanScale);
@@ -194,8 +195,10 @@ export async function analyzeAutofit(
 
         if (leftX !== -1) {
           frameHasBody = true;
-          rawPoints.push({ normX: leftX / canvasW, normY: row / canvasH, natW, natH, isAnchor: fi === 0 });
-          rawPoints.push({ normX: rightX / canvasW, normY: row / canvasH, natW, natH, isAnchor: fi === 0 });
+          const eL = Math.max(0, leftX - BOUNDARY_EXPAND_PX) / canvasW;
+          const eR = Math.min(canvasW - 1, rightX + BOUNDARY_EXPAND_PX) / canvasW;
+          rawPoints.push({ normX: eL, normY: row / canvasH, natW, natH, isAnchor: fi === 0 });
+          rawPoints.push({ normX: eR, normY: row / canvasH, natW, natH, isAnchor: fi === 0 });
         }
       }
 
