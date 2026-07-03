@@ -1,7 +1,7 @@
 import { DEVICE_MASKS, DEVICE_PRESETS } from './models';
 
 export interface AutofitProgress {
-  stage: 'loading' | 'analyzing' | 'computing' | 'verifying';
+  stage: 'loading' | 'analyzing' | 'verifying';
   clipIndex: number;
   clipCount: number;
   frameIndex: number;
@@ -24,7 +24,6 @@ interface CollectedPoint {
   normY: number;
   natW: number;
   natH: number;
-  isAnchor?: boolean;
 }
 
 function seekVideo(video: HTMLVideoElement, time: number): Promise<void> {
@@ -69,14 +68,12 @@ export async function analyzeAutofit(
   const PIXEL_THRESHOLD = 10;
   const SCAN_ROW_STEP = 1;
   const MIN_RUN_LENGTH = 3;
-  const BUILTIN_SAFETY_PX = 10;
 
   const uniqueUrls = [...new Set(clipUrls)];
-  const rawPoints: CollectedPoint[] = [];
+  const anchorPoints: CollectedPoint[] = [];
 
-  // Pre-scan for progress
-  const clipMeta: { url: string; duration: number; natW: number; natH: number; frameCount: number }[] = [];
-  let totalFrames = 0;
+  // Pre-scan for metadata
+  const clipMeta: { url: string; duration: number; natW: number; natH: number }[] = [];
 
   for (const url of uniqueUrls) {
     const video = document.createElement('video');
@@ -94,9 +91,7 @@ export async function analyzeAutofit(
       const natW = video.videoWidth;
       const natH = video.videoHeight;
       if (dur && natW && natH) {
-        const fc = Math.max(1, Math.ceil(dur / sampleIntervalSec)) + (dur > 0.5 ? 1 : 0);
-        clipMeta.push({ url, duration: dur, natW, natH, frameCount: fc });
-        totalFrames += fc;
+        clipMeta.push({ url, duration: dur, natW, natH });
       }
       video.remove();
     } catch {
@@ -111,12 +106,15 @@ export async function analyzeAutofit(
   const clipVideoElements: HTMLVideoElement[] = [];
   const clipVerifyTimes: number[][] = [];
 
-  let processedFrames = 0;
-  let detectOk = 0;
-  let detectEmpty = 0;
-
+  // Phase 1: Scan ONLY first frame of each clip for anchor positioning
   for (let ci = 0; ci < clipMeta.length; ci++) {
     const { url, duration, natW, natH } = clipMeta[ci];
+
+    prog({
+      stage: 'analyzing', percent: Math.round(((ci + 1) / clipMeta.length) * 50),
+      clipIndex: ci, clipCount: clipMeta.length,
+      message: `Analyzing clip ${ci + 1}/${clipMeta.length}...`,
+    });
 
     const video = document.createElement('video');
     video.preload = 'auto';
@@ -134,6 +132,7 @@ export async function analyzeAutofit(
       continue;
     }
 
+    // Compute verification sample times
     const sampleTimes: number[] = [];
     const count = Math.max(1, Math.ceil(duration / sampleIntervalSec));
     for (let i = 0; i < count; i++) {
@@ -147,6 +146,7 @@ export async function analyzeAutofit(
     const vStep = Math.max(1, Math.floor(sampleTimes.length / VERIFY_MAX));
     clipVerifyTimes.push(sampleTimes.filter((_, i) => i % vStep === 0).slice(0, VERIFY_MAX));
 
+    // Scan first frame only — for anchor positioning (head top + horizontal center)
     const SCAN_MAX = 480;
     const scanScale = Math.min(1, SCAN_MAX / Math.min(natW, natH));
     const canvasW = Math.round(natW * scanScale);
@@ -157,61 +157,44 @@ export async function analyzeAutofit(
     canvas.height = canvasH;
     const ctx = canvas.getContext('2d')!;
 
-    for (let fi = 0; fi < sampleTimes.length; fi++) {
-      processedFrames++;
-      const pct = Math.round((processedFrames / totalFrames) * 100);
-      prog({
-        stage: 'analyzing',
-        clipIndex: ci, clipCount: clipMeta.length,
-        frameIndex: fi, frameCount: sampleTimes.length,
-        totalFrames, processedFrames, percent: pct,
-        message: `Clip ${ci + 1}/${clipMeta.length}, frame ${fi + 1}/${sampleTimes.length}`,
-      });
+    await seekVideo(video, 0);
+    ctx.drawImage(video, 0, 0, canvasW, canvasH);
 
-      await seekVideo(video, sampleTimes[fi]);
-      ctx.drawImage(video, 0, 0, canvasW, canvasH);
+    const imageData = ctx.getImageData(0, 0, canvasW, canvasH);
+    const pixels = imageData.data;
 
-      const imageData = ctx.getImageData(0, 0, canvasW, canvasH);
-      const pixels = imageData.data;
-      let frameHasBody = false;
+    for (let row = 0; row < canvasH; row += SCAN_ROW_STEP) {
+      let leftX = -1;
+      let rightX = -1;
+      let runStart = -1;
+      let runLen = 0;
+      const rowOffset = row * canvasW * 4;
 
-      for (let row = 0; row < canvasH; row += SCAN_ROW_STEP) {
-        let leftX = -1;
-        let rightX = -1;
-        let runStart = -1;
-        let runLen = 0;
-        const rowOffset = row * canvasW * 4;
-
-        for (let col = 0; col <= canvasW; col++) {
-          let isBody = false;
-          if (col < canvasW) {
-            const idx = rowOffset + col * 4;
-            isBody = Math.max(pixels[idx], pixels[idx + 1], pixels[idx + 2]) > PIXEL_THRESHOLD;
-          }
-          if (isBody) {
-            if (runStart === -1) runStart = col;
-            runLen++;
-          } else {
-            if (runLen >= MIN_RUN_LENGTH) {
-              if (leftX === -1) leftX = runStart;
-              rightX = runStart + runLen - 1;
-            }
-            runStart = -1;
-            runLen = 0;
-          }
+      for (let col = 0; col <= canvasW; col++) {
+        let isBody = false;
+        if (col < canvasW) {
+          const idx = rowOffset + col * 4;
+          isBody = Math.max(pixels[idx], pixels[idx + 1], pixels[idx + 2]) > PIXEL_THRESHOLD;
         }
-
-        if (leftX !== -1) {
-          frameHasBody = true;
-          const eL = Math.max(0, leftX - expandPx) / canvasW;
-          const eR = Math.min(canvasW - 1, rightX + expandPx) / canvasW;
-          rawPoints.push({ normX: eL, normY: row / canvasH, natW, natH, isAnchor: fi === 0 });
-          rawPoints.push({ normX: eR, normY: row / canvasH, natW, natH, isAnchor: fi === 0 });
+        if (isBody) {
+          if (runStart === -1) runStart = col;
+          runLen++;
+        } else {
+          if (runLen >= MIN_RUN_LENGTH) {
+            if (leftX === -1) leftX = runStart;
+            rightX = runStart + runLen - 1;
+          }
+          runStart = -1;
+          runLen = 0;
         }
       }
 
-      if (frameHasBody) detectOk++;
-      else detectEmpty++;
+      if (leftX !== -1) {
+        const eL = Math.max(0, leftX - expandPx) / canvasW;
+        const eR = Math.min(canvasW - 1, rightX + expandPx) / canvasW;
+        anchorPoints.push({ normX: eL, normY: row / canvasH, natW, natH });
+        anchorPoints.push({ normX: eR, normY: row / canvasH, natW, natH });
+      }
     }
 
     clipVideoElements.push(video);
@@ -219,263 +202,143 @@ export async function analyzeAutofit(
   }
 
   const natDims = clipMeta.map(c => `${c.natW}x${c.natH}`).join(',');
+  const debugInfo = `pixel ${natDims} clips=${clipMeta.length} anchor_pts=${anchorPoints.length}`;
 
+  if (anchorPoints.length === 0) {
+    for (const v of clipVideoElements) v.remove();
+    return { scale: 0, offsetX: 0, offsetY: 0, debug: debugInfo };
+  }
+
+  // Compute anchor bounding box
   let minNX = Infinity, maxNX = -Infinity, minNY = Infinity, maxNY = -Infinity;
-  for (const p of rawPoints) {
+  for (const p of anchorPoints) {
     if (p.normX < minNX) minNX = p.normX;
     if (p.normX > maxNX) maxNX = p.normX;
     if (p.normY < minNY) minNY = p.normY;
     if (p.normY > maxNY) maxNY = p.normY;
   }
-  const boundsInfo = rawPoints.length > 0
-    ? `normX=[${minNX.toFixed(3)}..${maxNX.toFixed(3)}] normY=[${minNY.toFixed(3)}..${maxNY.toFixed(3)}]`
-    : 'no_points';
-  const debugInfo = `pixel ${natDims} frames=${processedFrames} ok=${detectOk} empty=${detectEmpty} pts=${rawPoints.length} ${boundsInfo}`;
-
-  if (rawPoints.length === 0) {
-    for (const v of clipVideoElements) v.remove();
-    return { scale: 0, offsetX: 0, offsetY: 0, debug: debugInfo };
-  }
-
-  const yExpandNorm = 0.01;
-  const refNatW = clipMeta[0].natW;
-  const refNatH = clipMeta[0].natH;
-  rawPoints.push(
-    { normX: minNX, normY: Math.max(0, minNY - yExpandNorm), natW: refNatW, natH: refNatH },
-    { normX: maxNX, normY: Math.max(0, minNY - yExpandNorm), natW: refNatW, natH: refNatH },
-    { normX: minNX, normY: Math.min(1, maxNY + yExpandNorm), natW: refNatW, natH: refNatH },
-    { normX: maxNX, normY: Math.min(1, maxNY + yExpandNorm), natW: refNatW, natH: refNatH },
-  );
-
-  const allPoints = rawPoints;
-
-  prog({ stage: 'computing', percent: 100, message: 'Computing optimal fit...' });
-
-  const circles = mask.circles.map(c => ({
-    cx: c.cx, cy: c.cy, r: Math.max(0, c.r - safetyPaddingPx - BUILTIN_SAFETY_PX),
-  }));
 
   const maskCx = mask.circles.reduce((s, c) => s + c.cx, 0) / mask.circles.length;
+  const HEAD_MARGIN_PX = 40;
+  const VERIFY_SAFETY_PX = 3;
+  const verifyCircles = mask.circles.map(c => ({
+    cx: c.cx, cy: c.cy,
+    r: Math.max(0, c.r - safetyPaddingPx - VERIFY_SAFETY_PX),
+  }));
+  const maskTopY = Math.min(...verifyCircles.map(c => c.cy - c.r));
 
-  function pointToContainer(p: CollectedPoint, scale: number): { x: number; y: number } {
-    if (device === 'solo') {
-      const cs = Math.max(preset.width / p.natW, preset.height / p.natH) * scale;
-      return {
-        x: p.natW * cs * (p.normX - 0.5) + preset.width / 2,
-        y: p.natH * cs * (p.normY - 0.5) + preset.height / 2,
-      };
+  function computeOffsets(scale: number): { offsetX: number; offsetY: number } {
+    const refP = anchorPoints[0];
+    const elemW = device === 'solo' ? preset.width : preset.width * scale;
+    const elemH = device === 'solo' ? preset.height : preset.height * scale;
+    const cs = device === 'solo'
+      ? Math.max(preset.width / refP.natW, preset.height / refP.natH) * scale
+      : Math.max(elemW / refP.natW, elemH / refP.natH);
+
+    let ancMinX = Infinity, ancMaxX = -Infinity, ancTopY = Infinity;
+    for (const p of anchorPoints) {
+      const x = p.natW * cs * (p.normX - 0.5) + elemW / 2;
+      const y = p.natH * cs * (p.normY - 0.5) + elemH / 2;
+      if (x < ancMinX) ancMinX = x;
+      if (x > ancMaxX) ancMaxX = x;
+      if (y < ancTopY) ancTopY = y;
     }
-    const elemW = preset.width * scale;
-    const elemH = preset.height * scale;
-    const cs = Math.max(elemW / p.natW, elemH / p.natH);
+
     return {
-      x: p.natW * cs * (p.normX - 0.5) + elemW / 2,
-      y: p.natH * cs * (p.normY - 0.5) + elemH / 2,
+      offsetX: Math.round(maskCx - (ancMinX + ancMaxX) / 2),
+      offsetY: Math.round((maskTopY + HEAD_MARGIN_PX) - ancTopY),
     };
   }
 
-  function minOf(arr: number[]): number {
-    let m = arr[0];
-    for (let i = 1; i < arr.length; i++) if (arr[i] < m) m = arr[i];
-    return m;
-  }
-  function maxOf(arr: number[]): number {
-    let m = arr[0];
-    for (let i = 1; i < arr.length; i++) if (arr[i] > m) m = arr[i];
-    return m;
-  }
-
-  const HEAD_MARGIN_PX = 40;
-  const maskTopY = Math.min(...circles.map(c => c.cy - c.r));
-  const circleRSq = circles.map(c => c.r * c.r);
-
-  function tryFit(scale: number): { fits: boolean; offsetX: number; offsetY: number; insideCount: number; totalCount: number } {
-    let ancMinX = Infinity, ancMaxX = -Infinity, ancTopY = Infinity;
-
-    for (const p of allPoints) {
-      if (!p.isAnchor) continue;
-      const pt = pointToContainer(p, scale);
-      if (pt.x < ancMinX) ancMinX = pt.x;
-      if (pt.x > ancMaxX) ancMaxX = pt.x;
-      if (pt.y < ancTopY) ancTopY = pt.y;
-    }
-
-    if (ancMinX === Infinity) {
-      let aMinX = Infinity, aMaxX = -Infinity, aTopY = Infinity;
-      for (const p of allPoints) {
-        const pt = pointToContainer(p, scale);
-        if (pt.x < aMinX) aMinX = pt.x;
-        if (pt.x > aMaxX) aMaxX = pt.x;
-        if (pt.y < aTopY) aTopY = pt.y;
-      }
-      ancMinX = aMinX; ancMaxX = aMaxX; ancTopY = aTopY;
-    }
-
-    const offsetX = Math.round(maskCx - (ancMinX + ancMaxX) / 2);
-    const offsetY = Math.round((maskTopY + HEAD_MARGIN_PX) - ancTopY);
-
-    let insideCount = 0;
-    for (const p of allPoints) {
-      const pt = pointToContainer(p, scale);
-      const cx = offsetX + pt.x;
-      const cy = offsetY + pt.y;
-      for (let ci = 0; ci < circles.length; ci++) {
-        const dx = cx - circles[ci].cx;
-        const dy = cy - circles[ci].cy;
-        if (dx * dx + dy * dy <= circleRSq[ci]) { insideCount++; break; }
-      }
-    }
-
-    return { fits: insideCount === allPoints.length, offsetX, offsetY, insideCount, totalCount: allPoints.length };
-  }
-
-  let lo = 0.5;
-  let hi = 3.0;
-  for (let i = 0; i < 30; i++) {
-    const mid = (lo + hi) / 2;
-    if (tryFit(mid).fits) lo = mid;
-    else hi = mid;
-  }
-
-  const finalScale = Math.floor(lo * 100) / 100;
-  const finalFit = tryFit(finalScale);
-
-  console.log('[autofit] debug:', debugInfo);
-  console.log('[autofit] binary search: lo=%s hi=%s finalScale=%s fits=%s', lo.toFixed(4), hi.toFixed(4), finalScale, finalFit.fits);
-  console.log('[autofit] offset: x=%d y=%d, circles r=%d (safety=%d+%d), maskTopY=%d', finalFit.offsetX, finalFit.offsetY, circles[0].r, safetyPaddingPx, BUILTIN_SAFETY_PX, maskTopY);
-
-  let candidateScale = finalScale;
-  let candidateDebug = debugInfo;
-
-  if (!finalFit.fits) {
-    const ACCEPTABLE_RATIO = 0.95;
-    let bestScale = 0;
-    for (let s = 3.0; s >= 0.2; s -= 0.05) {
-      const fit = tryFit(s);
-      if (fit.insideCount / fit.totalCount >= ACCEPTABLE_RATIO) { bestScale = s; break; }
-    }
-    if (bestScale > 0) {
-      for (let s = bestScale + 0.045; s >= bestScale; s -= 0.005) {
-        const fit = tryFit(s);
-        if (fit.insideCount / fit.totalCount >= ACCEPTABLE_RATIO) { bestScale = s; break; }
-      }
-    } else {
-      let maxInside = 0;
-      for (let s = 3.0; s >= 0.2; s -= 0.05) {
-        const fit = tryFit(s);
-        if (fit.insideCount > maxInside) { maxInside = fit.insideCount; bestScale = s; }
-      }
-    }
-    candidateScale = Math.floor(bestScale * 100) / 100;
-    const bfFit = tryFit(candidateScale);
-    console.log('[autofit] best-effort: scale=%s inside=%d/%d', candidateScale, bfFit.insideCount, bfFit.totalCount);
-    candidateDebug = `${debugInfo} best_effort(${bfFit.insideCount}/${bfFit.totalCount})`;
-  }
-
-  // Phase 3: Pixel-perfect mask verification
+  // Phase 2: Pixel-perfect mask binary search
   // Render video at computed position, erase pixels inside circles,
-  // check if any body pixel remains outside — catches what edge detection misses
-  if (clipVideoElements.length > 0) {
-    prog({ stage: 'verifying', percent: 100, message: 'Verifying pixel-perfect fit...' });
+  // check if any body pixel remains — binary search for max scale
+  if (clipVideoElements.length === 0) {
+    return { scale: 0, offsetX: 0, offsetY: 0, debug: debugInfo };
+  }
 
-    const VERIFY_SAFETY_PX = 3;
-    const VF = 0.5;
-    const VW = Math.round(preset.width * VF);
-    const VH = Math.round(preset.height * VF);
-    const vCanvas = document.createElement('canvas');
-    vCanvas.width = VW;
-    vCanvas.height = VH;
-    const vCtx = vCanvas.getContext('2d')!;
+  const VF = 0.5;
+  const VW = Math.round(preset.width * VF);
+  const VH = Math.round(preset.height * VF);
+  const vCanvas = document.createElement('canvas');
+  vCanvas.width = VW;
+  vCanvas.height = VH;
+  const vCtx = vCanvas.getContext('2d')!;
 
-    const verifyCircles = mask.circles.map(c => ({
-      cx: c.cx, cy: c.cy,
-      r: Math.max(0, c.r - safetyPaddingPx - VERIFY_SAFETY_PX),
-    }));
+  const totalVerifyFrames = clipVerifyTimes.reduce((s, t) => s + t.length, 0);
 
-    const totalVerifyFrames = clipVerifyTimes.reduce((s, t) => s + t.length, 0);
+  async function maskFitsAtScale(scale: number, iteration: number, maxIter: number): Promise<boolean> {
+    const { offsetX: ox, offsetY: oy } = computeOffsets(scale);
+    let checkedFrames = 0;
 
-    async function maskFitsAtScale(scale: number, iteration: number, maxIter: number): Promise<boolean> {
-      const { offsetX: ox, offsetY: oy } = tryFit(scale);
-      let checkedFrames = 0;
+    for (let ci = 0; ci < clipVideoElements.length; ci++) {
+      const vid = clipVideoElements[ci];
+      const natW = vid.videoWidth;
+      const natH = vid.videoHeight;
+      if (!natW || !natH) continue;
 
-      for (let ci = 0; ci < clipVideoElements.length; ci++) {
-        const vid = clipVideoElements[ci];
-        const natW = vid.videoWidth;
-        const natH = vid.videoHeight;
-        if (!natW || !natH) continue;
+      for (const t of clipVerifyTimes[ci]) {
+        await seekVideo(vid, t);
+        checkedFrames++;
 
-        for (const t of clipVerifyTimes[ci]) {
-          await seekVideo(vid, t);
-          checkedFrames++;
+        const overallPct = Math.round(((iteration + checkedFrames / totalVerifyFrames) / maxIter) * 100);
+        prog({
+          stage: 'verifying', percent: Math.min(99, overallPct),
+          message: `Verifying ${(scale * 100).toFixed(0)}% — frame ${checkedFrames}/${totalVerifyFrames} (step ${iteration + 1}/${maxIter})`,
+        });
 
-          const iterPct = Math.round((checkedFrames / totalVerifyFrames) * 100);
-          const overallPct = Math.round(((iteration + checkedFrames / totalVerifyFrames) / maxIter) * 100);
-          prog({
-            stage: 'verifying', percent: overallPct,
-            message: `Verifying ${(scale * 100).toFixed(0)}% — frame ${checkedFrames}/${totalVerifyFrames} (step ${iteration + 1}/${maxIter})`,
-          });
+        vCtx.clearRect(0, 0, VW, VH);
 
-          vCtx.clearRect(0, 0, VW, VH);
+        const elemW = preset.width * scale;
+        const elemH = preset.height * scale;
+        const cs = Math.max(elemW / natW, elemH / natH);
+        const vidW = natW * cs;
+        const vidH = natH * cs;
+        const dx = (ox + (elemW - vidW) / 2) * VF;
+        const dy = (oy + (elemH - vidH) / 2) * VF;
 
-          const elemW = preset.width * scale;
-          const elemH = preset.height * scale;
-          const cs = Math.max(elemW / natW, elemH / natH);
-          const vidW = natW * cs;
-          const vidH = natH * cs;
-          const dx = (ox + (elemW - vidW) / 2) * VF;
-          const dy = (oy + (elemH - vidH) / 2) * VF;
+        vCtx.drawImage(vid, dx, dy, vidW * VF, vidH * VF);
 
-          vCtx.drawImage(vid, dx, dy, vidW * VF, vidH * VF);
+        vCtx.globalCompositeOperation = 'destination-out';
+        for (const vc of verifyCircles) {
+          vCtx.beginPath();
+          vCtx.arc(vc.cx * VF, vc.cy * VF, vc.r * VF, 0, Math.PI * 2);
+          vCtx.fill();
+        }
+        vCtx.globalCompositeOperation = 'source-over';
 
-          vCtx.globalCompositeOperation = 'destination-out';
-          for (const vc of verifyCircles) {
-            vCtx.beginPath();
-            vCtx.arc(vc.cx * VF, vc.cy * VF, vc.r * VF, 0, Math.PI * 2);
-            vCtx.fill();
-          }
-          vCtx.globalCompositeOperation = 'source-over';
-
-          const imgData = vCtx.getImageData(0, 0, VW, VH);
-          const px = imgData.data;
-          for (let i = 0; i < px.length; i += 4) {
-            if (px[i + 3] >= 200 && Math.max(px[i], px[i + 1], px[i + 2]) > PIXEL_THRESHOLD) {
-              return false;
-            }
+        const imgData = vCtx.getImageData(0, 0, VW, VH);
+        const px = imgData.data;
+        for (let i = 0; i < px.length; i += 4) {
+          if (px[i + 3] >= 200 && Math.max(px[i], px[i + 1], px[i + 2]) > PIXEL_THRESHOLD) {
+            return false;
           }
         }
       }
-      return true;
     }
-
-    const VERIFY_ITERATIONS = 12;
-    let vLo = Math.max(0.3, candidateScale - 0.2);
-    let vHi = candidateScale + 0.01;
-    for (let vi = 0; vi < VERIFY_ITERATIONS; vi++) {
-      const vMid = Math.round(((vLo + vHi) / 2) * 100) / 100;
-      if (await maskFitsAtScale(vMid, vi, VERIFY_ITERATIONS)) vLo = vMid;
-      else vHi = vMid;
-    }
-    const verifiedScale = Math.floor(vLo * 100) / 100;
-
-    if (verifiedScale !== candidateScale) {
-      console.log('[autofit] mask verify: %s → %s', candidateScale, verifiedScale);
-      candidateDebug += ` mask(${candidateScale}→${verifiedScale})`;
-      candidateScale = verifiedScale;
-    } else {
-      console.log('[autofit] mask verify: %s ok', candidateScale);
-      candidateDebug += ' mask(ok)';
-    }
-
-    vCanvas.remove();
+    return true;
   }
 
+  const ITERATIONS = 20;
+  let lo = 0.5;
+  let hi = 3.0;
+  for (let vi = 0; vi < ITERATIONS; vi++) {
+    const mid = Math.round(((lo + hi) / 2) * 100) / 100;
+    if (await maskFitsAtScale(mid, vi, ITERATIONS)) lo = mid;
+    else hi = mid;
+  }
+  const resultScale = Math.floor(lo * 100) / 100;
+  const resultOffsets = computeOffsets(resultScale);
+
+  console.log('[autofit] result: scale=%s lo=%s hi=%s', resultScale, lo.toFixed(4), hi.toFixed(4));
+
+  vCanvas.remove();
   for (const v of clipVideoElements) v.remove();
 
-  const resultFit = tryFit(candidateScale);
   return {
-    scale: candidateScale,
-    offsetX: resultFit.offsetX,
-    offsetY: resultFit.offsetY,
-    debug: candidateDebug,
+    scale: resultScale,
+    offsetX: resultOffsets.offsetX,
+    offsetY: resultOffsets.offsetY,
+    debug: `${debugInfo} scale=${resultScale}`,
   };
 }
