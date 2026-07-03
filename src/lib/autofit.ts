@@ -69,8 +69,7 @@ export async function analyzeAutofit(
   const PIXEL_THRESHOLD = 10;
   const SCAN_ROW_STEP = 2;
   const MIN_RUN_LENGTH = 3;
-  const BOUNDARY_EXPAND_PX = 6;
-  const BUILTIN_SAFETY_PX = 3;
+  const BUILTIN_SAFETY_PX = 5;
 
   const uniqueUrls = [...new Set(clipUrls)];
   const rawPoints: CollectedPoint[] = [];
@@ -145,6 +144,7 @@ export async function analyzeAutofit(
     const scanScale = Math.min(1, SCAN_MAX / Math.min(natW, natH));
     const canvasW = Math.round(natW * scanScale);
     const canvasH = Math.round(natH * scanScale);
+    const expandPx = Math.max(6, Math.ceil(canvasW * 0.025));
     const canvas = document.createElement('canvas');
     canvas.width = canvasW;
     canvas.height = canvasH;
@@ -196,8 +196,8 @@ export async function analyzeAutofit(
 
         if (leftX !== -1) {
           frameHasBody = true;
-          const eL = Math.max(0, leftX - BOUNDARY_EXPAND_PX) / canvasW;
-          const eR = Math.min(canvasW - 1, rightX + BOUNDARY_EXPAND_PX) / canvasW;
+          const eL = Math.max(0, leftX - expandPx) / canvasW;
+          const eR = Math.min(canvasW - 1, rightX + expandPx) / canvasW;
           rawPoints.push({ normX: eL, normY: row / canvasH, natW, natH, isAnchor: fi === 0 });
           rawPoints.push({ normX: eR, normY: row / canvasH, natW, natH, isAnchor: fi === 0 });
         }
@@ -317,7 +317,7 @@ export async function analyzeAutofit(
 
   console.log('[autofit] debug:', debugInfo);
   console.log('[autofit] binary search: lo=%s hi=%s finalScale=%s fits=%s', lo.toFixed(4), hi.toFixed(4), finalScale, finalFit.fits);
-  console.log('[autofit] offset: x=%d y=%d, circles r=%d (safety=%d+%d)', finalFit.offsetX, finalFit.offsetY, circles[0].r, safetyPaddingPx, BUILTIN_SAFETY_PX);
+  console.log('[autofit] offset: x=%d y=%d, circles r=%d (safety=%d+%d), expandPx=2.5%%', finalFit.offsetX, finalFit.offsetY, circles[0].r, safetyPaddingPx, BUILTIN_SAFETY_PX);
 
   if (!finalFit.fits) {
     return { scale: 0, offsetX: 0, offsetY: 0, debug: `${debugInfo} no_fit` };
