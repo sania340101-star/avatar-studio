@@ -164,8 +164,8 @@ export async function analyzeAutofit(
     const pixels = imageData.data;
 
     for (let row = 0; row < canvasH; row += SCAN_ROW_STEP) {
-      let leftX = -1;
-      let rightX = -1;
+      let bestStart = -1;
+      let bestLen = 0;
       let runStart = -1;
       let runLen = 0;
       const rowOffset = row * canvasW * 4;
@@ -180,18 +180,20 @@ export async function analyzeAutofit(
           if (runStart === -1) runStart = col;
           runLen++;
         } else {
-          if (runLen >= MIN_RUN_LENGTH) {
-            if (leftX === -1) leftX = runStart;
-            rightX = runStart + runLen - 1;
+          if (runLen > bestLen) {
+            bestStart = runStart;
+            bestLen = runLen;
           }
           runStart = -1;
           runLen = 0;
         }
       }
 
-      if (leftX !== -1) {
-        const eL = Math.max(0, leftX - expandPx) / canvasW;
-        const eR = Math.min(canvasW - 1, rightX + expandPx) / canvasW;
+      if (bestLen >= MIN_RUN_LENGTH) {
+        const left = bestStart;
+        const right = bestStart + bestLen - 1;
+        const eL = Math.max(0, left - expandPx) / canvasW;
+        const eR = Math.min(canvasW - 1, right + expandPx) / canvasW;
         anchorPoints.push({ normX: eL, normY: row / canvasH, natW, natH });
         anchorPoints.push({ normX: eR, normY: row / canvasH, natW, natH });
       }
@@ -235,14 +237,21 @@ export async function analyzeAutofit(
       ? Math.max(preset.width / refP.natW, preset.height / refP.natH) * scale
       : Math.max(elemW / refP.natW, elemH / refP.natH);
 
-    let ancTopY = Infinity;
-    for (const p of anchorPoints) {
-      const y = p.natH * cs * (p.normY - 0.5) + elemH / 2;
+    let sumCenterX = 0, rowCount = 0, ancTopY = Infinity;
+    for (let i = 0; i < anchorPoints.length; i += 2) {
+      const pL = anchorPoints[i];
+      const pR = anchorPoints[i + 1];
+      const xL = pL.natW * cs * (pL.normX - 0.5) + elemW / 2;
+      const xR = pR.natW * cs * (pR.normX - 0.5) + elemW / 2;
+      sumCenterX += (xL + xR) / 2;
+      rowCount++;
+      const y = pL.natH * cs * (pL.normY - 0.5) + elemH / 2;
       if (y < ancTopY) ancTopY = y;
     }
+    const avgCenterX = rowCount > 0 ? sumCenterX / rowCount : elemW / 2;
 
     return {
-      offsetX: Math.round(maskCx - elemW / 2),
+      offsetX: Math.round(maskCx - avgCenterX),
       offsetY: Math.round((maskTopY + HEAD_MARGIN_PX) - ancTopY),
     };
   }
