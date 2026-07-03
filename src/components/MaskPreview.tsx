@@ -80,16 +80,41 @@ export default function MaskPreview({ device, videoUrl, transform, onTransformCh
     onTransformChange({ ...transform, scale: Math.round(newScale * 100) / 100 });
   }, [transform, onTransformChange]);
 
+  function getVideoStyle(): React.CSSProperties {
+    if (device === 'solo' && videoDims) {
+      const cs = Math.max(preset.width / videoDims.w, preset.height / videoDims.h);
+      const vw = videoDims.w * cs;
+      const vh = videoDims.h * cs;
+      return {
+        position: 'absolute',
+        left: `${((-(vw - preset.width) / 2 + transform.offsetX) / preset.width) * 100}%`,
+        top: `${((-(vh - preset.height) / 2 + transform.offsetY) / preset.height) * 100}%`,
+        width: `${(vw / preset.width) * 100}%`,
+        height: `${(vh / preset.height) * 100}%`,
+        transform: `scale(${transform.scale})`,
+        transformOrigin: `${((vw / 2 - transform.offsetX) / vw) * 100}% ${((vh / 2 - transform.offsetY) / vh) * 100}%`,
+      };
+    }
+    return {
+      position: 'absolute',
+      left: `${(transform.offsetX / preset.width) * 100}%`,
+      top: `${(transform.offsetY / preset.height) * 100}%`,
+      width: `${transform.scale * 100}%`,
+      height: `${transform.scale * 100}%`,
+      objectFit: 'cover',
+    };
+  }
+
   return (
     <div className="space-y-3">
       <div
         ref={containerRef}
-        className="relative w-full overflow-hidden rounded-lg border"
+        className="relative overflow-hidden rounded-lg border mx-auto"
         style={{
           aspectRatio: `${preset.width} / ${preset.height}`,
+          width: `min(100%, calc(70vh * ${preset.width} / ${preset.height}))`,
           borderColor: 'var(--border)',
           background: '#000',
-          maxHeight: '70vh',
           cursor: dragging ? 'grabbing' : 'grab',
           touchAction: 'none',
         }}
@@ -97,72 +122,29 @@ export default function MaskPreview({ device, videoUrl, transform, onTransformCh
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
       >
+        {/* Video layer — regular HTML, no foreignObject */}
+        <div className="absolute inset-0 overflow-hidden">
+          <video
+            ref={videoElRef}
+            autoPlay
+            loop={loop}
+            muted
+            playsInline
+            onEnded={onVideoEnded}
+            onLoadedMetadata={() => {
+              const v = videoElRef.current;
+              if (v && v.videoWidth && v.videoHeight) setVideoDims({ w: v.videoWidth, h: v.videoHeight });
+            }}
+            style={getVideoStyle()}
+          />
+        </div>
+
+        {/* SVG overlay — mask, outlines, center dots */}
         <svg
           viewBox={`0 0 ${preset.width} ${preset.height}`}
           className="absolute inset-0 w-full h-full"
           style={{ pointerEvents: 'none' }}
         >
-          <defs>
-            <clipPath id={maskId}>
-              {mask.circles.map((c, i) => (
-                <circle key={i} cx={c.cx} cy={c.cy} r={c.r} />
-              ))}
-            </clipPath>
-          </defs>
-
-          {/* Video positioned with transform */}
-          <foreignObject
-            x={0} y={0}
-            width={preset.width} height={preset.height}
-            clipPath={`url(#${maskId})`}
-          >
-            <div
-              style={{
-                width: preset.width,
-                height: preset.height,
-                overflow: 'hidden',
-                position: 'relative',
-              }}
-            >
-              <video
-                ref={videoElRef}
-                autoPlay
-                loop={loop}
-                muted
-                playsInline
-                onEnded={onVideoEnded}
-                onLoadedMetadata={() => {
-                  const v = videoElRef.current;
-                  if (v && v.videoWidth && v.videoHeight) setVideoDims({ w: v.videoWidth, h: v.videoHeight });
-                }}
-                style={(() => {
-                  if (device === 'solo' && videoDims) {
-                    const cs = Math.max(preset.width / videoDims.w, preset.height / videoDims.h);
-                    const vw = videoDims.w * cs;
-                    const vh = videoDims.h * cs;
-                    return {
-                      position: 'absolute' as const,
-                      left: -(vw - preset.width) / 2 + transform.offsetX,
-                      top: -(vh - preset.height) / 2 + transform.offsetY,
-                      width: vw,
-                      height: vh,
-                      transform: `scale(${transform.scale})`,
-                      transformOrigin: `${vw / 2 - transform.offsetX}px ${vh / 2 - transform.offsetY}px`,
-                    };
-                  }
-                  return {
-                    position: 'absolute' as const,
-                    left: transform.offsetX,
-                    top: transform.offsetY,
-                    width: preset.width * transform.scale,
-                    height: preset.height * transform.scale,
-                    objectFit: 'cover' as const,
-                  };
-                })()}
-              />
-            </div>
-          </foreignObject>
-
           {/* Mask outline — visible circles */}
           {mask.circles.map((c, i) => (
             <circle
@@ -192,7 +174,7 @@ export default function MaskPreview({ device, videoUrl, transform, onTransformCh
           <rect
             x="0" y="0"
             width={preset.width} height={preset.height}
-            fill="rgba(0,0,0,0.7)"
+            fill="rgba(0,0,0,0.85)"
             mask={`url(#${maskId}-inv)`}
           />
         </svg>
