@@ -202,7 +202,7 @@ export async function analyzeAutofit(
 
   prog({ stage: 'computing', percent: 100, message: 'Computing optimal fit...' });
 
-  const BODY_MARGIN_PX = 10;
+  const BODY_MARGIN_PX = 5;
 
   function makeCircles(bodyMargin: number) {
     return mask.circles.map(c => ({
@@ -245,6 +245,8 @@ export async function analyzeAutofit(
     const globalMinY = Math.min(...allPts.map(p => p.y));
     const offsetY = Math.round((maskTopY + HEAD_MARGIN_PX) - globalMinY);
 
+    let violations = 0;
+    const maxViolations = Math.ceil(allPts.length * 0.02);
     for (const p of allPts) {
       const cx = offsetX + p.x;
       const cy = offsetY + p.y;
@@ -253,7 +255,10 @@ export async function analyzeAutofit(
         const dist = Math.sqrt((cx - circle.cx) ** 2 + (cy - circle.cy) ** 2);
         if (dist <= circle.r) { inside = true; break; }
       }
-      if (!inside) return { fits: false, offsetX, offsetY };
+      if (!inside) {
+        violations++;
+        if (violations > maxViolations) return { fits: false, offsetX, offsetY };
+      }
     }
 
     return { fits: true, offsetX, offsetY };
@@ -281,7 +286,6 @@ export async function analyzeAutofit(
   if (!best) {
     return { scale: 0, offsetX: 0, offsetY: 0, debug: `${debugInfo} no_fit` };
   }
-  best.offsetY -= 80;
   best.debug = debugInfo;
   return best;
 }
