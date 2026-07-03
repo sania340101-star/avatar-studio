@@ -281,18 +281,27 @@ export async function analyzeAutofit(
   const circleRSq = circles.map(c => c.r * c.r);
 
   function tryFit(scale: number): { fits: boolean; offsetX: number; offsetY: number; insideCount: number; totalCount: number } {
-    let refMinX = Infinity, refMaxX = -Infinity, refMinY = Infinity, refMaxY = -Infinity;
+    let ancMinX = Infinity, ancMaxX = -Infinity, ancMinY = Infinity, ancMaxY = -Infinity;
+    let allMinX = Infinity, allMaxX = -Infinity, allMinY = Infinity, allMaxY = -Infinity;
 
     for (const p of allPoints) {
       const pt = pointToContainer(p, scale);
-      if (pt.x < refMinX) refMinX = pt.x;
-      if (pt.x > refMaxX) refMaxX = pt.x;
-      if (pt.y < refMinY) refMinY = pt.y;
-      if (pt.y > refMaxY) refMaxY = pt.y;
+      if (pt.x < allMinX) allMinX = pt.x;
+      if (pt.x > allMaxX) allMaxX = pt.x;
+      if (pt.y < allMinY) allMinY = pt.y;
+      if (pt.y > allMaxY) allMaxY = pt.y;
+      if (p.isAnchor) {
+        if (pt.x < ancMinX) ancMinX = pt.x;
+        if (pt.x > ancMaxX) ancMaxX = pt.x;
+        if (pt.y < ancMinY) ancMinY = pt.y;
+        if (pt.y > ancMaxY) ancMaxY = pt.y;
+      }
     }
 
-    const offsetX = Math.round(maskCx - (refMinX + refMaxX) / 2);
-    const offsetY = Math.round(maskCy - (refMinY + refMaxY) / 2);
+    const cxRef = ancMinX !== Infinity ? (ancMinX + ancMaxX) / 2 : (allMinX + allMaxX) / 2;
+    const cyRef = ancMinY !== Infinity ? (ancMinY + ancMaxY) / 2 : (allMinY + allMaxY) / 2;
+    const offsetX = Math.round(maskCx - cxRef);
+    const offsetY = Math.round(maskCy - cyRef);
 
     let insideCount = 0;
     for (const p of allPoints) {
