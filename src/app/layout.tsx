@@ -12,6 +12,10 @@ export const metadata: Metadata = {
   title: "Avatar Studio — HYPERVSN",
   description: "Image & video generation for HYPERVSN Avatars",
   manifest: "/manifest.json",
+  icons: {
+    icon: "/icon-512.svg",
+    apple: "/icon-512.svg",
+  },
   other: {
     "mobile-web-app-capable": "yes",
     "apple-mobile-web-app-capable": "yes",
