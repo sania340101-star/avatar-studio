@@ -70,16 +70,14 @@ function expandLandmarks(points: CollectedPoint[]): CollectedPoint[] {
     const cx = (minX + maxX) / 2;
     const isFullBody = bboxH > 0.35;
 
-    expanded.push({ normX: cx, normY: Math.max(0, minY - bboxH * 0.20), natW, natH });
+    expanded.push({ normX: cx, normY: Math.max(0, minY - bboxH * 0.10), natW, natH });
     if (isFullBody) {
-      // Full-body: MediaPipe often misses feet — force bottom to near frame edge
-      expanded.push({ normX: cx, normY: Math.min(1, Math.max(maxY + bboxH * 0.15, 0.97)), natW, natH });
+      expanded.push({ normX: cx, normY: Math.min(1, maxY + bboxH * 0.10), natW, natH });
     } else {
-      expanded.push({ normX: cx, normY: Math.min(1, maxY + bboxH * 0.15), natW, natH });
+      expanded.push({ normX: cx, normY: Math.min(1, maxY + bboxH * 0.10), natW, natH });
     }
-    // Sides: clothing extends beyond wrist landmarks
-    expanded.push({ normX: Math.max(0, minX - bboxW * 0.30), normY: (minY + maxY) / 2, natW, natH });
-    expanded.push({ normX: Math.min(1, maxX + bboxW * 0.30), normY: (minY + maxY) / 2, natW, natH });
+    expanded.push({ normX: Math.max(0, minX - bboxW * 0.15), normY: (minY + maxY) / 2, natW, natH });
+    expanded.push({ normX: Math.min(1, maxX + bboxW * 0.15), normY: (minY + maxY) / 2, natW, natH });
   }
 
   return expanded;
