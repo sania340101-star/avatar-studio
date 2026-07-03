@@ -1077,11 +1077,6 @@ function ExportEditorContent() {
                               <p className="text-xs font-medium" style={{ color: 'var(--text1)' }}>
                                 Version {vNum}
                               </p>
-                              {isLatest && (
-                                <span className="text-xs px-1.5 py-0.5 rounded-full font-medium" style={{ background: 'var(--accent)', color: 'white' }}>
-                                  latest
-                                </span>
-                              )}
                             </div>
                             <p className="text-xs" style={{ color: 'var(--text3)' }}>
                               {new Date(exp.createdAt).toLocaleString()}
