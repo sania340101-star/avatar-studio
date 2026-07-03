@@ -279,7 +279,7 @@ export async function analyzeAutofit(
   const maskTopY = Math.min(...circles.map(c => c.cy - c.r));
   const circleRSq = circles.map(c => c.r * c.r);
 
-  function tryFit(scale: number): { fits: boolean; offsetX: number; offsetY: number } {
+  function tryFit(scale: number): { fits: boolean; offsetX: number; offsetY: number; insideCount: number; totalCount: number } {
     let refMinX = Infinity, refMaxX = -Infinity, globalMinY = Infinity;
 
     for (const p of allPoints) {
@@ -292,20 +292,19 @@ export async function analyzeAutofit(
     const offsetX = Math.round(maskCx - (refMinX + refMaxX) / 2);
     const offsetY = Math.round((maskTopY + HEAD_MARGIN_PX) - globalMinY);
 
+    let insideCount = 0;
     for (const p of allPoints) {
       const pt = pointToContainer(p, scale);
       const cx = offsetX + pt.x;
       const cy = offsetY + pt.y;
-      let inside = false;
       for (let ci = 0; ci < circles.length; ci++) {
         const dx = cx - circles[ci].cx;
         const dy = cy - circles[ci].cy;
-        if (dx * dx + dy * dy <= circleRSq[ci]) { inside = true; break; }
+        if (dx * dx + dy * dy <= circleRSq[ci]) { insideCount++; break; }
       }
-      if (!inside) return { fits: false, offsetX, offsetY };
     }
 
-    return { fits: true, offsetX, offsetY };
+    return { fits: insideCount === allPoints.length, offsetX, offsetY, insideCount, totalCount: allPoints.length };
   }
 
   let lo = 0.5;
@@ -324,7 +323,37 @@ export async function analyzeAutofit(
   console.log('[autofit] offset: x=%d y=%d, circles r=%d (safety=%d+%d), expandPx=2.5%%', finalFit.offsetX, finalFit.offsetY, circles[0].r, safetyPaddingPx, BUILTIN_SAFETY_PX);
 
   if (!finalFit.fits) {
-    return { scale: 0, offsetX: 0, offsetY: 0, debug: `${debugInfo} no_fit` };
+    let bestScale = 0;
+    let bestInside = 0;
+    let bestOffX = 0;
+    let bestOffY = 0;
+    for (let s = 0.2; s <= 3.0; s += 0.05) {
+      const fit = tryFit(s);
+      if (fit.insideCount > bestInside || (fit.insideCount === bestInside && s > bestScale)) {
+        bestInside = fit.insideCount;
+        bestScale = s;
+        bestOffX = fit.offsetX;
+        bestOffY = fit.offsetY;
+      }
+    }
+    for (let s = Math.max(0.1, bestScale - 0.05); s <= bestScale + 0.05; s += 0.005) {
+      const fit = tryFit(s);
+      if (fit.insideCount > bestInside || (fit.insideCount === bestInside && s > bestScale)) {
+        bestInside = fit.insideCount;
+        bestScale = s;
+        bestOffX = fit.offsetX;
+        bestOffY = fit.offsetY;
+      }
+    }
+    const bfScale = Math.floor(bestScale * 100) / 100;
+    const bfFit = tryFit(bfScale);
+    console.log('[autofit] best-effort: scale=%s inside=%d/%d', bfScale, bfFit.insideCount, bfFit.totalCount);
+    return {
+      scale: bfScale,
+      offsetX: bfFit.offsetX,
+      offsetY: bfFit.offsetY,
+      debug: `${debugInfo} best_effort(${bfFit.insideCount}/${bfFit.totalCount})`,
+    };
   }
 
   return {

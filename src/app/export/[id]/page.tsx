@@ -370,7 +370,7 @@ function ExportEditorContent() {
         transformHistory.current.pop();
         setHistoryLen(transformHistory.current.length);
         const debug = result?.debug ? ` [${result.debug}]` : '';
-        setAutofitError(`No poses detected. Try adjusting manually.${debug}`);
+        setAutofitError(`No body detected in video. Try adjusting manually.${debug}`);
       }
     } catch (err) {
       transformHistory.current.pop();
