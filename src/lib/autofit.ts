@@ -247,12 +247,15 @@ export async function analyzeAutofit(
 
   prog({ stage: 'computing', percent: 100, message: 'Computing optimal fit...' });
 
-  const paddedCircles = mask.circles.map(c => ({
-    cx: c.cx, cy: c.cy, r: Math.max(0, c.r - safetyPaddingPx),
-  }));
+  const BODY_MARGIN_PX = 25;
+
+  function makeCircles(bodyMargin: number) {
+    return mask.circles.map(c => ({
+      cx: c.cx, cy: c.cy, r: Math.max(0, c.r - safetyPaddingPx - bodyMargin),
+    }));
+  }
 
   const HEAD_MARGIN_PX = 20;
-  const maskTopY = Math.min(...paddedCircles.map(c => c.cy - c.r));
   const maskCx = mask.circles.reduce((s, c) => s + c.cx, 0) / mask.circles.length;
 
   function pointToContainer(p: CollectedPoint, scale: number): { x: number; y: number } {
@@ -274,7 +277,8 @@ export async function analyzeAutofit(
 
   const anchorPoints = allPoints.filter(p => p.isAnchor);
 
-  function tryFit(scale: number, marginPx: number): { fits: boolean; offsetX: number; offsetY: number } {
+  function tryFit(scale: number, circles: { cx: number; cy: number; r: number }[]): { fits: boolean; offsetX: number; offsetY: number } {
+    const maskTopY = Math.min(...circles.map(c => c.cy - c.r));
     const allPts = allPoints.map(p => pointToContainer(p, scale));
 
     const refPts = anchorPoints.length > 0
@@ -290,9 +294,9 @@ export async function analyzeAutofit(
       const cx = offsetX + p.x;
       const cy = offsetY + p.y;
       let inside = false;
-      for (const circle of paddedCircles) {
+      for (const circle of circles) {
         const dist = Math.sqrt((cx - circle.cx) ** 2 + (cy - circle.cy) ** 2);
-        if (dist <= circle.r - marginPx) { inside = true; break; }
+        if (dist <= circle.r) { inside = true; break; }
       }
       if (!inside) return { fits: false, offsetX, offsetY };
     }
@@ -302,12 +306,13 @@ export async function analyzeAutofit(
 
   let best: AutofitResult | null = null;
 
-  for (const marginPx of [25, 10, 0]) {
+  for (const bodyMargin of [BODY_MARGIN_PX, 0]) {
+    const circles = makeCircles(bodyMargin);
     let lo = 0.5;
     let hi = 3.0;
     for (let i = 0; i < 30; i++) {
       const mid = (lo + hi) / 2;
-      const r = tryFit(mid, marginPx);
+      const r = tryFit(mid, circles);
       if (r.fits) {
         best = { scale: Math.round(mid * 100) / 100, offsetX: r.offsetX, offsetY: r.offsetY };
         lo = mid;
