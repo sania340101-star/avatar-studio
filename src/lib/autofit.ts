@@ -24,7 +24,6 @@ interface CollectedPoint {
   normY: number;
   natW: number;
   natH: number;
-  isAnchor?: boolean;
 }
 
 function seekVideo(video: HTMLVideoElement, time: number): Promise<void> {
@@ -61,16 +60,13 @@ function expandLandmarks(points: CollectedPoint[]): CollectedPoint[] {
     const natW = pts[0].natW;
     const natH = pts[0].natH;
 
-    const anchorPts = pts.filter(p => p.isAnchor);
-    const refPts = anchorPts.length >= 3 ? anchorPts : pts;
-
     const minX = Math.min(...pts.map(p => p.normX));
     const maxX = Math.max(...pts.map(p => p.normX));
     const minY = Math.min(...pts.map(p => p.normY));
     const maxY = Math.max(...pts.map(p => p.normY));
 
-    const refBboxW = Math.max(...refPts.map(p => p.normX)) - Math.min(...refPts.map(p => p.normX));
-    const refBboxH = Math.max(...refPts.map(p => p.normY)) - Math.min(...refPts.map(p => p.normY));
+    const refBboxW = maxX - minX;
+    const refBboxH = maxY - minY;
 
     const cx = (minX + maxX) / 2;
     const isFullBody = refBboxH > 0.35;
@@ -225,10 +221,9 @@ export async function analyzeAutofit(
           detectOk++;
           const lms = result.landmarks[0];
           for (let li = 0; li < lms.length; li++) {
-            if (li >= 15 && li <= 22) continue;
             const lm = lms[li];
             if ((lm.visibility ?? 0) > 0.5 && lm.x >= 0 && lm.x <= 1 && lm.y >= 0 && lm.y <= 1) {
-              rawPoints.push({ normX: lm.x, normY: lm.y, natW, natH, isAnchor: fi === 0 });
+              rawPoints.push({ normX: lm.x, normY: lm.y, natW, natH });
             }
           }
         } else {
@@ -264,8 +259,6 @@ export async function analyzeAutofit(
   const maskTopY = Math.min(...paddedCircles.map(c => c.cy - c.r));
   const maskCx = mask.circles.reduce((s, c) => s + c.cx, 0) / mask.circles.length;
 
-  const anchorPoints = allPoints.filter(p => p.isAnchor);
-
   function pointToContainer(p: CollectedPoint, scale: number): { x: number; y: number } {
     if (device === 'solo') {
       const cs = Math.max(preset.width / p.natW, preset.height / p.natH) * scale;
@@ -286,12 +279,8 @@ export async function analyzeAutofit(
   function tryFit(scale: number): { fits: boolean; offsetX: number; offsetY: number } {
     const allPts = allPoints.map(p => pointToContainer(p, scale));
 
-    const refPts = anchorPoints.length > 0
-      ? anchorPoints.map(p => pointToContainer(p, scale))
-      : allPts;
-
-    const refMinX = Math.min(...refPts.map(p => p.x));
-    const refMaxX = Math.max(...refPts.map(p => p.x));
+    const refMinX = Math.min(...allPts.map(p => p.x));
+    const refMaxX = Math.max(...allPts.map(p => p.x));
 
     const bodyCx = (refMinX + refMaxX) / 2;
     const offsetX = Math.round(maskCx - bodyCx);
