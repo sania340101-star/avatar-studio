@@ -81,6 +81,7 @@ function ExportEditorContent() {
   const [lockedClipIdx, setLockedClipIdx] = useState<number | null>(null);
   const [exporting, setExporting] = useState(false);
   const saveTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const pendingUpdates = useRef<Partial<ExportSession> | null>(null);
   const pollTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   const load = useCallback(async () => {
@@ -141,6 +142,26 @@ function ExportEditorContent() {
     });
   }, [session?.id, session?.clips.length]);
 
+  useEffect(() => {
+    function flushOnHide() {
+      if (document.hidden && pendingUpdates.current) {
+        if (saveTimer.current) clearTimeout(saveTimer.current);
+        const u = pendingUpdates.current;
+        pendingUpdates.current = null;
+        if (session) {
+          fetch('/api/exports', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: session.id, ...u }),
+            keepalive: true,
+          });
+        }
+      }
+    }
+    document.addEventListener('visibilitychange', flushOnHide);
+    return () => document.removeEventListener('visibilitychange', flushOnHide);
+  }, [session]);
+
   const save = useCallback(async (updates: Partial<ExportSession>) => {
     if (!session) return;
     setSaving(true);
@@ -158,8 +179,13 @@ function ExportEditorContent() {
   }, [session]);
 
   const debouncedSave = useCallback((updates: Partial<ExportSession>) => {
+    pendingUpdates.current = { ...pendingUpdates.current, ...updates };
     if (saveTimer.current) clearTimeout(saveTimer.current);
-    saveTimer.current = setTimeout(() => save(updates), 800);
+    saveTimer.current = setTimeout(() => {
+      const u = pendingUpdates.current;
+      pendingUpdates.current = null;
+      if (u) save(u);
+    }, 800);
   }, [save]);
 
   async function loadBrowserVideos() {

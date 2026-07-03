@@ -11,6 +11,12 @@ const encodeSans = Encode_Sans({
 export const metadata: Metadata = {
   title: "Avatar Studio — HYPERVSN",
   description: "Image & video generation for HYPERVSN Avatars",
+  manifest: "/manifest.json",
+  other: {
+    "mobile-web-app-capable": "yes",
+    "apple-mobile-web-app-capable": "yes",
+    "apple-mobile-web-app-status-bar-style": "black-translucent",
+  },
 };
 
 export default function RootLayout({
