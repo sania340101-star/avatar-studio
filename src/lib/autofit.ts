@@ -50,7 +50,7 @@ export async function analyzeAutofit(
   clipUrls: string[],
   device: 'hh1x3' | 'solo',
   onProgress: (p: AutofitProgress) => void,
-  sampleIntervalSec = 1 / 30,
+  sampleIntervalSec = 1 / 10,
   safetyPaddingPx = 0,
 ): Promise<AutofitResult | null> {
   const preset = DEVICE_PRESETS[device];
@@ -392,8 +392,11 @@ export async function analyzeAutofit(
       r: Math.max(0, c.r - safetyPaddingPx - VERIFY_SAFETY_PX),
     }));
 
-    async function maskFitsAtScale(scale: number): Promise<boolean> {
+    const totalVerifyFrames = clipVerifyTimes.reduce((s, t) => s + t.length, 0);
+
+    async function maskFitsAtScale(scale: number, iteration: number, maxIter: number): Promise<boolean> {
       const { offsetX: ox, offsetY: oy } = tryFit(scale);
+      let checkedFrames = 0;
 
       for (let ci = 0; ci < clipVideoElements.length; ci++) {
         const vid = clipVideoElements[ci];
@@ -403,6 +406,14 @@ export async function analyzeAutofit(
 
         for (const t of clipVerifyTimes[ci]) {
           await seekVideo(vid, t);
+          checkedFrames++;
+
+          const iterPct = Math.round((checkedFrames / totalVerifyFrames) * 100);
+          const overallPct = Math.round(((iteration + checkedFrames / totalVerifyFrames) / maxIter) * 100);
+          prog({
+            stage: 'verifying', percent: overallPct,
+            message: `Verifying ${(scale * 100).toFixed(0)}% — frame ${checkedFrames}/${totalVerifyFrames} (step ${iteration + 1}/${maxIter})`,
+          });
 
           vCtx.clearRect(0, 0, VW, VH);
 
@@ -436,12 +447,12 @@ export async function analyzeAutofit(
       return true;
     }
 
+    const VERIFY_ITERATIONS = 12;
     let vLo = Math.max(0.3, candidateScale - 0.2);
     let vHi = candidateScale + 0.01;
-    for (let vi = 0; vi < 12; vi++) {
+    for (let vi = 0; vi < VERIFY_ITERATIONS; vi++) {
       const vMid = Math.round(((vLo + vHi) / 2) * 100) / 100;
-      prog({ stage: 'verifying', percent: 100, message: `Verifying ${(vMid * 100).toFixed(0)}%...` });
-      if (await maskFitsAtScale(vMid)) vLo = vMid;
+      if (await maskFitsAtScale(vMid, vi, VERIFY_ITERATIONS)) vLo = vMid;
       else vHi = vMid;
     }
     const verifiedScale = Math.floor(vLo * 100) / 100;
