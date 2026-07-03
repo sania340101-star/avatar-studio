@@ -320,7 +320,7 @@ function ExportEditorContent() {
         session.clips.map(c => c.url),
         session.device,
         (p) => setAutofitProgress(p),
-        0.5,
+        undefined,
         safetyPaddingPx,
       );
       if (result && result.scale > 0) {
@@ -946,7 +946,7 @@ function ExportEditorContent() {
                   id="input-safety-padding"
                   type="range"
                   min={0}
-                  max={100}
+                  max={50}
                   value={safetyPaddingPx}
                   onChange={e => setSafetyPaddingPx(Number(e.target.value))}
                   className="flex-1 h-1 rounded-full appearance-none cursor-pointer"
