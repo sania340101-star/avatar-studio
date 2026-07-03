@@ -70,14 +70,18 @@ function expandLandmarks(points: CollectedPoint[]): CollectedPoint[] {
     const cx = (minX + maxX) / 2;
     const isFullBody = bboxH > 0.35;
 
-    expanded.push({ normX: cx, normY: Math.max(0, minY - bboxH * 0.20), natW, natH });
+    const padTop = Math.min(bboxH * 0.20, 0.14);
+    const padBottom = Math.min(bboxH * 0.15, 0.10);
+    const padSide = Math.min(bboxW * 0.30, 0.08);
+
+    expanded.push({ normX: cx, normY: Math.max(0, minY - padTop), natW, natH });
     if (isFullBody) {
-      expanded.push({ normX: cx, normY: Math.min(1, Math.max(maxY + bboxH * 0.15, 0.97)), natW, natH });
+      expanded.push({ normX: cx, normY: Math.min(1, Math.max(maxY + padBottom, 0.97)), natW, natH });
     } else {
-      expanded.push({ normX: cx, normY: Math.min(1, maxY + bboxH * 0.15), natW, natH });
+      expanded.push({ normX: cx, normY: Math.min(1, maxY + padBottom), natW, natH });
     }
-    expanded.push({ normX: Math.max(0, minX - bboxW * 0.30), normY: (minY + maxY) / 2, natW, natH });
-    expanded.push({ normX: Math.min(1, maxX + bboxW * 0.30), normY: (minY + maxY) / 2, natW, natH });
+    expanded.push({ normX: Math.max(0, minX - padSide), normY: (minY + maxY) / 2, natW, natH });
+    expanded.push({ normX: Math.min(1, maxX + padSide), normY: (minY + maxY) / 2, natW, natH });
   }
 
   return expanded;
