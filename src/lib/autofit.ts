@@ -50,7 +50,7 @@ export async function analyzeAutofit(
   clipUrls: string[],
   device: 'hh1x3' | 'solo',
   onProgress: (p: AutofitProgress) => void,
-  sampleIntervalSec = 1 / 10,
+  sampleIntervalSec = 1 / 30,
   safetyPaddingPx = 0,
 ): Promise<AutofitResult | null> {
   const preset = DEVICE_PRESETS[device];
