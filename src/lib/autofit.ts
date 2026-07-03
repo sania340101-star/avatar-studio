@@ -227,7 +227,7 @@ export async function analyzeAutofit(
 
   if (rawPoints.length === 0) return { scale: 0, offsetX: 0, offsetY: 0, debug: debugInfo } as AutofitResult & { debug: string };
 
-  const yExpandNorm = 0.025;
+  const yExpandNorm = 0.01;
   const refNatW = clipMeta[0].natW;
   const refNatH = clipMeta[0].natH;
   rawPoints.push(
@@ -245,7 +245,6 @@ export async function analyzeAutofit(
     cx: c.cx, cy: c.cy, r: Math.max(0, c.r - safetyPaddingPx - BUILTIN_SAFETY_PX),
   }));
 
-  const HEAD_MARGIN_PX = 20;
   const maskCx = mask.circles.reduce((s, c) => s + c.cx, 0) / mask.circles.length;
 
   function pointToContainer(p: CollectedPoint, scale: number): { x: number; y: number } {
@@ -277,20 +276,23 @@ export async function analyzeAutofit(
   }
 
   const maskTopY = Math.min(...circles.map(c => c.cy - c.r));
+  const maskBottomY = Math.max(...circles.map(c => c.cy + c.r));
+  const maskCy = (maskTopY + maskBottomY) / 2;
   const circleRSq = circles.map(c => c.r * c.r);
 
   function tryFit(scale: number): { fits: boolean; offsetX: number; offsetY: number; insideCount: number; totalCount: number } {
-    let refMinX = Infinity, refMaxX = -Infinity, globalMinY = Infinity;
+    let refMinX = Infinity, refMaxX = -Infinity, refMinY = Infinity, refMaxY = -Infinity;
 
     for (const p of allPoints) {
       const pt = pointToContainer(p, scale);
       if (pt.x < refMinX) refMinX = pt.x;
       if (pt.x > refMaxX) refMaxX = pt.x;
-      if (pt.y < globalMinY) globalMinY = pt.y;
+      if (pt.y < refMinY) refMinY = pt.y;
+      if (pt.y > refMaxY) refMaxY = pt.y;
     }
 
     const offsetX = Math.round(maskCx - (refMinX + refMaxX) / 2);
-    const offsetY = Math.round((maskTopY + HEAD_MARGIN_PX) - globalMinY);
+    const offsetY = Math.round(maskCy - (refMinY + refMaxY) / 2);
 
     let insideCount = 0;
     for (const p of allPoints) {
@@ -320,7 +322,7 @@ export async function analyzeAutofit(
 
   console.log('[autofit] debug:', debugInfo);
   console.log('[autofit] binary search: lo=%s hi=%s finalScale=%s fits=%s', lo.toFixed(4), hi.toFixed(4), finalScale, finalFit.fits);
-  console.log('[autofit] offset: x=%d y=%d, circles r=%d (safety=%d+%d), expandPx=2.5%%', finalFit.offsetX, finalFit.offsetY, circles[0].r, safetyPaddingPx, BUILTIN_SAFETY_PX);
+  console.log('[autofit] offset: x=%d y=%d, circles r=%d (safety=%d+%d), maskCy=%d', finalFit.offsetX, finalFit.offsetY, circles[0].r, safetyPaddingPx, BUILTIN_SAFETY_PX, maskCy);
 
   if (!finalFit.fits) {
     const ACCEPTABLE_RATIO = 0.95;
