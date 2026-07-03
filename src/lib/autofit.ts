@@ -285,28 +285,27 @@ export async function analyzeAutofit(
   }
 
   function tryFit(scale: number, bodyBufferPx: number): { fits: boolean; offsetX: number; offsetY: number } {
-    const allPtsWithMeta = allPoints.map(p => ({ ...pointToContainer(p, scale), isSynthetic: p.isSynthetic }));
+    const allPts = allPoints.map(p => pointToContainer(p, scale));
 
     const refPts = anchorPoints.length > 0
       ? anchorPoints.map(p => pointToContainer(p, scale))
-      : allPtsWithMeta;
+      : allPts;
 
     const refMinX = Math.min(...refPts.map(p => p.x));
     const refMaxX = Math.max(...refPts.map(p => p.x));
 
     const bodyCx = (refMinX + refMaxX) / 2;
     const offsetX = Math.round(maskCx - bodyCx);
-    const globalMinY = Math.min(...allPtsWithMeta.map(p => p.y));
+    const globalMinY = Math.min(...allPts.map(p => p.y));
     const offsetY = Math.round((maskTopY + HEAD_MARGIN_PX) - globalMinY);
 
-    for (const p of allPtsWithMeta) {
+    for (const p of allPts) {
       const cx = offsetX + p.x;
       const cy = offsetY + p.y;
-      const buffer = p.isSynthetic ? 0 : bodyBufferPx;
       let inside = false;
       for (const circle of paddedCircles) {
         const dist = Math.sqrt((cx - circle.cx) ** 2 + (cy - circle.cy) ** 2);
-        if (dist <= circle.r - buffer) { inside = true; break; }
+        if (dist <= circle.r - bodyBufferPx) { inside = true; break; }
       }
       if (!inside) return { fits: false, offsetX, offsetY };
     }
@@ -314,10 +313,9 @@ export async function analyzeAutofit(
     return { fits: true, offsetX, offsetY };
   }
 
-  const BODY_BUFFER_PX = 30;
   let best: AutofitResult | null = null;
 
-  for (const bufferPx of [BODY_BUFFER_PX, 0]) {
+  for (const bufferPx of [20, 10, 0]) {
     let lo = 0.5;
     let hi = 3.0;
     for (let i = 0; i < 30; i++) {
