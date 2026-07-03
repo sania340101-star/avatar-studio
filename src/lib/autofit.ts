@@ -111,30 +111,15 @@ export async function analyzeAutofit(
     'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.35/wasm',
   );
 
-  let landmarker: Awaited<ReturnType<typeof PoseLandmarker.createFromOptions>>;
-  let usedDelegate: 'GPU' | 'CPU' = 'GPU';
-  try {
-    landmarker = await PoseLandmarker.createFromOptions(vision, {
-      baseOptions: {
-        modelAssetPath:
-          'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/latest/pose_landmarker_lite.task',
-        delegate: 'GPU',
-      },
-      runningMode: 'IMAGE',
-      numPoses: 1,
-    });
-  } catch {
-    usedDelegate = 'CPU';
-    landmarker = await PoseLandmarker.createFromOptions(vision, {
-      baseOptions: {
-        modelAssetPath:
-          'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/latest/pose_landmarker_lite.task',
-        delegate: 'CPU',
-      },
-      runningMode: 'IMAGE',
-      numPoses: 1,
-    });
-  }
+  const landmarker = await PoseLandmarker.createFromOptions(vision, {
+    baseOptions: {
+      modelAssetPath:
+        'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/latest/pose_landmarker_lite.task',
+      delegate: 'CPU',
+    },
+    runningMode: 'IMAGE',
+    numPoses: 1,
+  });
 
   const uniqueUrls = [...new Set(clipUrls)];
   const rawPoints: CollectedPoint[] = [];
@@ -258,7 +243,7 @@ export async function analyzeAutofit(
   landmarker.close();
 
   const natDims = clipMeta.map(c => `${c.natW}x${c.natH}`).join(',');
-  const debugInfo = `${usedDelegate} ${natDims} frames=${processedFrames} ok=${detectOk} empty=${detectEmpty} err=${detectErr} pts=${rawPoints.length}` +
+  const debugInfo = `CPU ${natDims} frames=${processedFrames} ok=${detectOk} empty=${detectEmpty} err=${detectErr} pts=${rawPoints.length}` +
     (lastError ? ` last_err=${lastError}` : '');
 
   if (rawPoints.length === 0) return { scale: 0, offsetX: 0, offsetY: 0, debug: debugInfo } as AutofitResult & { debug: string };
