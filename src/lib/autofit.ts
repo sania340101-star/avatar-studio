@@ -46,40 +46,6 @@ function seekVideo(video: HTMLVideoElement, time: number): Promise<void> {
   });
 }
 
-function expandLandmarks(points: CollectedPoint[]): CollectedPoint[] {
-  if (points.length === 0) return points;
-  const expanded: CollectedPoint[] = [...points];
-
-  const byDims = new Map<string, CollectedPoint[]>();
-  for (const p of points) {
-    const key = `${p.natW}x${p.natH}`;
-    if (!byDims.has(key)) byDims.set(key, []);
-    byDims.get(key)!.push(p);
-  }
-
-  for (const [, pts] of byDims) {
-    const natW = pts[0].natW;
-    const natH = pts[0].natH;
-
-    const minY = Math.min(...pts.map(p => p.normY));
-    const maxY = Math.max(...pts.map(p => p.normY));
-
-    const refBboxH = maxY - minY;
-
-    const cx = (Math.min(...pts.map(p => p.normX)) + Math.max(...pts.map(p => p.normX))) / 2;
-    const isFullBody = refBboxH > 0.35;
-
-    expanded.push({ normX: cx, normY: Math.max(0, minY - refBboxH * 0.20), natW, natH });
-    if (isFullBody) {
-      expanded.push({ normX: cx, normY: Math.min(1, Math.max(maxY + refBboxH * 0.15, 0.97)), natW, natH });
-    } else {
-      expanded.push({ normX: cx, normY: Math.min(1, maxY + refBboxH * 0.15), natW, natH });
-    }
-  }
-
-  return expanded;
-}
-
 export async function analyzeAutofit(
   clipUrls: string[],
   device: 'hh1x3' | 'solo',
@@ -98,23 +64,10 @@ export async function analyzeAutofit(
       ...p,
     });
 
-  prog({ stage: 'loading', message: 'Loading pose detection model...' });
+  prog({ stage: 'loading', message: 'Preparing video analysis...' });
 
-  const { PoseLandmarker, FilesetResolver } = await import('@mediapipe/tasks-vision');
-
-  const vision = await FilesetResolver.forVisionTasks(
-    'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.35/wasm',
-  );
-
-  const landmarker = await PoseLandmarker.createFromOptions(vision, {
-    baseOptions: {
-      modelAssetPath:
-        'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/latest/pose_landmarker_lite.task',
-      delegate: 'CPU',
-    },
-    runningMode: 'IMAGE',
-    numPoses: 1,
-  });
+  const PIXEL_THRESHOLD = 30;
+  const SCAN_ROW_STEP = 2;
 
   const uniqueUrls = [...new Set(clipUrls)];
   const rawPoints: CollectedPoint[] = [];
@@ -150,15 +103,12 @@ export async function analyzeAutofit(
   }
 
   if (clipMeta.length === 0) {
-    landmarker.close();
     return { scale: 0, offsetX: 0, offsetY: 0, debug: `no_clips urls=${uniqueUrls.length}` };
   }
 
   let processedFrames = 0;
   let detectOk = 0;
   let detectEmpty = 0;
-  let detectErr = 0;
-  let lastError = '';
 
   for (let ci = 0; ci < clipMeta.length; ci++) {
     const { url, duration, natW, natH } = clipMeta[ci];
@@ -188,10 +138,10 @@ export async function analyzeAutofit(
       sampleTimes.push(duration - 0.1);
     }
 
-    const DETECT_MAX = 720;
-    const detectScale = Math.min(1, DETECT_MAX / Math.min(natW, natH));
-    const canvasW = Math.round(natW * detectScale);
-    const canvasH = Math.round(natH * detectScale);
+    const SCAN_MAX = 360;
+    const scanScale = Math.min(1, SCAN_MAX / Math.min(natW, natH));
+    const canvasW = Math.round(natW * scanScale);
+    const canvasH = Math.round(natH * scanScale);
     const canvas = document.createElement('canvas');
     canvas.width = canvasW;
     canvas.height = canvasH;
@@ -211,43 +161,48 @@ export async function analyzeAutofit(
       await seekVideo(video, sampleTimes[fi]);
       ctx.drawImage(video, 0, 0, canvasW, canvasH);
 
-      try {
-        const result = landmarker.detect(canvas);
-        if (result.landmarks && result.landmarks.length > 0) {
-          detectOk++;
-          const lms = result.landmarks[0];
-          for (let li = 0; li < lms.length; li++) {
-            const lm = lms[li];
-            if ((lm.visibility ?? 0) > 0.5 && lm.x >= 0 && lm.x <= 1 && lm.y >= 0 && lm.y <= 1) {
-              rawPoints.push({ normX: lm.x, normY: lm.y, natW, natH, isAnchor: fi === 0 });
-            }
+      const imageData = ctx.getImageData(0, 0, canvasW, canvasH);
+      const pixels = imageData.data;
+      let frameHasBody = false;
+
+      for (let row = 0; row < canvasH; row += SCAN_ROW_STEP) {
+        let leftX = -1;
+        let rightX = -1;
+        const rowOffset = row * canvasW * 4;
+
+        for (let col = 0; col < canvasW; col++) {
+          const idx = rowOffset + col * 4;
+          if (Math.max(pixels[idx], pixels[idx + 1], pixels[idx + 2]) > PIXEL_THRESHOLD) {
+            if (leftX === -1) leftX = col;
+            rightX = col;
           }
-        } else {
-          detectEmpty++;
         }
-      } catch (e) {
-        detectErr++;
-        lastError = e instanceof Error ? e.message : String(e);
+
+        if (leftX !== -1) {
+          frameHasBody = true;
+          rawPoints.push({ normX: leftX / canvasW, normY: row / canvasH, natW, natH, isAnchor: fi === 0 });
+          rawPoints.push({ normX: rightX / canvasW, normY: row / canvasH, natW, natH, isAnchor: fi === 0 });
+        }
       }
+
+      if (frameHasBody) detectOk++;
+      else detectEmpty++;
     }
 
     video.remove();
     canvas.remove();
   }
 
-  landmarker.close();
-
   const natDims = clipMeta.map(c => `${c.natW}x${c.natH}`).join(',');
-  const debugInfo = `CPU ${natDims} frames=${processedFrames} ok=${detectOk} empty=${detectEmpty} err=${detectErr} pts=${rawPoints.length}` +
-    (lastError ? ` last_err=${lastError}` : '');
+  const debugInfo = `pixel ${natDims} frames=${processedFrames} ok=${detectOk} empty=${detectEmpty} pts=${rawPoints.length}`;
 
   if (rawPoints.length === 0) return { scale: 0, offsetX: 0, offsetY: 0, debug: debugInfo } as AutofitResult & { debug: string };
 
-  const allPoints = expandLandmarks(rawPoints);
+  const allPoints = rawPoints;
 
   prog({ stage: 'computing', percent: 100, message: 'Computing optimal fit...' });
 
-  const BODY_MARGIN_PX = 25;
+  const BODY_MARGIN_PX = 10;
 
   function makeCircles(bodyMargin: number) {
     return mask.circles.map(c => ({
