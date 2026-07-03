@@ -25,6 +25,7 @@ interface CollectedPoint {
   natW: number;
   natH: number;
   isAnchor?: boolean;
+  isSynthetic?: boolean;
 }
 
 function seekVideo(video: HTMLVideoElement, time: number): Promise<void> {
@@ -75,14 +76,14 @@ function expandLandmarks(points: CollectedPoint[]): CollectedPoint[] {
     const cx = (minX + maxX) / 2;
     const isFullBody = refBboxH > 0.35;
 
-    expanded.push({ normX: cx, normY: Math.max(0, minY - refBboxH * 0.20), natW, natH });
+    expanded.push({ normX: cx, normY: Math.max(0, minY - refBboxH * 0.20), natW, natH, isSynthetic: true });
     if (isFullBody) {
-      expanded.push({ normX: cx, normY: Math.min(1, Math.max(maxY + refBboxH * 0.15, 0.97)), natW, natH });
+      expanded.push({ normX: cx, normY: Math.min(1, Math.max(maxY + refBboxH * 0.15, 0.97)), natW, natH, isSynthetic: true });
     } else {
-      expanded.push({ normX: cx, normY: Math.min(1, maxY + refBboxH * 0.15), natW, natH });
+      expanded.push({ normX: cx, normY: Math.min(1, maxY + refBboxH * 0.15), natW, natH, isSynthetic: true });
     }
-    expanded.push({ normX: Math.max(0, minX - refBboxW * 0.30), normY: (minY + maxY) / 2, natW, natH });
-    expanded.push({ normX: Math.min(1, maxX + refBboxW * 0.30), normY: (minY + maxY) / 2, natW, natH });
+    expanded.push({ normX: Math.max(0, minX - refBboxW * 0.30), normY: (minY + maxY) / 2, natW, natH, isSynthetic: true });
+    expanded.push({ normX: Math.min(1, maxX + refBboxW * 0.30), normY: (minY + maxY) / 2, natW, natH, isSynthetic: true });
   }
 
   return expanded;
@@ -283,31 +284,29 @@ export async function analyzeAutofit(
     };
   }
 
-  function tryFit(scale: number): { fits: boolean; offsetX: number; offsetY: number } {
-    const allPts = allPoints.map(p => pointToContainer(p, scale));
+  function tryFit(scale: number, bodyBufferPx: number): { fits: boolean; offsetX: number; offsetY: number } {
+    const allPtsWithMeta = allPoints.map(p => ({ ...pointToContainer(p, scale), isSynthetic: p.isSynthetic }));
 
-    // Offset anchored to first-frame pose (identical across clips)
     const refPts = anchorPoints.length > 0
       ? anchorPoints.map(p => pointToContainer(p, scale))
-      : allPts;
+      : allPtsWithMeta;
 
     const refMinX = Math.min(...refPts.map(p => p.x));
     const refMaxX = Math.max(...refPts.map(p => p.x));
 
     const bodyCx = (refMinX + refMaxX) / 2;
     const offsetX = Math.round(maskCx - bodyCx);
-    // Y: use topmost point from ALL frames (includes expanded boundaries)
-    const globalMinY = Math.min(...allPts.map(p => p.y));
+    const globalMinY = Math.min(...allPtsWithMeta.map(p => p.y));
     const offsetY = Math.round((maskTopY + HEAD_MARGIN_PX) - globalMinY);
 
-    const BODY_BUFFER_PX = 30;
-    for (const p of allPts) {
+    for (const p of allPtsWithMeta) {
       const cx = offsetX + p.x;
       const cy = offsetY + p.y;
+      const buffer = p.isSynthetic ? 0 : bodyBufferPx;
       let inside = false;
       for (const circle of paddedCircles) {
         const dist = Math.sqrt((cx - circle.cx) ** 2 + (cy - circle.cy) ** 2);
-        if (dist <= circle.r - BODY_BUFFER_PX) { inside = true; break; }
+        if (dist <= circle.r - buffer) { inside = true; break; }
       }
       if (!inside) return { fits: false, offsetX, offsetY };
     }
@@ -315,19 +314,23 @@ export async function analyzeAutofit(
     return { fits: true, offsetX, offsetY };
   }
 
-  let lo = 0.5;
-  let hi = 3.0;
+  const BODY_BUFFER_PX = 30;
   let best: AutofitResult | null = null;
 
-  for (let i = 0; i < 30; i++) {
-    const mid = (lo + hi) / 2;
-    const r = tryFit(mid);
-    if (r.fits) {
-      best = { scale: Math.round(mid * 100) / 100, offsetX: r.offsetX, offsetY: r.offsetY };
-      lo = mid;
-    } else {
-      hi = mid;
+  for (const bufferPx of [BODY_BUFFER_PX, 0]) {
+    let lo = 0.5;
+    let hi = 3.0;
+    for (let i = 0; i < 30; i++) {
+      const mid = (lo + hi) / 2;
+      const r = tryFit(mid, bufferPx);
+      if (r.fits) {
+        best = { scale: Math.round(mid * 100) / 100, offsetX: r.offsetX, offsetY: r.offsetY };
+        lo = mid;
+      } else {
+        hi = mid;
+      }
     }
+    if (best) break;
   }
 
   if (!best) {
