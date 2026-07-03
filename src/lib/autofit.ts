@@ -225,7 +225,7 @@ export async function analyzeAutofit(
           detectOk++;
           const lms = result.landmarks[0];
           for (let li = 0; li < lms.length; li++) {
-            if (li >= 15 && li <= 22) continue;
+            if (li >= 13 && li <= 22) continue;
             const lm = lms[li];
             if ((lm.visibility ?? 0) > 0.5 && lm.x >= 0 && lm.x <= 1 && lm.y >= 0 && lm.y <= 1) {
               rawPoints.push({ normX: lm.x, normY: lm.y, natW, natH, isAnchor: fi === 0 });
