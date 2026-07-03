@@ -1,3 +1,35 @@
+## 2026-07-03: Autofit rewrite + Upload fix + PWA (v1.10.60-v1.10.74)
+
+Autofit (v1.10.60-v1.10.71) — COMPLETE:
+- Replaced MediaPipe with pixel-based silhouette scanning
+- Boundary expansion +3px per side (anti-aliasing compensation)
+- Every 3rd frame (1/10s), canvas 480px, SCAN_ROW_STEP=2
+- Stack overflow fix: loop-based min/max for large arrays
+- tryFit optimized: no intermediate arrays, dx*dx instead of sqrt
+- Safety Padding slider max: 50, "latest" badge removed
+
+Upload fix (v1.10.72):
+- /api/upload excluded from middleware (body was truncated at 10MB)
+- Auth moved to route handler (verifyToken from cookie)
+
+PWA + mobile UX (v1.10.73-v1.10.74):
+- manifest.json: display standalone, theme #7c3aed
+- apple-mobile-web-app-capable meta tags
+- visibilitychange handler: flushes pending saves on minimize (fetch keepalive)
+- Wake Lock API: prevents screen sleep on export page
+- Avatar Studio installable as standalone PWA on mobile home screen
+
+## 2026-07-03: Autofit mobile fix — CPU delegate + foreignObject removal (v1.10.42-v1.10.44)
+
+Done:
+- MaskPreview: removed SVG foreignObject, video is now regular HTML with percentage positioning (mobile browsers misscale foreignObject content)
+- Autofit: switched MediaPipe from GPU to CPU delegate — GPU produced different landmarks on different hardware (mobile ~15% smaller scale)
+- Canvas normalization: cap detection canvas to 720px on short side for consistency
+- Debug info in autofit results (delegate, frame counts, error stats)
+- Version bump to v1.10.44, deployed to D30
+
+Root cause: GPU delegate in MediaPipe PoseLandmarker produces hardware-dependent results. Mobile GPU gave different landmark positions than desktop GPU, causing ~15% scale difference and vertical misalignment.
+
 ## 2026-07-02: Autofit anchor algorithm + Safety Padding fix + Templates isolation (v1.10.37-v1.10.41)
 
 Done:

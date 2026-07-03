@@ -1346,15 +1346,35 @@ function ExportEditorContent() {
           style={{ background: 'rgba(0,0,0,0.85)' }}
           onClick={() => setPreviewUrl(null)}
         >
-          <button
-            onClick={() => setPreviewUrl(null)}
-            className="absolute top-4 right-4 w-11 h-11 flex items-center justify-center rounded-full text-white/70 hover:text-white hover:bg-white/10 transition-colors z-10"
-            aria-label="Close"
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-8 h-8" aria-hidden="true">
-              <path d="M18 6L6 18M6 6l12 12" />
-            </svg>
-          </button>
+          <div className="absolute top-4 right-4 flex items-center gap-6 z-10">
+            <button
+              onClick={async (e) => {
+                e.stopPropagation();
+                const res = await fetch(previewUrl);
+                const blob = await res.blob();
+                const a = document.createElement('a');
+                a.href = URL.createObjectURL(blob);
+                a.download = `export-${Date.now()}.mp4`;
+                a.click();
+                URL.revokeObjectURL(a.href);
+              }}
+              className="w-11 h-11 flex items-center justify-center rounded-full text-white/70 hover:text-white hover:bg-white/10 transition-colors"
+              aria-label="Download"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-7 h-7" aria-hidden="true">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" />
+              </svg>
+            </button>
+            <button
+              onClick={() => setPreviewUrl(null)}
+              className="w-11 h-11 flex items-center justify-center rounded-full text-white/70 hover:text-white hover:bg-white/10 transition-colors"
+              aria-label="Close"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-8 h-8" aria-hidden="true">
+                <path d="M18 6L6 18M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
           <div className="max-w-[90vw] max-h-[90vh]" onClick={e => e.stopPropagation()}>
             <video src={previewUrl} className="max-w-full max-h-[90vh] object-contain rounded-lg" controls autoPlay />
           </div>
