@@ -67,9 +67,9 @@ export async function analyzeAutofit(
   prog({ stage: 'loading', message: 'Preparing video analysis...' });
 
   const PIXEL_THRESHOLD = 10;
-  const SCAN_ROW_STEP = 2;
+  const SCAN_ROW_STEP = 1;
   const MIN_RUN_LENGTH = 3;
-  const BUILTIN_SAFETY_PX = 5;
+  const BUILTIN_SAFETY_PX = 15;
 
   const uniqueUrls = [...new Set(clipUrls)];
   const rawPoints: CollectedPoint[] = [];
@@ -144,7 +144,7 @@ export async function analyzeAutofit(
     const scanScale = Math.min(1, SCAN_MAX / Math.min(natW, natH));
     const canvasW = Math.round(natW * scanScale);
     const canvasH = Math.round(natH * scanScale);
-    const expandPx = Math.max(6, Math.ceil(canvasW * 0.025));
+    const expandPx = Math.max(8, Math.ceil(canvasW * 0.04));
     const canvas = document.createElement('canvas');
     canvas.width = canvasW;
     canvas.height = canvasH;
