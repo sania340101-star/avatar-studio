@@ -235,17 +235,16 @@ export async function analyzeAutofit(
       ? Math.max(preset.width / refP.natW, preset.height / refP.natH) * scale
       : Math.max(elemW / refP.natW, elemH / refP.natH);
 
-    let ancMinX = Infinity, ancMaxX = -Infinity, ancTopY = Infinity;
+    let sumX = 0, ancTopY = Infinity;
     for (const p of anchorPoints) {
-      const x = p.natW * cs * (p.normX - 0.5) + elemW / 2;
+      sumX += p.natW * cs * (p.normX - 0.5) + elemW / 2;
       const y = p.natH * cs * (p.normY - 0.5) + elemH / 2;
-      if (x < ancMinX) ancMinX = x;
-      if (x > ancMaxX) ancMaxX = x;
       if (y < ancTopY) ancTopY = y;
     }
+    const avgCenterX = sumX / anchorPoints.length;
 
     return {
-      offsetX: Math.round(maskCx - (ancMinX + ancMaxX) / 2),
+      offsetX: Math.round(maskCx - avgCenterX),
       offsetY: Math.round((maskTopY + HEAD_MARGIN_PX) - ancTopY),
     };
   }
