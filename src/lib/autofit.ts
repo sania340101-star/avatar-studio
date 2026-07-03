@@ -92,7 +92,7 @@ export async function analyzeAutofit(
   clipUrls: string[],
   device: 'hh1x3' | 'solo',
   onProgress: (p: AutofitProgress) => void,
-  sampleIntervalSec = 0.5,
+  sampleIntervalSec = 0.25,
   safetyPaddingPx = 0,
 ): Promise<AutofitResult | null> {
   const preset = DEVICE_PRESETS[device];
@@ -225,7 +225,7 @@ export async function analyzeAutofit(
           detectOk++;
           const lms = result.landmarks[0];
           for (let li = 0; li < lms.length; li++) {
-            if (li >= 13 && li <= 22) continue;
+            if (li >= 15 && li <= 22) continue;
             const lm = lms[li];
             if ((lm.visibility ?? 0) > 0.5 && lm.x >= 0 && lm.x <= 1 && lm.y >= 0 && lm.y <= 1) {
               rawPoints.push({ normX: lm.x, normY: lm.y, natW, natH, isAnchor: fi === 0 });
@@ -300,14 +300,14 @@ export async function analyzeAutofit(
     const globalMinY = Math.min(...allPts.map(p => p.y));
     const offsetY = Math.round((maskTopY + HEAD_MARGIN_PX) - globalMinY);
 
-    // Check ALL points (all frames) fit at the anchor-based offset
+    const BODY_BUFFER_PX = 20;
     for (const p of allPts) {
       const cx = offsetX + p.x;
       const cy = offsetY + p.y;
       let inside = false;
       for (const circle of paddedCircles) {
         const dist = Math.sqrt((cx - circle.cx) ** 2 + (cy - circle.cy) ** 2);
-        if (dist <= circle.r) { inside = true; break; }
+        if (dist <= circle.r - BODY_BUFFER_PX) { inside = true; break; }
       }
       if (!inside) return { fits: false, offsetX, offsetY };
     }
