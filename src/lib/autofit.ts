@@ -1,7 +1,7 @@
 import { DEVICE_MASKS, DEVICE_PRESETS } from './models';
 
 export interface AutofitProgress {
-  stage: 'loading' | 'analyzing' | 'computing';
+  stage: 'loading' | 'analyzing' | 'computing' | 'verifying';
   clipIndex: number;
   clipCount: number;
   frameIndex: number;
@@ -69,7 +69,7 @@ export async function analyzeAutofit(
   const PIXEL_THRESHOLD = 10;
   const SCAN_ROW_STEP = 1;
   const MIN_RUN_LENGTH = 3;
-  const BUILTIN_SAFETY_PX = 15;
+  const BUILTIN_SAFETY_PX = 10;
 
   const uniqueUrls = [...new Set(clipUrls)];
   const rawPoints: CollectedPoint[] = [];
@@ -108,6 +108,9 @@ export async function analyzeAutofit(
     return { scale: 0, offsetX: 0, offsetY: 0, debug: `no_clips urls=${uniqueUrls.length}` };
   }
 
+  const clipVideoElements: HTMLVideoElement[] = [];
+  const clipVerifyTimes: number[][] = [];
+
   let processedFrames = 0;
   let detectOk = 0;
   let detectEmpty = 0;
@@ -139,6 +142,10 @@ export async function analyzeAutofit(
     if (sampleTimes[sampleTimes.length - 1] < duration - 0.3) {
       sampleTimes.push(duration - 0.1);
     }
+
+    const VERIFY_MAX = 12;
+    const vStep = Math.max(1, Math.floor(sampleTimes.length / VERIFY_MAX));
+    clipVerifyTimes.push(sampleTimes.filter((_, i) => i % vStep === 0).slice(0, VERIFY_MAX));
 
     const SCAN_MAX = 480;
     const scanScale = Math.min(1, SCAN_MAX / Math.min(natW, natH));
@@ -207,7 +214,7 @@ export async function analyzeAutofit(
       else detectEmpty++;
     }
 
-    video.remove();
+    clipVideoElements.push(video);
     canvas.remove();
   }
 
@@ -225,7 +232,10 @@ export async function analyzeAutofit(
     : 'no_points';
   const debugInfo = `pixel ${natDims} frames=${processedFrames} ok=${detectOk} empty=${detectEmpty} pts=${rawPoints.length} ${boundsInfo}`;
 
-  if (rawPoints.length === 0) return { scale: 0, offsetX: 0, offsetY: 0, debug: debugInfo } as AutofitResult & { debug: string };
+  if (rawPoints.length === 0) {
+    for (const v of clipVideoElements) v.remove();
+    return { scale: 0, offsetX: 0, offsetY: 0, debug: debugInfo };
+  }
 
   const yExpandNorm = 0.01;
   const refNatW = clipMeta[0].natW;
@@ -334,60 +344,127 @@ export async function analyzeAutofit(
   console.log('[autofit] binary search: lo=%s hi=%s finalScale=%s fits=%s', lo.toFixed(4), hi.toFixed(4), finalScale, finalFit.fits);
   console.log('[autofit] offset: x=%d y=%d, circles r=%d (safety=%d+%d), maskTopY=%d', finalFit.offsetX, finalFit.offsetY, circles[0].r, safetyPaddingPx, BUILTIN_SAFETY_PX, maskTopY);
 
+  let candidateScale = finalScale;
+  let candidateDebug = debugInfo;
+
   if (!finalFit.fits) {
     const ACCEPTABLE_RATIO = 0.95;
     let bestScale = 0;
-    let bestOffX = 0;
-    let bestOffY = 0;
-    // Find the LARGEST scale where >= 95% of points fit inside circles
     for (let s = 3.0; s >= 0.2; s -= 0.05) {
       const fit = tryFit(s);
-      if (fit.insideCount / fit.totalCount >= ACCEPTABLE_RATIO) {
-        bestScale = s;
-        bestOffX = fit.offsetX;
-        bestOffY = fit.offsetY;
-        break;
-      }
+      if (fit.insideCount / fit.totalCount >= ACCEPTABLE_RATIO) { bestScale = s; break; }
     }
     if (bestScale > 0) {
-      // Refine: find largest scale in [bestScale, bestScale+0.05] that still passes
       for (let s = bestScale + 0.045; s >= bestScale; s -= 0.005) {
         const fit = tryFit(s);
-        if (fit.insideCount / fit.totalCount >= ACCEPTABLE_RATIO) {
-          bestScale = s;
-          bestOffX = fit.offsetX;
-          bestOffY = fit.offsetY;
-          break;
-        }
+        if (fit.insideCount / fit.totalCount >= ACCEPTABLE_RATIO) { bestScale = s; break; }
       }
     } else {
-      // Nothing passes 95% — fall back to max inside count at largest scale
       let maxInside = 0;
       for (let s = 3.0; s >= 0.2; s -= 0.05) {
         const fit = tryFit(s);
-        if (fit.insideCount > maxInside) {
-          maxInside = fit.insideCount;
-          bestScale = s;
-          bestOffX = fit.offsetX;
-          bestOffY = fit.offsetY;
-        }
+        if (fit.insideCount > maxInside) { maxInside = fit.insideCount; bestScale = s; }
       }
     }
-    const bfScale = Math.floor(bestScale * 100) / 100;
-    const bfFit = tryFit(bfScale);
-    console.log('[autofit] best-effort: scale=%s inside=%d/%d', bfScale, bfFit.insideCount, bfFit.totalCount);
-    return {
-      scale: bfScale,
-      offsetX: bfFit.offsetX,
-      offsetY: bfFit.offsetY,
-      debug: `${debugInfo} best_effort(${bfFit.insideCount}/${bfFit.totalCount})`,
-    };
+    candidateScale = Math.floor(bestScale * 100) / 100;
+    const bfFit = tryFit(candidateScale);
+    console.log('[autofit] best-effort: scale=%s inside=%d/%d', candidateScale, bfFit.insideCount, bfFit.totalCount);
+    candidateDebug = `${debugInfo} best_effort(${bfFit.insideCount}/${bfFit.totalCount})`;
   }
 
+  // Phase 3: Pixel-perfect mask verification
+  // Render video at computed position, erase pixels inside circles,
+  // check if any body pixel remains outside — catches what edge detection misses
+  if (clipVideoElements.length > 0) {
+    prog({ stage: 'verifying', percent: 100, message: 'Verifying pixel-perfect fit...' });
+
+    const VERIFY_SAFETY_PX = 3;
+    const VF = 0.5;
+    const VW = Math.round(preset.width * VF);
+    const VH = Math.round(preset.height * VF);
+    const vCanvas = document.createElement('canvas');
+    vCanvas.width = VW;
+    vCanvas.height = VH;
+    const vCtx = vCanvas.getContext('2d')!;
+
+    const verifyCircles = mask.circles.map(c => ({
+      cx: c.cx, cy: c.cy,
+      r: Math.max(0, c.r - safetyPaddingPx - VERIFY_SAFETY_PX),
+    }));
+
+    async function maskFitsAtScale(scale: number): Promise<boolean> {
+      const { offsetX: ox, offsetY: oy } = tryFit(scale);
+
+      for (let ci = 0; ci < clipVideoElements.length; ci++) {
+        const vid = clipVideoElements[ci];
+        const natW = vid.videoWidth;
+        const natH = vid.videoHeight;
+        if (!natW || !natH) continue;
+
+        for (const t of clipVerifyTimes[ci]) {
+          await seekVideo(vid, t);
+
+          vCtx.clearRect(0, 0, VW, VH);
+
+          const elemW = preset.width * scale;
+          const elemH = preset.height * scale;
+          const cs = Math.max(elemW / natW, elemH / natH);
+          const vidW = natW * cs;
+          const vidH = natH * cs;
+          const dx = (ox + (elemW - vidW) / 2) * VF;
+          const dy = (oy + (elemH - vidH) / 2) * VF;
+
+          vCtx.drawImage(vid, dx, dy, vidW * VF, vidH * VF);
+
+          vCtx.globalCompositeOperation = 'destination-out';
+          for (const vc of verifyCircles) {
+            vCtx.beginPath();
+            vCtx.arc(vc.cx * VF, vc.cy * VF, vc.r * VF, 0, Math.PI * 2);
+            vCtx.fill();
+          }
+          vCtx.globalCompositeOperation = 'source-over';
+
+          const imgData = vCtx.getImageData(0, 0, VW, VH);
+          const px = imgData.data;
+          for (let i = 0; i < px.length; i += 4) {
+            if (px[i + 3] >= 200 && Math.max(px[i], px[i + 1], px[i + 2]) > PIXEL_THRESHOLD) {
+              return false;
+            }
+          }
+        }
+      }
+      return true;
+    }
+
+    let vLo = Math.max(0.3, candidateScale - 0.2);
+    let vHi = candidateScale + 0.01;
+    for (let vi = 0; vi < 12; vi++) {
+      const vMid = Math.round(((vLo + vHi) / 2) * 100) / 100;
+      prog({ stage: 'verifying', percent: 100, message: `Verifying ${(vMid * 100).toFixed(0)}%...` });
+      if (await maskFitsAtScale(vMid)) vLo = vMid;
+      else vHi = vMid;
+    }
+    const verifiedScale = Math.floor(vLo * 100) / 100;
+
+    if (verifiedScale !== candidateScale) {
+      console.log('[autofit] mask verify: %s → %s', candidateScale, verifiedScale);
+      candidateDebug += ` mask(${candidateScale}→${verifiedScale})`;
+      candidateScale = verifiedScale;
+    } else {
+      console.log('[autofit] mask verify: %s ok', candidateScale);
+      candidateDebug += ' mask(ok)';
+    }
+
+    vCanvas.remove();
+  }
+
+  for (const v of clipVideoElements) v.remove();
+
+  const resultFit = tryFit(candidateScale);
   return {
-    scale: finalScale,
-    offsetX: finalFit.offsetX,
-    offsetY: finalFit.offsetY,
-    debug: debugInfo,
+    scale: candidateScale,
+    offsetX: resultFit.offsetX,
+    offsetY: resultFit.offsetY,
+    debug: candidateDebug,
   };
 }
