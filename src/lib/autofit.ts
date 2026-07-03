@@ -50,7 +50,7 @@ export async function analyzeAutofit(
   clipUrls: string[],
   device: 'hh1x3' | 'solo',
   onProgress: (p: AutofitProgress) => void,
-  sampleIntervalSec = 1 / 30,
+  sampleIntervalSec = 1 / 15,
   safetyPaddingPx = 0,
 ): Promise<AutofitResult | null> {
   const preset = DEVICE_PRESETS[device];
@@ -242,6 +242,17 @@ export async function analyzeAutofit(
 
   const anchorPoints = allPoints.filter(p => p.isAnchor);
 
+  function minOf(arr: number[]): number {
+    let m = arr[0];
+    for (let i = 1; i < arr.length; i++) if (arr[i] < m) m = arr[i];
+    return m;
+  }
+  function maxOf(arr: number[]): number {
+    let m = arr[0];
+    for (let i = 1; i < arr.length; i++) if (arr[i] > m) m = arr[i];
+    return m;
+  }
+
   function tryFit(scale: number): { fits: boolean; offsetX: number; offsetY: number } {
     const maskTopY = Math.min(...circles.map(c => c.cy - c.r));
     const allPts = allPoints.map(p => pointToContainer(p, scale));
@@ -250,9 +261,10 @@ export async function analyzeAutofit(
       ? anchorPoints.map(p => pointToContainer(p, scale))
       : allPts;
 
-    const bodyCx = (Math.min(...refPts.map(p => p.x)) + Math.max(...refPts.map(p => p.x))) / 2;
+    const refXs = refPts.map(p => p.x);
+    const bodyCx = (minOf(refXs) + maxOf(refXs)) / 2;
     const offsetX = Math.round(maskCx - bodyCx);
-    const globalMinY = Math.min(...allPts.map(p => p.y));
+    const globalMinY = minOf(allPts.map(p => p.y));
     const offsetY = Math.round((maskTopY + HEAD_MARGIN_PX) - globalMinY);
 
     for (const p of allPts) {
