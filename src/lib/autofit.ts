@@ -24,6 +24,7 @@ interface CollectedPoint {
   normY: number;
   natW: number;
   natH: number;
+  isAnchor?: boolean;
 }
 
 function seekVideo(video: HTMLVideoElement, time: number): Promise<void> {
@@ -218,7 +219,7 @@ export async function analyzeAutofit(
           for (let li = 0; li < lms.length; li++) {
             const lm = lms[li];
             if ((lm.visibility ?? 0) > 0.5 && lm.x >= 0 && lm.x <= 1 && lm.y >= 0 && lm.y <= 1) {
-              rawPoints.push({ normX: lm.x, normY: lm.y, natW, natH });
+              rawPoints.push({ normX: lm.x, normY: lm.y, natW, natH, isAnchor: fi === 0 });
             }
           }
         } else {
@@ -271,13 +272,16 @@ export async function analyzeAutofit(
     };
   }
 
-  function tryFit(scale: number): { fits: boolean; offsetX: number; offsetY: number } {
+  const anchorPoints = allPoints.filter(p => p.isAnchor);
+
+  function tryFit(scale: number, marginPx: number): { fits: boolean; offsetX: number; offsetY: number } {
     const allPts = allPoints.map(p => pointToContainer(p, scale));
 
-    const refMinX = Math.min(...allPts.map(p => p.x));
-    const refMaxX = Math.max(...allPts.map(p => p.x));
+    const refPts = anchorPoints.length > 0
+      ? anchorPoints.map(p => pointToContainer(p, scale))
+      : allPts;
 
-    const bodyCx = (refMinX + refMaxX) / 2;
+    const bodyCx = (Math.min(...refPts.map(p => p.x)) + Math.max(...refPts.map(p => p.x))) / 2;
     const offsetX = Math.round(maskCx - bodyCx);
     const globalMinY = Math.min(...allPts.map(p => p.y));
     const offsetY = Math.round((maskTopY + HEAD_MARGIN_PX) - globalMinY);
@@ -288,7 +292,7 @@ export async function analyzeAutofit(
       let inside = false;
       for (const circle of paddedCircles) {
         const dist = Math.sqrt((cx - circle.cx) ** 2 + (cy - circle.cy) ** 2);
-        if (dist <= circle.r) { inside = true; break; }
+        if (dist <= circle.r - marginPx) { inside = true; break; }
       }
       if (!inside) return { fits: false, offsetX, offsetY };
     }
@@ -296,19 +300,22 @@ export async function analyzeAutofit(
     return { fits: true, offsetX, offsetY };
   }
 
-  let lo = 0.5;
-  let hi = 3.0;
   let best: AutofitResult | null = null;
 
-  for (let i = 0; i < 30; i++) {
-    const mid = (lo + hi) / 2;
-    const r = tryFit(mid);
-    if (r.fits) {
-      best = { scale: Math.round(mid * 100) / 100, offsetX: r.offsetX, offsetY: r.offsetY };
-      lo = mid;
-    } else {
-      hi = mid;
+  for (const marginPx of [15, 0]) {
+    let lo = 0.5;
+    let hi = 3.0;
+    for (let i = 0; i < 30; i++) {
+      const mid = (lo + hi) / 2;
+      const r = tryFit(mid, marginPx);
+      if (r.fits) {
+        best = { scale: Math.round(mid * 100) / 100, offsetX: r.offsetX, offsetY: r.offsetY };
+        lo = mid;
+      } else {
+        hi = mid;
+      }
     }
+    if (best) break;
   }
 
   if (!best) {
