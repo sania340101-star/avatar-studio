@@ -6,6 +6,7 @@ const { version } = JSON.parse(readFileSync('./package.json', 'utf8'));
 const nextConfig: NextConfig = {
   output: 'standalone',
   serverExternalPackages: ['better-sqlite3'],
+  middlewareClientMaxBodySize: '100mb',
   env: {
     APP_VERSION: version,
     JWT_SECRET: process.env.JWT_SECRET,
