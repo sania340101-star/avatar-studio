@@ -66,8 +66,9 @@ export async function analyzeAutofit(
 
   prog({ stage: 'loading', message: 'Preparing video analysis...' });
 
-  const PIXEL_THRESHOLD = 30;
+  const PIXEL_THRESHOLD = 10;
   const SCAN_ROW_STEP = 2;
+  const MIN_RUN_LENGTH = 3;
 
   const uniqueUrls = [...new Set(clipUrls)];
   const rawPoints: CollectedPoint[] = [];
@@ -168,13 +169,26 @@ export async function analyzeAutofit(
       for (let row = 0; row < canvasH; row += SCAN_ROW_STEP) {
         let leftX = -1;
         let rightX = -1;
+        let runStart = -1;
+        let runLen = 0;
         const rowOffset = row * canvasW * 4;
 
-        for (let col = 0; col < canvasW; col++) {
-          const idx = rowOffset + col * 4;
-          if (Math.max(pixels[idx], pixels[idx + 1], pixels[idx + 2]) > PIXEL_THRESHOLD) {
-            if (leftX === -1) leftX = col;
-            rightX = col;
+        for (let col = 0; col <= canvasW; col++) {
+          let isBody = false;
+          if (col < canvasW) {
+            const idx = rowOffset + col * 4;
+            isBody = Math.max(pixels[idx], pixels[idx + 1], pixels[idx + 2]) > PIXEL_THRESHOLD;
+          }
+          if (isBody) {
+            if (runStart === -1) runStart = col;
+            runLen++;
+          } else {
+            if (runLen >= MIN_RUN_LENGTH) {
+              if (leftX === -1) leftX = runStart;
+              rightX = runStart + runLen - 1;
+            }
+            runStart = -1;
+            runLen = 0;
           }
         }
 
@@ -202,13 +216,9 @@ export async function analyzeAutofit(
 
   prog({ stage: 'computing', percent: 100, message: 'Computing optimal fit...' });
 
-  const BODY_MARGIN_PX = 5;
-
-  function makeCircles(bodyMargin: number) {
-    return mask.circles.map(c => ({
-      cx: c.cx, cy: c.cy, r: Math.max(0, c.r - safetyPaddingPx - bodyMargin),
-    }));
-  }
+  const circles = mask.circles.map(c => ({
+    cx: c.cx, cy: c.cy, r: Math.max(0, c.r - safetyPaddingPx),
+  }));
 
   const HEAD_MARGIN_PX = 20;
   const maskCx = mask.circles.reduce((s, c) => s + c.cx, 0) / mask.circles.length;
@@ -232,7 +242,7 @@ export async function analyzeAutofit(
 
   const anchorPoints = allPoints.filter(p => p.isAnchor);
 
-  function tryFit(scale: number, circles: { cx: number; cy: number; r: number }[]): { fits: boolean; offsetX: number; offsetY: number } {
+  function tryFit(scale: number): { fits: boolean; offsetX: number; offsetY: number } {
     const maskTopY = Math.min(...circles.map(c => c.cy - c.r));
     const allPts = allPoints.map(p => pointToContainer(p, scale));
 
@@ -245,8 +255,6 @@ export async function analyzeAutofit(
     const globalMinY = Math.min(...allPts.map(p => p.y));
     const offsetY = Math.round((maskTopY + HEAD_MARGIN_PX) - globalMinY);
 
-    let violations = 0;
-    const maxViolations = Math.ceil(allPts.length * 0.02);
     for (const p of allPts) {
       const cx = offsetX + p.x;
       const cy = offsetY + p.y;
@@ -255,32 +263,24 @@ export async function analyzeAutofit(
         const dist = Math.sqrt((cx - circle.cx) ** 2 + (cy - circle.cy) ** 2);
         if (dist <= circle.r) { inside = true; break; }
       }
-      if (!inside) {
-        violations++;
-        if (violations > maxViolations) return { fits: false, offsetX, offsetY };
-      }
+      if (!inside) return { fits: false, offsetX, offsetY };
     }
 
     return { fits: true, offsetX, offsetY };
   }
 
   let best: AutofitResult | null = null;
-
-  for (const bodyMargin of [BODY_MARGIN_PX, 0]) {
-    const circles = makeCircles(bodyMargin);
-    let lo = 0.5;
-    let hi = 3.0;
-    for (let i = 0; i < 30; i++) {
-      const mid = (lo + hi) / 2;
-      const r = tryFit(mid, circles);
-      if (r.fits) {
-        best = { scale: Math.round(mid * 100) / 100, offsetX: r.offsetX, offsetY: r.offsetY };
-        lo = mid;
-      } else {
-        hi = mid;
-      }
+  let lo = 0.5;
+  let hi = 3.0;
+  for (let i = 0; i < 30; i++) {
+    const mid = (lo + hi) / 2;
+    const r = tryFit(mid);
+    if (r.fits) {
+      best = { scale: Math.round(mid * 100) / 100, offsetX: r.offsetX, offsetY: r.offsetY };
+      lo = mid;
+    } else {
+      hi = mid;
     }
-    if (best) break;
   }
 
   if (!best) {
