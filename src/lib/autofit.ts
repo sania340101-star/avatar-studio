@@ -299,23 +299,36 @@ export async function analyzeAutofit(
     }
 
     const cxRef = ancMinX !== Infinity ? (ancMinX + ancMaxX) / 2 : (allMinX + allMaxX) / 2;
-    const cyRef = ancMinY !== Infinity ? (ancMinY + ancMaxY) / 2 : (allMinY + allMaxY) / 2;
+    const hasAnc = ancMinY !== Infinity;
+    const alignY = hasAnc
+      ? ancMinY + 0.30 * (ancMaxY - ancMinY)
+      : allMinY + 0.30 * (allMaxY - allMinY);
     const offsetX = Math.round(maskCx - cxRef);
-    const offsetY = Math.round(maskCy - cyRef);
+    const offsetY = Math.round(maskCy - alignY);
 
     let insideCount = 0;
+    let anchorCount = 0;
+    let anchorInside = 0;
     for (const p of allPoints) {
       const pt = pointToContainer(p, scale);
       const cx = offsetX + pt.x;
       const cy = offsetY + pt.y;
+      if (p.isAnchor) anchorCount++;
+      let inside = false;
       for (let ci = 0; ci < circles.length; ci++) {
         const dx = cx - circles[ci].cx;
         const dy = cy - circles[ci].cy;
-        if (dx * dx + dy * dy <= circleRSq[ci]) { insideCount++; break; }
+        if (dx * dx + dy * dy <= circleRSq[ci]) { inside = true; break; }
+      }
+      if (inside) {
+        insideCount++;
+        if (p.isAnchor) anchorInside++;
       }
     }
 
-    return { fits: insideCount === allPoints.length, offsetX, offsetY, insideCount, totalCount: allPoints.length };
+    const anchorOk = anchorCount === 0 || anchorInside === anchorCount;
+    const fits = anchorOk && insideCount / allPoints.length >= 0.97;
+    return { fits, offsetX, offsetY, insideCount, totalCount: allPoints.length };
   }
 
   let lo = 0.5;
