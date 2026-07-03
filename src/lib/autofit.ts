@@ -60,15 +60,12 @@ function expandLandmarks(points: CollectedPoint[]): CollectedPoint[] {
     const natW = pts[0].natW;
     const natH = pts[0].natH;
 
-    const minX = Math.min(...pts.map(p => p.normX));
-    const maxX = Math.max(...pts.map(p => p.normX));
     const minY = Math.min(...pts.map(p => p.normY));
     const maxY = Math.max(...pts.map(p => p.normY));
 
-    const refBboxW = maxX - minX;
     const refBboxH = maxY - minY;
 
-    const cx = (minX + maxX) / 2;
+    const cx = (Math.min(...pts.map(p => p.normX)) + Math.max(...pts.map(p => p.normX))) / 2;
     const isFullBody = refBboxH > 0.35;
 
     expanded.push({ normX: cx, normY: Math.max(0, minY - refBboxH * 0.20), natW, natH });
@@ -77,8 +74,6 @@ function expandLandmarks(points: CollectedPoint[]): CollectedPoint[] {
     } else {
       expanded.push({ normX: cx, normY: Math.min(1, maxY + refBboxH * 0.15), natW, natH });
     }
-    expanded.push({ normX: Math.max(0, minX - refBboxW * 0.30), normY: (minY + maxY) / 2, natW, natH });
-    expanded.push({ normX: Math.min(1, maxX + refBboxW * 0.30), normY: (minY + maxY) / 2, natW, natH });
   }
 
   return expanded;
