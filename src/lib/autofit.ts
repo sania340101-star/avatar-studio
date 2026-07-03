@@ -275,7 +275,7 @@ export async function analyzeAutofit(
     return m;
   }
 
-  const HEAD_MARGIN_PX = 10;
+  const HEAD_MARGIN_PX = 40;
   const maskTopY = Math.min(...circles.map(c => c.cy - c.r));
   const circleRSq = circles.map(c => c.r * c.r);
 
@@ -305,28 +305,18 @@ export async function analyzeAutofit(
     const offsetY = Math.round((maskTopY + HEAD_MARGIN_PX) - ancTopY);
 
     let insideCount = 0;
-    let anchorCount = 0;
-    let anchorInside = 0;
     for (const p of allPoints) {
       const pt = pointToContainer(p, scale);
       const cx = offsetX + pt.x;
       const cy = offsetY + pt.y;
-      if (p.isAnchor) anchorCount++;
-      let inside = false;
       for (let ci = 0; ci < circles.length; ci++) {
         const dx = cx - circles[ci].cx;
         const dy = cy - circles[ci].cy;
-        if (dx * dx + dy * dy <= circleRSq[ci]) { inside = true; break; }
-      }
-      if (inside) {
-        insideCount++;
-        if (p.isAnchor) anchorInside++;
+        if (dx * dx + dy * dy <= circleRSq[ci]) { insideCount++; break; }
       }
     }
 
-    const anchorOk = anchorCount === 0 || anchorInside === anchorCount;
-    const fits = anchorOk && insideCount / allPoints.length >= 0.97;
-    return { fits, offsetX, offsetY, insideCount, totalCount: allPoints.length };
+    return { fits: insideCount === allPoints.length, offsetX, offsetY, insideCount, totalCount: allPoints.length };
   }
 
   let lo = 0.5;
