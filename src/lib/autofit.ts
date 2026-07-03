@@ -139,7 +139,7 @@ export async function analyzeAutofit(
       sampleTimes.push(duration - 0.1);
     }
 
-    const SCAN_MAX = 360;
+    const SCAN_MAX = 480;
     const scanScale = Math.min(1, SCAN_MAX / Math.min(natW, natH));
     const canvasW = Math.round(natW * scanScale);
     const canvasH = Math.round(natH * scanScale);
@@ -269,23 +269,24 @@ export async function analyzeAutofit(
     return { fits: true, offsetX, offsetY };
   }
 
-  let best: AutofitResult | null = null;
   let lo = 0.5;
   let hi = 3.0;
   for (let i = 0; i < 30; i++) {
     const mid = (lo + hi) / 2;
-    const r = tryFit(mid);
-    if (r.fits) {
-      best = { scale: Math.round(mid * 100) / 100, offsetX: r.offsetX, offsetY: r.offsetY };
-      lo = mid;
-    } else {
-      hi = mid;
-    }
+    if (tryFit(mid).fits) lo = mid;
+    else hi = mid;
   }
 
-  if (!best) {
+  const finalScale = Math.floor(lo * 100) / 100;
+  const finalFit = tryFit(finalScale);
+  if (!finalFit.fits) {
     return { scale: 0, offsetX: 0, offsetY: 0, debug: `${debugInfo} no_fit` };
   }
-  best.debug = debugInfo;
-  return best;
+
+  return {
+    scale: finalScale,
+    offsetX: finalFit.offsetX,
+    offsetY: finalFit.offsetY,
+    debug: debugInfo,
+  };
 }
