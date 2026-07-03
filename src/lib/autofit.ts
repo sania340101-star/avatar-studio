@@ -323,26 +323,42 @@ export async function analyzeAutofit(
   console.log('[autofit] offset: x=%d y=%d, circles r=%d (safety=%d+%d), expandPx=2.5%%', finalFit.offsetX, finalFit.offsetY, circles[0].r, safetyPaddingPx, BUILTIN_SAFETY_PX);
 
   if (!finalFit.fits) {
+    const ACCEPTABLE_RATIO = 0.95;
     let bestScale = 0;
-    let bestInside = 0;
     let bestOffX = 0;
     let bestOffY = 0;
-    for (let s = 0.2; s <= 3.0; s += 0.05) {
+    // Find the LARGEST scale where >= 95% of points fit inside circles
+    for (let s = 3.0; s >= 0.2; s -= 0.05) {
       const fit = tryFit(s);
-      if (fit.insideCount > bestInside || (fit.insideCount === bestInside && s > bestScale)) {
-        bestInside = fit.insideCount;
+      if (fit.insideCount / fit.totalCount >= ACCEPTABLE_RATIO) {
         bestScale = s;
         bestOffX = fit.offsetX;
         bestOffY = fit.offsetY;
+        break;
       }
     }
-    for (let s = Math.max(0.1, bestScale - 0.05); s <= bestScale + 0.05; s += 0.005) {
-      const fit = tryFit(s);
-      if (fit.insideCount > bestInside || (fit.insideCount === bestInside && s > bestScale)) {
-        bestInside = fit.insideCount;
-        bestScale = s;
-        bestOffX = fit.offsetX;
-        bestOffY = fit.offsetY;
+    if (bestScale > 0) {
+      // Refine: find largest scale in [bestScale, bestScale+0.05] that still passes
+      for (let s = bestScale + 0.045; s >= bestScale; s -= 0.005) {
+        const fit = tryFit(s);
+        if (fit.insideCount / fit.totalCount >= ACCEPTABLE_RATIO) {
+          bestScale = s;
+          bestOffX = fit.offsetX;
+          bestOffY = fit.offsetY;
+          break;
+        }
+      }
+    } else {
+      // Nothing passes 95% — fall back to max inside count at largest scale
+      let maxInside = 0;
+      for (let s = 3.0; s >= 0.2; s -= 0.05) {
+        const fit = tryFit(s);
+        if (fit.insideCount > maxInside) {
+          maxInside = fit.insideCount;
+          bestScale = s;
+          bestOffX = fit.offsetX;
+          bestOffY = fit.offsetY;
+        }
       }
     }
     const bfScale = Math.floor(bestScale * 100) / 100;
