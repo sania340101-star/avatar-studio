@@ -60,28 +60,29 @@ function expandLandmarks(points: CollectedPoint[]): CollectedPoint[] {
   for (const [, pts] of byDims) {
     const natW = pts[0].natW;
     const natH = pts[0].natH;
+
+    const anchorPts = pts.filter(p => p.isAnchor);
+    const refPts = anchorPts.length >= 3 ? anchorPts : pts;
+
     const minX = Math.min(...pts.map(p => p.normX));
     const maxX = Math.max(...pts.map(p => p.normX));
     const minY = Math.min(...pts.map(p => p.normY));
     const maxY = Math.max(...pts.map(p => p.normY));
-    const bboxW = maxX - minX;
-    const bboxH = maxY - minY;
+
+    const refBboxW = Math.max(...refPts.map(p => p.normX)) - Math.min(...refPts.map(p => p.normX));
+    const refBboxH = Math.max(...refPts.map(p => p.normY)) - Math.min(...refPts.map(p => p.normY));
 
     const cx = (minX + maxX) / 2;
-    const isFullBody = bboxH > 0.35;
+    const isFullBody = refBboxH > 0.35;
 
-    const padTop = Math.min(bboxH * 0.20, 0.14);
-    const padBottom = Math.min(bboxH * 0.15, 0.10);
-    const padSide = Math.min(bboxW * 0.30, 0.10);
-
-    expanded.push({ normX: cx, normY: Math.max(0, minY - padTop), natW, natH });
+    expanded.push({ normX: cx, normY: Math.max(0, minY - refBboxH * 0.20), natW, natH });
     if (isFullBody) {
-      expanded.push({ normX: cx, normY: Math.min(1, Math.max(maxY + padBottom, 0.97)), natW, natH });
+      expanded.push({ normX: cx, normY: Math.min(1, Math.max(maxY + refBboxH * 0.15, 0.97)), natW, natH });
     } else {
-      expanded.push({ normX: cx, normY: Math.min(1, maxY + padBottom), natW, natH });
+      expanded.push({ normX: cx, normY: Math.min(1, maxY + refBboxH * 0.15), natW, natH });
     }
-    expanded.push({ normX: Math.max(0, minX - padSide), normY: (minY + maxY) / 2, natW, natH });
-    expanded.push({ normX: Math.min(1, maxX + padSide), normY: (minY + maxY) / 2, natW, natH });
+    expanded.push({ normX: Math.max(0, minX - refBboxW * 0.30), normY: (minY + maxY) / 2, natW, natH });
+    expanded.push({ normX: Math.min(1, maxX + refBboxW * 0.30), normY: (minY + maxY) / 2, natW, natH });
   }
 
   return expanded;
@@ -224,6 +225,7 @@ export async function analyzeAutofit(
           detectOk++;
           const lms = result.landmarks[0];
           for (let li = 0; li < lms.length; li++) {
+            if (li >= 15 && li <= 22) continue;
             const lm = lms[li];
             if ((lm.visibility ?? 0) > 0.5 && lm.x >= 0 && lm.x <= 1 && lm.y >= 0 && lm.y <= 1) {
               rawPoints.push({ normX: lm.x, normY: lm.y, natW, natH, isAnchor: fi === 0 });
