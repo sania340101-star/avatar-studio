@@ -69,7 +69,8 @@ export async function analyzeAutofit(
   const PIXEL_THRESHOLD = 10;
   const SCAN_ROW_STEP = 2;
   const MIN_RUN_LENGTH = 3;
-  const BOUNDARY_EXPAND_PX = 3;
+  const BOUNDARY_EXPAND_PX = 6;
+  const BUILTIN_SAFETY_PX = 3;
 
   const uniqueUrls = [...new Set(clipUrls)];
   const rawPoints: CollectedPoint[] = [];
@@ -211,7 +212,18 @@ export async function analyzeAutofit(
   }
 
   const natDims = clipMeta.map(c => `${c.natW}x${c.natH}`).join(',');
-  const debugInfo = `pixel ${natDims} frames=${processedFrames} ok=${detectOk} empty=${detectEmpty} pts=${rawPoints.length}`;
+
+  let minNX = Infinity, maxNX = -Infinity, minNY = Infinity, maxNY = -Infinity;
+  for (const p of rawPoints) {
+    if (p.normX < minNX) minNX = p.normX;
+    if (p.normX > maxNX) maxNX = p.normX;
+    if (p.normY < minNY) minNY = p.normY;
+    if (p.normY > maxNY) maxNY = p.normY;
+  }
+  const boundsInfo = rawPoints.length > 0
+    ? `normX=[${minNX.toFixed(3)}..${maxNX.toFixed(3)}] normY=[${minNY.toFixed(3)}..${maxNY.toFixed(3)}]`
+    : 'no_points';
+  const debugInfo = `pixel ${natDims} frames=${processedFrames} ok=${detectOk} empty=${detectEmpty} pts=${rawPoints.length} ${boundsInfo}`;
 
   if (rawPoints.length === 0) return { scale: 0, offsetX: 0, offsetY: 0, debug: debugInfo } as AutofitResult & { debug: string };
 
@@ -220,7 +232,7 @@ export async function analyzeAutofit(
   prog({ stage: 'computing', percent: 100, message: 'Computing optimal fit...' });
 
   const circles = mask.circles.map(c => ({
-    cx: c.cx, cy: c.cy, r: Math.max(0, c.r - safetyPaddingPx),
+    cx: c.cx, cy: c.cy, r: Math.max(0, c.r - safetyPaddingPx - BUILTIN_SAFETY_PX),
   }));
 
   const HEAD_MARGIN_PX = 20;
@@ -302,6 +314,11 @@ export async function analyzeAutofit(
 
   const finalScale = Math.floor(lo * 100) / 100;
   const finalFit = tryFit(finalScale);
+
+  console.log('[autofit] debug:', debugInfo);
+  console.log('[autofit] binary search: lo=%s hi=%s finalScale=%s fits=%s', lo.toFixed(4), hi.toFixed(4), finalScale, finalFit.fits);
+  console.log('[autofit] offset: x=%d y=%d, circles r=%d (safety=%d+%d)', finalFit.offsetX, finalFit.offsetY, circles[0].r, safetyPaddingPx, BUILTIN_SAFETY_PX);
+
   if (!finalFit.fits) {
     return { scale: 0, offsetX: 0, offsetY: 0, debug: `${debugInfo} no_fit` };
   }
