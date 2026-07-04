@@ -71,6 +71,7 @@ export async function analyzeAutofit(
 
   const uniqueUrls = [...new Set(clipUrls)];
   const anchorPoints: CollectedPoint[] = [];
+  const rowCenters: number[] = [];
 
   // Pre-scan for metadata
   const clipMeta: { url: string; duration: number; natW: number; natH: number }[] = [];
@@ -192,6 +193,7 @@ export async function analyzeAutofit(
       if (bestLen >= MIN_RUN_LENGTH) {
         const left = bestStart;
         const right = bestStart + bestLen - 1;
+        rowCenters.push((left + right) / 2 / canvasW);
         const eL = Math.max(0, left - expandPx) / canvasW;
         const eR = Math.min(canvasW - 1, right + expandPx) / canvasW;
         anchorPoints.push({ normX: eL, normY: row / canvasH, natW, natH });
@@ -203,8 +205,14 @@ export async function analyzeAutofit(
     canvas.remove();
   }
 
+  let bodyCenterNorm = 0.5;
+  if (rowCenters.length > 0) {
+    rowCenters.sort((a, b) => a - b);
+    bodyCenterNorm = rowCenters[Math.floor(rowCenters.length / 2)];
+  }
+
   const natDims = clipMeta.map(c => `${c.natW}x${c.natH}`).join(',');
-  const debugInfo = `pixel ${natDims} clips=${clipMeta.length} anchor_pts=${anchorPoints.length}`;
+  const debugInfo = `pixel ${natDims} clips=${clipMeta.length} anchor_pts=${anchorPoints.length} bodyCenter=${bodyCenterNorm.toFixed(4)}`;
 
   if (anchorPoints.length === 0) {
     for (const v of clipVideoElements) v.remove();
@@ -243,8 +251,11 @@ export async function analyzeAutofit(
       if (y < ancTopY) ancTopY = y;
     }
 
+    const vidW = refP.natW * cs;
+    const bodyXInElem = (elemW - vidW) / 2 + bodyCenterNorm * vidW;
+
     return {
-      offsetX: Math.round(maskCx - elemW / 2),
+      offsetX: Math.round(maskCx - bodyXInElem),
       offsetY: Math.round((maskTopY + HEAD_MARGIN_PX) - ancTopY),
     };
   }
@@ -329,44 +340,7 @@ export async function analyzeAutofit(
   const resultScale = Math.floor(lo * 100) / 100;
   const resultOffsets = computeOffsets(resultScale);
 
-  // Phase 3: Pixel-median centering correction
-  // Render frame at element-centered offset, find median column of all body pixels
-  const vid0 = clipVideoElements[0];
-  if (vid0 && vid0.videoWidth && vid0.videoHeight) {
-    await seekVideo(vid0, 0);
-    const fElemW = preset.width * resultScale;
-    const fElemH = preset.height * resultScale;
-    const fCs = Math.max(fElemW / vid0.videoWidth, fElemH / vid0.videoHeight);
-    const fVidW = vid0.videoWidth * fCs;
-    const fVidH = vid0.videoHeight * fCs;
-    const fDx = (resultOffsets.offsetX + (fElemW - fVidW) / 2) * VF;
-    const fDy = (resultOffsets.offsetY + (fElemH - fVidH) / 2) * VF;
-
-    vCtx.clearRect(0, 0, VW, VH);
-    vCtx.drawImage(vid0, fDx, fDy, fVidW * VF, fVidH * VF);
-
-    const fPx = vCtx.getImageData(0, 0, VW, VH).data;
-    const colCounts = new Int32Array(VW);
-    for (let i = 0; i < fPx.length; i += 4) {
-      if (fPx[i + 3] >= 200 && Math.max(fPx[i], fPx[i + 1], fPx[i + 2]) > PIXEL_THRESHOLD) {
-        colCounts[(i / 4) % VW]++;
-      }
-    }
-    let totalPx = 0;
-    for (let c = 0; c < VW; c++) totalPx += colCounts[c];
-    if (totalPx > 0) {
-      let cumulative = 0;
-      let medianCol = VW / 2;
-      for (let c = 0; c < VW; c++) {
-        cumulative += colCounts[c];
-        if (cumulative >= totalPx / 2) { medianCol = c; break; }
-      }
-      const correction = (maskCx * VF - medianCol) / VF;
-      resultOffsets.offsetX += Math.round(correction);
-    }
-  }
-
-  console.log('[autofit] result: scale=%s lo=%s hi=%s ox=%s', resultScale, lo.toFixed(4), hi.toFixed(4), resultOffsets.offsetX);
+  console.log('[autofit] result: scale=%s lo=%s hi=%s ox=%s bodyCenter=%s', resultScale, lo.toFixed(4), hi.toFixed(4), resultOffsets.offsetX, bodyCenterNorm.toFixed(4));
 
   vCanvas.remove();
   for (const v of clipVideoElements) v.remove();
