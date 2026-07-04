@@ -71,7 +71,7 @@ export async function analyzeAutofit(
 
   const uniqueUrls = [...new Set(clipUrls)];
   const anchorPoints: CollectedPoint[] = [];
-  const rowCenters: number[] = [];
+  const rowScan: { center: number; width: number }[] = [];
 
   // Pre-scan for metadata
   const clipMeta: { url: string; duration: number; natW: number; natH: number }[] = [];
@@ -193,7 +193,7 @@ export async function analyzeAutofit(
       if (bestLen >= MIN_RUN_LENGTH) {
         const left = bestStart;
         const right = bestStart + bestLen - 1;
-        rowCenters.push((left + right) / 2 / canvasW);
+        rowScan.push({ center: (left + right) / 2 / canvasW, width: bestLen });
         const eL = Math.max(0, left - expandPx) / canvasW;
         const eR = Math.min(canvasW - 1, right + expandPx) / canvasW;
         anchorPoints.push({ normX: eL, normY: row / canvasH, natW, natH });
@@ -206,13 +206,16 @@ export async function analyzeAutofit(
   }
 
   let bodyCenterNorm = 0.5;
-  if (rowCenters.length > 0) {
-    rowCenters.sort((a, b) => a - b);
-    bodyCenterNorm = rowCenters[Math.floor(rowCenters.length / 2)];
+  if (rowScan.length > 0) {
+    // Use the widest rows (shoulders) — most symmetric, closest to body midline
+    const sorted = [...rowScan].sort((a, b) => b.width - a.width);
+    const topCount = Math.max(10, Math.ceil(sorted.length * 0.1));
+    const topRows = sorted.slice(0, topCount);
+    bodyCenterNorm = topRows.reduce((s, r) => s + r.center, 0) / topRows.length;
   }
 
   const natDims = clipMeta.map(c => `${c.natW}x${c.natH}`).join(',');
-  const debugInfo = `pixel ${natDims} clips=${clipMeta.length} anchor_pts=${anchorPoints.length} bodyCenter=${bodyCenterNorm.toFixed(4)}`;
+  const debugInfo = `pixel ${natDims} clips=${clipMeta.length} rows=${rowScan.length} bodyCenter=${bodyCenterNorm.toFixed(4)}`;
 
   if (anchorPoints.length === 0) {
     for (const v of clipVideoElements) v.remove();
@@ -340,7 +343,9 @@ export async function analyzeAutofit(
   const resultScale = Math.floor(lo * 100) / 100;
   const resultOffsets = computeOffsets(resultScale);
 
-  // Phase 3: Pixel-median centering refinement on rendered canvas
+  // Phase 3: Percentile-bounds centering on rendered canvas
+  // Uses 5th/95th percentile of body pixel columns to find structural center
+  // (trims hair/shoe extremes, focuses on shoulder-to-shoulder range)
   const vid0 = clipVideoElements[0];
   if (vid0 && vid0.videoWidth && vid0.videoHeight) {
     await seekVideo(vid0, 0);
@@ -364,14 +369,18 @@ export async function analyzeAutofit(
     }
     let totalPx = 0;
     for (let c = 0; c < VW; c++) totalPx += colCounts[c];
-    if (totalPx > 0) {
-      let cumulative = 0;
-      let medianCol = VW / 2;
+    if (totalPx > 100) {
+      const p5 = totalPx * 0.05;
+      const p95 = totalPx * 0.95;
+      let cum = 0;
+      let leftBound = 0, rightBound = VW - 1;
       for (let c = 0; c < VW; c++) {
-        cumulative += colCounts[c];
-        if (cumulative >= totalPx / 2) { medianCol = c; break; }
+        cum += colCounts[c];
+        if (leftBound === 0 && cum >= p5) leftBound = c;
+        if (cum >= p95) { rightBound = c; break; }
       }
-      const correction = (maskCx * VF - medianCol) / VF;
+      const bodyCenter = (leftBound + rightBound) / 2;
+      const correction = (maskCx * VF - bodyCenter) / VF;
       resultOffsets.offsetX += Math.round(correction);
     }
   }
