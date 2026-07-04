@@ -340,6 +340,42 @@ export async function analyzeAutofit(
   const resultScale = Math.floor(lo * 100) / 100;
   const resultOffsets = computeOffsets(resultScale);
 
+  // Phase 3: Pixel-median centering refinement on rendered canvas
+  const vid0 = clipVideoElements[0];
+  if (vid0 && vid0.videoWidth && vid0.videoHeight) {
+    await seekVideo(vid0, 0);
+    const fElemW = preset.width * resultScale;
+    const fElemH = preset.height * resultScale;
+    const fCs = Math.max(fElemW / vid0.videoWidth, fElemH / vid0.videoHeight);
+    const fVidW = vid0.videoWidth * fCs;
+    const fVidH = vid0.videoHeight * fCs;
+    const fDx = (resultOffsets.offsetX + (fElemW - fVidW) / 2) * VF;
+    const fDy = (resultOffsets.offsetY + (fElemH - fVidH) / 2) * VF;
+
+    vCtx.clearRect(0, 0, VW, VH);
+    vCtx.drawImage(vid0, fDx, fDy, fVidW * VF, fVidH * VF);
+
+    const fPx = vCtx.getImageData(0, 0, VW, VH).data;
+    const colCounts = new Int32Array(VW);
+    for (let i = 0; i < fPx.length; i += 4) {
+      if (fPx[i + 3] >= 200 && Math.max(fPx[i], fPx[i + 1], fPx[i + 2]) > PIXEL_THRESHOLD) {
+        colCounts[(i / 4) % VW]++;
+      }
+    }
+    let totalPx = 0;
+    for (let c = 0; c < VW; c++) totalPx += colCounts[c];
+    if (totalPx > 0) {
+      let cumulative = 0;
+      let medianCol = VW / 2;
+      for (let c = 0; c < VW; c++) {
+        cumulative += colCounts[c];
+        if (cumulative >= totalPx / 2) { medianCol = c; break; }
+      }
+      const correction = (maskCx * VF - medianCol) / VF;
+      resultOffsets.offsetX += Math.round(correction);
+    }
+  }
+
   console.log('[autofit] result: scale=%s lo=%s hi=%s ox=%s bodyCenter=%s', resultScale, lo.toFixed(4), hi.toFixed(4), resultOffsets.offsetX, bodyCenterNorm.toFixed(4));
 
   vCanvas.remove();
