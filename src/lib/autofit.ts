@@ -71,6 +71,7 @@ export async function analyzeAutofit(
 
   const uniqueUrls = [...new Set(clipUrls)];
   const anchorPoints: CollectedPoint[] = [];
+  const rawRowCenters: { normX: number; normY: number }[] = [];
 
   // Pre-scan for metadata
   const clipMeta: { url: string; duration: number; natW: number; natH: number }[] = [];
@@ -192,6 +193,7 @@ export async function analyzeAutofit(
       if (bestLen >= MIN_RUN_LENGTH) {
         const left = bestStart;
         const right = bestStart + bestLen - 1;
+        rawRowCenters.push({ normX: (left + right) / 2 / canvasW, normY: row / canvasH });
         const eL = Math.max(0, left - expandPx) / canvasW;
         const eR = Math.min(canvasW - 1, right + expandPx) / canvasW;
         anchorPoints.push({ normX: eL, normY: row / canvasH, natW, natH });
@@ -237,20 +239,19 @@ export async function analyzeAutofit(
       ? Math.max(preset.width / refP.natW, preset.height / refP.natH) * scale
       : Math.max(elemW / refP.natW, elemH / refP.natH);
 
-    const rowCenters: number[] = [];
     let ancTopY = Infinity;
-    for (let i = 0; i < anchorPoints.length; i += 2) {
-      const pL = anchorPoints[i];
-      const pR = anchorPoints[i + 1];
-      const xL = pL.natW * cs * (pL.normX - 0.5) + elemW / 2;
-      const xR = pR.natW * cs * (pR.normX - 0.5) + elemW / 2;
-      rowCenters.push((xL + xR) / 2);
-      const y = pL.natH * cs * (pL.normY - 0.5) + elemH / 2;
+    for (const p of anchorPoints) {
+      const y = p.natH * cs * (p.normY - 0.5) + elemH / 2;
       if (y < ancTopY) ancTopY = y;
     }
-    rowCenters.sort((a, b) => a - b);
-    const medianCenterX = rowCenters.length > 0
-      ? rowCenters[Math.floor(rowCenters.length / 2)]
+
+    const refNatW = anchorPoints[0].natW;
+    const centers = rawRowCenters.map(r =>
+      refNatW * cs * (r.normX - 0.5) + elemW / 2
+    );
+    centers.sort((a, b) => a - b);
+    const medianCenterX = centers.length > 0
+      ? centers[Math.floor(centers.length / 2)]
       : elemW / 2;
 
     return {
