@@ -237,21 +237,24 @@ export async function analyzeAutofit(
       ? Math.max(preset.width / refP.natW, preset.height / refP.natH) * scale
       : Math.max(elemW / refP.natW, elemH / refP.natH);
 
-    let sumCenterX = 0, rowCount = 0, ancTopY = Infinity;
+    const rowCenters: number[] = [];
+    let ancTopY = Infinity;
     for (let i = 0; i < anchorPoints.length; i += 2) {
       const pL = anchorPoints[i];
       const pR = anchorPoints[i + 1];
       const xL = pL.natW * cs * (pL.normX - 0.5) + elemW / 2;
       const xR = pR.natW * cs * (pR.normX - 0.5) + elemW / 2;
-      sumCenterX += (xL + xR) / 2;
-      rowCount++;
+      rowCenters.push((xL + xR) / 2);
       const y = pL.natH * cs * (pL.normY - 0.5) + elemH / 2;
       if (y < ancTopY) ancTopY = y;
     }
-    const avgCenterX = rowCount > 0 ? sumCenterX / rowCount : elemW / 2;
+    rowCenters.sort((a, b) => a - b);
+    const medianCenterX = rowCenters.length > 0
+      ? rowCenters[Math.floor(rowCenters.length / 2)]
+      : elemW / 2;
 
     return {
-      offsetX: Math.round(maskCx - avgCenterX),
+      offsetX: Math.round(maskCx - medianCenterX),
       offsetY: Math.round((maskTopY + HEAD_MARGIN_PX) - ancTopY),
     };
   }
