@@ -172,20 +172,24 @@ export async function analyzeAutofit(
     canvas.height = canvasH;
     const ctx = canvas.getContext('2d')!;
 
-    await seekVideo(video, 0);
+    // Force seek to 0.01 to guarantee frame decode on mobile
+    await seekVideo(video, 0.01);
     ctx.drawImage(video, 0, 0, canvasW, canvasH);
 
     // Face detection on first clip's first frame
     if (ci === 0) {
-      const faceResult = faceLandmarker.detect(canvas);
-      if (faceResult.faceLandmarks && faceResult.faceLandmarks.length > 0) {
-        const landmarks = faceResult.faceLandmarks[0];
-        // Nose tip (landmark 1) is the most reliable center point
-        const noseTip = landmarks[1];
-        if (noseTip) {
-          faceCenterNorm = noseTip.x;
-          console.log('[autofit] face detected: nose=%.4f', faceCenterNorm);
+      try {
+        const faceResult = faceLandmarker.detect(canvas);
+        if (faceResult.faceLandmarks && faceResult.faceLandmarks.length > 0) {
+          const landmarks = faceResult.faceLandmarks[0];
+          const noseTip = landmarks[1];
+          if (noseTip) {
+            faceCenterNorm = noseTip.x;
+            console.log('[autofit] face detected: nose=%.4f', faceCenterNorm);
+          }
         }
+      } catch (e) {
+        console.warn('[autofit] face detection failed:', e);
       }
     }
 
