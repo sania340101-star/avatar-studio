@@ -71,8 +71,8 @@ export async function analyzeAutofit(
 
   const uniqueUrls = [...new Set(clipUrls)];
   const anchorPoints: CollectedPoint[] = [];
-  let centroidSumX = 0;
-  let centroidCount = 0;
+  let axisSumCenter = 0;
+  let axisRowCount = 0;
 
   const clipMeta: { url: string; duration: number; natW: number; natH: number }[] = [];
 
@@ -178,8 +178,6 @@ export async function analyzeAutofit(
         if (isBody) {
           if (runStart === -1) runStart = col;
           runLen++;
-          centroidSumX += col / canvasW;
-          centroidCount++;
         } else {
           if (runLen > bestLen) {
             bestStart = runStart;
@@ -193,6 +191,9 @@ export async function analyzeAutofit(
       if (bestLen >= MIN_RUN_LENGTH) {
         const left = bestStart;
         const right = bestStart + bestLen - 1;
+        const runCenter = (left + right) / 2 / canvasW;
+        axisSumCenter += runCenter;
+        axisRowCount++;
         const eL = Math.max(0, left - expandPx) / canvasW;
         const eR = Math.min(canvasW - 1, right + expandPx) / canvasW;
         anchorPoints.push({ normX: eL, normY: row / canvasH, natW, natH });
@@ -204,10 +205,10 @@ export async function analyzeAutofit(
     canvas.remove();
   }
 
-  const bodyCenterNorm = centroidCount > 0 ? centroidSumX / centroidCount : 0.5;
+  const bodyCenterNorm = axisRowCount > 0 ? axisSumCenter / axisRowCount : 0.5;
 
   const natDims = clipMeta.map(c => `${c.natW}x${c.natH}`).join(',');
-  const debugInfo = `pixel ${natDims} clips=${clipMeta.length} centroid=${centroidCount} bodyCenter=${bodyCenterNorm.toFixed(4)}`;
+  const debugInfo = `pixel ${natDims} clips=${clipMeta.length} axisRows=${axisRowCount} bodyCenter=${bodyCenterNorm.toFixed(4)}`;
 
   if (anchorPoints.length === 0) {
     for (const v of clipVideoElements) v.remove();
