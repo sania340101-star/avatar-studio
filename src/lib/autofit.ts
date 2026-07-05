@@ -362,6 +362,75 @@ export async function analyzeAutofit(
   const resultScale = Math.floor(lo * 100) / 100;
   const resultOffsets = computeOffsets(resultScale);
 
+  // Phase 3: Single-frame clearance correction
+  // Render at final position, measure left/right gaps to circle edges, adjust
+  const vid0 = clipVideoElements[0];
+  if (vid0 && vid0.videoWidth && vid0.videoHeight) {
+    await seekVideo(vid0, 0);
+    vCtx.clearRect(0, 0, VW, VH);
+
+    const fElemW = preset.width * resultScale;
+    const fElemH = preset.height * resultScale;
+    const fCs = Math.max(fElemW / vid0.videoWidth, fElemH / vid0.videoHeight);
+    const fVidW = vid0.videoWidth * fCs;
+    const fVidH = vid0.videoHeight * fCs;
+    const fDx = (resultOffsets.offsetX + (fElemW - fVidW) / 2) * VF;
+    const fDy = (resultOffsets.offsetY + (fElemH - fVidH) / 2) * VF;
+
+    vCtx.drawImage(vid0, fDx, fDy, fVidW * VF, fVidH * VF);
+
+    const fPx = vCtx.getImageData(0, 0, VW, VH).data;
+
+    let totalLeftGap = 0;
+    let totalRightGap = 0;
+    let gapRows = 0;
+
+    for (let row = 0; row < VH; row++) {
+      // Find circle edge at this row (scaled by VF)
+      let circleLeft = VW;
+      let circleRight = 0;
+      for (const vc of verifyCircles) {
+        const dy = row - vc.cy * VF;
+        const rScaled = vc.r * VF;
+        if (Math.abs(dy) < rScaled) {
+          const dx = Math.sqrt(rScaled * rScaled - dy * dy);
+          const cl = vc.cx * VF - dx;
+          const cr = vc.cx * VF + dx;
+          if (cl < circleLeft) circleLeft = cl;
+          if (cr > circleRight) circleRight = cr;
+        }
+      }
+      if (circleRight <= circleLeft) continue;
+
+      // Find leftmost/rightmost body pixel in this row
+      const rowOff = row * VW * 4;
+      let bodyLeft = -1;
+      let bodyRight = -1;
+      for (let col = 0; col < VW; col++) {
+        const idx = rowOff + col * 4;
+        if (fPx[idx + 3] >= 200 && Math.max(fPx[idx], fPx[idx + 1], fPx[idx + 2]) > PIXEL_THRESHOLD) {
+          if (bodyLeft === -1) bodyLeft = col;
+          bodyRight = col;
+        }
+      }
+      if (bodyLeft === -1) continue;
+
+      const leftGap = bodyLeft - circleLeft;
+      const rightGap = circleRight - bodyRight;
+      totalLeftGap += leftGap;
+      totalRightGap += rightGap;
+      gapRows++;
+    }
+
+    if (gapRows > 0) {
+      const avgLeftGap = totalLeftGap / gapRows;
+      const avgRightGap = totalRightGap / gapRows;
+      const correction = Math.round((avgRightGap - avgLeftGap) / 2 / VF);
+      resultOffsets.offsetX += correction;
+      console.log('[autofit] clearance: leftGap=%.1f rightGap=%.1f correction=%dpx rows=%d', avgLeftGap / VF, avgRightGap / VF, correction, gapRows);
+    }
+  }
+
   console.log('[autofit] result: scale=%s ox=%d oy=%d faceCenter=%.4f', resultScale, resultOffsets.offsetX, resultOffsets.offsetY, bodyCenterNorm);
 
   vCanvas.remove();
