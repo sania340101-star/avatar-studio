@@ -938,89 +938,22 @@ function ExportEditorContent() {
             playKey={activeClipIdx}
           />
 
-          {/* Auto-fit + Undo */}
-          <div className="mt-2 space-y-2">
-            <div className="flex items-center gap-2">
-              {session.device !== 'solo' && (
-                <button
-                  onClick={runAutofit}
-                  disabled={autofitting || session.clips.length === 0}
-                  className="text-xs px-3 py-1.5 rounded-lg font-medium disabled:opacity-50 flex items-center gap-1.5"
-                  style={{ background: 'var(--bg-input)', color: 'var(--text2)', border: '1px solid var(--border)' }}
-                >
-                  {autofitting ? (
-                    <>
-                      <div className="w-3 h-3 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: 'var(--accent)', borderTopColor: 'transparent' }} />
-                      Analyzing...
-                    </>
-                  ) : (
-                    <>
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
-                        <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
-                      </svg>
-                      Auto-fit
-                    </>
-                  )}
-                </button>
-              )}
-              {historyLen > 0 && !autofitting && (
-                <button
-                  onClick={undoTransform}
-                  className="text-xs px-3 py-1.5 rounded-lg font-medium flex items-center gap-1.5"
-                  style={{ background: 'var(--bg-input)', color: 'var(--text2)', border: '1px solid var(--border)' }}
-                >
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
-                    <path d="M3 10h10a5 5 0 0 1 0 10H9" /><polyline points="7 14 3 10 7 6" />
-                  </svg>
-                  Undo
-                  {historyLen > 1 && <span className="opacity-60">({historyLen})</span>}
-                </button>
-              )}
+          {/* Undo */}
+          {historyLen > 0 && (
+            <div className="mt-2">
+              <button
+                onClick={undoTransform}
+                className="text-xs px-3 py-1.5 rounded-lg font-medium flex items-center gap-1.5"
+                style={{ background: 'var(--bg-input)', color: 'var(--text2)', border: '1px solid var(--border)' }}
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
+                  <path d="M3 10h10a5 5 0 0 1 0 10H9" /><polyline points="7 14 3 10 7 6" />
+                </svg>
+                Undo
+                {historyLen > 1 && <span className="opacity-60">({historyLen})</span>}
+              </button>
             </div>
-            {session.device !== 'solo' && (
-              <div className="flex items-center gap-3">
-                <label htmlFor="input-safety-padding" className="text-xs font-medium flex-shrink-0" style={{ color: 'var(--text3)' }}>
-                  Safety Padding
-                </label>
-                <input
-                  id="input-safety-padding"
-                  type="range"
-                  min={0}
-                  max={50}
-                  value={safetyPaddingPx}
-                  onChange={e => setSafetyPaddingPx(Number(e.target.value))}
-                  className="flex-1 h-1 rounded-full appearance-none cursor-pointer"
-                  style={{ accentColor: 'var(--accent)' }}
-                />
-                <span className="text-xs w-8 text-right flex-shrink-0 font-mono" style={{ color: 'var(--text3)' }}>
-                  {safetyPaddingPx}px
-                </span>
-              </div>
-            )}
-            {autofitProgress && (
-              <div className="space-y-1">
-                <div className="flex items-center gap-2">
-                  <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: 'var(--bg-input)' }}>
-                    <div
-                      className="h-full rounded-full transition-all duration-300"
-                      style={{ width: `${autofitProgress.percent}%`, background: 'var(--accent)' }}
-                    />
-                  </div>
-                  <span className="text-xs w-8 text-right flex-shrink-0" style={{ color: 'var(--text3)' }}>
-                    {autofitProgress.percent}%
-                  </span>
-                </div>
-                <p className="text-xs truncate" style={{ color: 'var(--text3)' }}>
-                  {autofitProgress.message}
-                </p>
-              </div>
-            )}
-            {autofitError && !autofitting && (
-              <p className="text-xs px-2 py-1 rounded" style={{ color: 'var(--red, #ef4444)', background: 'rgba(239,68,68,0.08)' }}>
-                {autofitError}
-              </p>
-            )}
-          </div>
+          )}
         </div>
       )}
 
