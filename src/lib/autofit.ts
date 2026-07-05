@@ -71,7 +71,8 @@ export async function analyzeAutofit(
 
   const uniqueUrls = [...new Set(clipUrls)];
   const anchorPoints: CollectedPoint[] = [];
-  const rowScan: { center: number; width: number }[] = [];
+  let centroidSumX = 0;
+  let centroidCount = 0;
 
   const clipMeta: { url: string; duration: number; natW: number; natH: number }[] = [];
 
@@ -177,6 +178,8 @@ export async function analyzeAutofit(
         if (isBody) {
           if (runStart === -1) runStart = col;
           runLen++;
+          centroidSumX += col / canvasW;
+          centroidCount++;
         } else {
           if (runLen > bestLen) {
             bestStart = runStart;
@@ -190,7 +193,6 @@ export async function analyzeAutofit(
       if (bestLen >= MIN_RUN_LENGTH) {
         const left = bestStart;
         const right = bestStart + bestLen - 1;
-        rowScan.push({ center: (left + right) / 2 / canvasW, width: bestLen });
         const eL = Math.max(0, left - expandPx) / canvasW;
         const eR = Math.min(canvasW - 1, right + expandPx) / canvasW;
         anchorPoints.push({ normX: eL, normY: row / canvasH, natW, natH });
@@ -202,16 +204,10 @@ export async function analyzeAutofit(
     canvas.remove();
   }
 
-  let bodyCenterNorm = 0.5;
-  if (rowScan.length > 0) {
-    const sorted = [...rowScan].sort((a, b) => b.width - a.width);
-    const topCount = Math.max(10, Math.ceil(sorted.length * 0.1));
-    const topRows = sorted.slice(0, topCount);
-    bodyCenterNorm = topRows.reduce((s, r) => s + r.center, 0) / topRows.length;
-  }
+  const bodyCenterNorm = centroidCount > 0 ? centroidSumX / centroidCount : 0.5;
 
   const natDims = clipMeta.map(c => `${c.natW}x${c.natH}`).join(',');
-  const debugInfo = `pixel ${natDims} clips=${clipMeta.length} rows=${rowScan.length} bodyCenter=${bodyCenterNorm.toFixed(4)}`;
+  const debugInfo = `pixel ${natDims} clips=${clipMeta.length} centroid=${centroidCount} bodyCenter=${bodyCenterNorm.toFixed(4)}`;
 
   if (anchorPoints.length === 0) {
     for (const v of clipVideoElements) v.remove();
