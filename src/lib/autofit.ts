@@ -63,7 +63,22 @@ export async function analyzeAutofit(
       ...p,
     });
 
-  prog({ stage: 'loading', message: 'Preparing video analysis...' });
+  prog({ stage: 'loading', message: 'Loading face detection model...' });
+
+  // Load MediaPipe FaceLandmarker (CPU, lightweight)
+  const { FaceLandmarker, FilesetResolver } = await import('@mediapipe/tasks-vision');
+  const vision = await FilesetResolver.forVisionTasks(
+    'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.35/wasm',
+  );
+  const faceLandmarker = await FaceLandmarker.createFromOptions(vision, {
+    baseOptions: {
+      modelAssetPath:
+        'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/latest/face_landmarker.task',
+      delegate: 'CPU',
+    },
+    runningMode: 'IMAGE',
+    numFaces: 1,
+  });
 
   const PIXEL_THRESHOLD = 10;
   const SCAN_ROW_STEP = 1;
@@ -71,9 +86,7 @@ export async function analyzeAutofit(
 
   const uniqueUrls = [...new Set(clipUrls)];
   const anchorPoints: CollectedPoint[] = [];
-  const rowScan: { center: number; width: number }[] = [];
 
-  // Pre-scan for metadata
   const clipMeta: { url: string; duration: number; natW: number; natH: number }[] = [];
 
   for (const url of uniqueUrls) {
@@ -101,13 +114,16 @@ export async function analyzeAutofit(
   }
 
   if (clipMeta.length === 0) {
+    faceLandmarker.close();
     return { scale: 0, offsetX: 0, offsetY: 0, debug: `no_clips urls=${uniqueUrls.length}` };
   }
 
   const clipVideoElements: HTMLVideoElement[] = [];
   const clipVerifyTimes: number[][] = [];
 
-  // Phase 1: Scan ONLY first frame of each clip for anchor positioning
+  // Phase 1: Face detection (MediaPipe) + pixel scan on first frame
+  let faceCenterNorm = -1;
+
   for (let ci = 0; ci < clipMeta.length; ci++) {
     const { url, duration, natW, natH } = clipMeta[ci];
 
@@ -133,7 +149,6 @@ export async function analyzeAutofit(
       continue;
     }
 
-    // Compute verification sample times
     const sampleTimes: number[] = [];
     const count = Math.max(1, Math.ceil(duration / sampleIntervalSec));
     for (let i = 0; i < count; i++) {
@@ -147,7 +162,6 @@ export async function analyzeAutofit(
     const vStep = Math.max(1, Math.floor(sampleTimes.length / VERIFY_MAX));
     clipVerifyTimes.push(sampleTimes.filter((_, i) => i % vStep === 0).slice(0, VERIFY_MAX));
 
-    // Scan first frame only — for anchor positioning (head top + horizontal center)
     const SCAN_MAX = 480;
     const scanScale = Math.min(1, SCAN_MAX / Math.min(natW, natH));
     const canvasW = Math.round(natW * scanScale);
@@ -161,6 +175,21 @@ export async function analyzeAutofit(
     await seekVideo(video, 0);
     ctx.drawImage(video, 0, 0, canvasW, canvasH);
 
+    // Face detection on first clip's first frame
+    if (ci === 0) {
+      const faceResult = faceLandmarker.detect(canvas);
+      if (faceResult.faceLandmarks && faceResult.faceLandmarks.length > 0) {
+        const landmarks = faceResult.faceLandmarks[0];
+        // Nose tip (landmark 1) is the most reliable center point
+        const noseTip = landmarks[1];
+        if (noseTip) {
+          faceCenterNorm = noseTip.x;
+          console.log('[autofit] face detected: nose=%.4f', faceCenterNorm);
+        }
+      }
+    }
+
+    // Pixel scan for body boundaries (head top, left/right edges)
     const imageData = ctx.getImageData(0, 0, canvasW, canvasH);
     const pixels = imageData.data;
 
@@ -193,7 +222,6 @@ export async function analyzeAutofit(
       if (bestLen >= MIN_RUN_LENGTH) {
         const left = bestStart;
         const right = bestStart + bestLen - 1;
-        rowScan.push({ center: (left + right) / 2 / canvasW, width: bestLen });
         const eL = Math.max(0, left - expandPx) / canvasW;
         const eR = Math.min(canvasW - 1, right + expandPx) / canvasW;
         anchorPoints.push({ normX: eL, normY: row / canvasH, natW, natH });
@@ -205,30 +233,23 @@ export async function analyzeAutofit(
     canvas.remove();
   }
 
-  let bodyCenterNorm = 0.5;
-  if (rowScan.length > 0) {
-    // Use the widest rows (shoulders) — most symmetric, closest to body midline
-    const sorted = [...rowScan].sort((a, b) => b.width - a.width);
-    const topCount = Math.max(10, Math.ceil(sorted.length * 0.1));
-    const topRows = sorted.slice(0, topCount);
-    bodyCenterNorm = topRows.reduce((s, r) => s + r.center, 0) / topRows.length;
+  faceLandmarker.close();
+
+  // Use face center if detected, fall back to pixel-mass center
+  let bodyCenterNorm: number;
+  if (faceCenterNorm > 0) {
+    bodyCenterNorm = faceCenterNorm;
+  } else {
+    bodyCenterNorm = 0.5;
+    console.warn('[autofit] face not detected, using 0.5');
   }
 
   const natDims = clipMeta.map(c => `${c.natW}x${c.natH}`).join(',');
-  const debugInfo = `pixel ${natDims} clips=${clipMeta.length} rows=${rowScan.length} bodyCenter=${bodyCenterNorm.toFixed(4)}`;
+  const debugInfo = `face ${natDims} clips=${clipMeta.length} faceCenter=${bodyCenterNorm.toFixed(4)}`;
 
   if (anchorPoints.length === 0) {
     for (const v of clipVideoElements) v.remove();
     return { scale: 0, offsetX: 0, offsetY: 0, debug: debugInfo };
-  }
-
-  // Compute anchor bounding box
-  let minNX = Infinity, maxNX = -Infinity, minNY = Infinity, maxNY = -Infinity;
-  for (const p of anchorPoints) {
-    if (p.normX < minNX) minNX = p.normX;
-    if (p.normX > maxNX) maxNX = p.normX;
-    if (p.normY < minNY) minNY = p.normY;
-    if (p.normY > maxNY) maxNY = p.normY;
   }
 
   const maskCx = mask.circles.reduce((s, c) => s + c.cx, 0) / mask.circles.length;
@@ -263,9 +284,7 @@ export async function analyzeAutofit(
     };
   }
 
-  // Phase 2: Pixel-perfect mask binary search
-  // Render video at computed position, erase pixels inside circles,
-  // check if any body pixel remains — binary search for max scale
+  // Phase 2: Pixel-perfect mask binary search for max scale
   if (clipVideoElements.length === 0) {
     return { scale: 0, offsetX: 0, offsetY: 0, debug: debugInfo };
   }
@@ -282,10 +301,6 @@ export async function analyzeAutofit(
 
   async function maskFitsAtScale(scale: number, iteration: number, maxIter: number): Promise<boolean> {
     const { offsetX: ox, offsetY: oy } = computeOffsets(scale);
-    return maskFitsAt(scale, ox, oy, iteration, maxIter);
-  }
-
-  async function maskFitsAt(scale: number, ox: number, oy: number, iteration: number, maxIter: number): Promise<boolean> {
     let checkedFrames = 0;
 
     for (let ci = 0; ci < clipVideoElements.length; ci++) {
@@ -347,43 +362,7 @@ export async function analyzeAutofit(
   const resultScale = Math.floor(lo * 100) / 100;
   const resultOffsets = computeOffsets(resultScale);
 
-  // Phase 3: Equal-clearance centering via binary search
-  // Find leftmost and rightmost valid offsetX (body fits in circles), take midpoint
-  const baseOY = resultOffsets.offsetY;
-  const SEARCH_RANGE = 200;
-  const CLEARANCE_ITER = 8;
-
-  let leftOX = resultOffsets.offsetX - SEARCH_RANGE;
-  let rightOX = resultOffsets.offsetX + SEARCH_RANGE;
-
-  // Binary search for leftmost valid offsetX
-  let lLo = leftOX, lHi = resultOffsets.offsetX;
-  for (let i = 0; i < CLEARANCE_ITER; i++) {
-    const mid = Math.round((lLo + lHi) / 2);
-    if (await maskFitsAt(resultScale, mid, baseOY, ITERATIONS + i, ITERATIONS + CLEARANCE_ITER * 2)) {
-      lHi = mid;
-    } else {
-      lLo = mid;
-    }
-  }
-  const minValidOX = lHi;
-
-  // Binary search for rightmost valid offsetX
-  let rLo = resultOffsets.offsetX, rHi = rightOX;
-  for (let i = 0; i < CLEARANCE_ITER; i++) {
-    const mid = Math.round((rLo + rHi) / 2);
-    if (await maskFitsAt(resultScale, mid, baseOY, ITERATIONS + CLEARANCE_ITER + i, ITERATIONS + CLEARANCE_ITER * 2)) {
-      rLo = mid;
-    } else {
-      rHi = mid;
-    }
-  }
-  const maxValidOX = rLo;
-
-  resultOffsets.offsetX = Math.round((minValidOX + maxValidOX) / 2);
-  console.log('[autofit] clearance: minOX=%d maxOX=%d mid=%d range=%dpx', minValidOX, maxValidOX, resultOffsets.offsetX, maxValidOX - minValidOX);
-
-  console.log('[autofit] result: scale=%s lo=%s hi=%s ox=%s bodyCenter=%s', resultScale, lo.toFixed(4), hi.toFixed(4), resultOffsets.offsetX, bodyCenterNorm.toFixed(4));
+  console.log('[autofit] result: scale=%s ox=%d oy=%d faceCenter=%.4f', resultScale, resultOffsets.offsetX, resultOffsets.offsetY, bodyCenterNorm);
 
   vCanvas.remove();
   for (const v of clipVideoElements) v.remove();
