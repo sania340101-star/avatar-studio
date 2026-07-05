@@ -282,6 +282,10 @@ export async function analyzeAutofit(
 
   async function maskFitsAtScale(scale: number, iteration: number, maxIter: number): Promise<boolean> {
     const { offsetX: ox, offsetY: oy } = computeOffsets(scale);
+    return maskFitsAt(scale, ox, oy, iteration, maxIter);
+  }
+
+  async function maskFitsAt(scale: number, ox: number, oy: number, iteration: number, maxIter: number): Promise<boolean> {
     let checkedFrames = 0;
 
     for (let ci = 0; ci < clipVideoElements.length; ci++) {
@@ -343,47 +347,41 @@ export async function analyzeAutofit(
   const resultScale = Math.floor(lo * 100) / 100;
   const resultOffsets = computeOffsets(resultScale);
 
-  // Phase 3: Percentile-bounds centering on rendered canvas
-  // Uses 5th/95th percentile of body pixel columns to find structural center
-  // (trims hair/shoe extremes, focuses on shoulder-to-shoulder range)
-  const vid0 = clipVideoElements[0];
-  if (vid0 && vid0.videoWidth && vid0.videoHeight) {
-    await seekVideo(vid0, 0);
-    const fElemW = preset.width * resultScale;
-    const fElemH = preset.height * resultScale;
-    const fCs = Math.max(fElemW / vid0.videoWidth, fElemH / vid0.videoHeight);
-    const fVidW = vid0.videoWidth * fCs;
-    const fVidH = vid0.videoHeight * fCs;
-    const fDx = (resultOffsets.offsetX + (fElemW - fVidW) / 2) * VF;
-    const fDy = (resultOffsets.offsetY + (fElemH - fVidH) / 2) * VF;
+  // Phase 3: Equal-clearance centering via binary search
+  // Find leftmost and rightmost valid offsetX (body fits in circles), take midpoint
+  const baseOY = resultOffsets.offsetY;
+  const SEARCH_RANGE = 200;
+  const CLEARANCE_ITER = 8;
 
-    vCtx.clearRect(0, 0, VW, VH);
-    vCtx.drawImage(vid0, fDx, fDy, fVidW * VF, fVidH * VF);
+  let leftOX = resultOffsets.offsetX - SEARCH_RANGE;
+  let rightOX = resultOffsets.offsetX + SEARCH_RANGE;
 
-    const fPx = vCtx.getImageData(0, 0, VW, VH).data;
-    const colCounts = new Int32Array(VW);
-    for (let i = 0; i < fPx.length; i += 4) {
-      if (fPx[i + 3] >= 200 && Math.max(fPx[i], fPx[i + 1], fPx[i + 2]) > PIXEL_THRESHOLD) {
-        colCounts[(i / 4) % VW]++;
-      }
-    }
-    let totalPx = 0;
-    for (let c = 0; c < VW; c++) totalPx += colCounts[c];
-    if (totalPx > 100) {
-      const p5 = totalPx * 0.05;
-      const p95 = totalPx * 0.95;
-      let cum = 0;
-      let leftBound = 0, rightBound = VW - 1;
-      for (let c = 0; c < VW; c++) {
-        cum += colCounts[c];
-        if (leftBound === 0 && cum >= p5) leftBound = c;
-        if (cum >= p95) { rightBound = c; break; }
-      }
-      const bodyCenter = (leftBound + rightBound) / 2;
-      const correction = (maskCx * VF - bodyCenter) / VF;
-      resultOffsets.offsetX += Math.round(correction);
+  // Binary search for leftmost valid offsetX
+  let lLo = leftOX, lHi = resultOffsets.offsetX;
+  for (let i = 0; i < CLEARANCE_ITER; i++) {
+    const mid = Math.round((lLo + lHi) / 2);
+    if (await maskFitsAt(resultScale, mid, baseOY, ITERATIONS + i, ITERATIONS + CLEARANCE_ITER * 2)) {
+      lHi = mid;
+    } else {
+      lLo = mid;
     }
   }
+  const minValidOX = lHi;
+
+  // Binary search for rightmost valid offsetX
+  let rLo = resultOffsets.offsetX, rHi = rightOX;
+  for (let i = 0; i < CLEARANCE_ITER; i++) {
+    const mid = Math.round((rLo + rHi) / 2);
+    if (await maskFitsAt(resultScale, mid, baseOY, ITERATIONS + CLEARANCE_ITER + i, ITERATIONS + CLEARANCE_ITER * 2)) {
+      rLo = mid;
+    } else {
+      rHi = mid;
+    }
+  }
+  const maxValidOX = rLo;
+
+  resultOffsets.offsetX = Math.round((minValidOX + maxValidOX) / 2);
+  console.log('[autofit] clearance: minOX=%d maxOX=%d mid=%d range=%dpx', minValidOX, maxValidOX, resultOffsets.offsetX, maxValidOX - minValidOX);
 
   console.log('[autofit] result: scale=%s lo=%s hi=%s ox=%s bodyCenter=%s', resultScale, lo.toFixed(4), hi.toFixed(4), resultOffsets.offsetX, bodyCenterNorm.toFixed(4));
 
