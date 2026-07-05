@@ -71,7 +71,7 @@ export async function analyzeAutofit(
 
   const uniqueUrls = [...new Set(clipUrls)];
   const anchorPoints: CollectedPoint[] = [];
-  const rowScan: { center: number; width: number }[] = [];
+  const rowScan: { center: number; width: number; leftNorm: number; rightNorm: number; rowNorm: number }[] = [];
 
   const clipMeta: { url: string; duration: number; natW: number; natH: number }[] = [];
 
@@ -190,7 +190,11 @@ export async function analyzeAutofit(
       if (bestLen >= MIN_RUN_LENGTH) {
         const left = bestStart;
         const right = bestStart + bestLen - 1;
-        rowScan.push({ center: (left + right) / 2 / canvasW, width: bestLen });
+        rowScan.push({
+          center: (left + right) / 2 / canvasW, width: bestLen,
+          leftNorm: left / canvasW, rightNorm: right / canvasW,
+          rowNorm: row / canvasH,
+        });
         const eL = Math.max(0, left - expandPx) / canvasW;
         const eR = Math.min(canvasW - 1, right + expandPx) / canvasW;
         anchorPoints.push({ normX: eL, normY: row / canvasH, natW, natH });
@@ -328,66 +332,52 @@ export async function analyzeAutofit(
   const resultScale = Math.floor(lo * 100) / 100;
   const resultOffsets = computeOffsets(resultScale);
 
-  // Phase 3: Clearance correction on widest body rows
-  // Render final frame, measure left/right gaps only on widest rows (shoulder/hip area)
-  const vid0 = clipVideoElements[0];
-  if (vid0 && vid0.videoWidth && vid0.videoHeight) {
-    await seekVideo(vid0, 0.01);
-    vCtx.clearRect(0, 0, VW, VH);
-
+  // Phase 3: Geometric clearance correction (no canvas rendering)
+  // Compute body edges vs circle edges in preset coordinates for widest rows
+  if (rowScan.length > 0) {
+    const refP = anchorPoints[0];
     const fElemW = preset.width * resultScale;
     const fElemH = preset.height * resultScale;
-    const fCs = Math.max(fElemW / vid0.videoWidth, fElemH / vid0.videoHeight);
-    const fVidW = vid0.videoWidth * fCs;
-    const fVidH = vid0.videoHeight * fCs;
-    const fDx = (resultOffsets.offsetX + (fElemW - fVidW) / 2) * VF;
-    const fDy = (resultOffsets.offsetY + (fElemH - fVidH) / 2) * VF;
+    const fCs = Math.max(fElemW / refP.natW, fElemH / refP.natH);
+    const fVidW = refP.natW * fCs;
+    const fVidH = refP.natH * fCs;
+    const ox = resultOffsets.offsetX;
+    const oy = resultOffsets.offsetY;
 
-    vCtx.drawImage(vid0, fDx, fDy, fVidW * VF, fVidH * VF);
+    const gapData: { bodyWidth: number; leftGap: number; rightGap: number }[] = [];
 
-    const fPx = vCtx.getImageData(0, 0, VW, VH).data;
+    for (const row of rowScan) {
+      // Body edges in preset coordinates
+      const bodyLeft = ox + (fElemW - fVidW) / 2 + row.leftNorm * fVidW;
+      const bodyRight = ox + (fElemW - fVidW) / 2 + row.rightNorm * fVidW;
 
-    // Collect per-row body width and gaps
-    const rowData: { bodyWidth: number; leftGap: number; rightGap: number }[] = [];
+      // Row Y in preset coordinates
+      const rowY = oy + (fElemH - fVidH) / 2 + row.rowNorm * fVidH;
 
-    for (let row = 0; row < VH; row++) {
-      let circleLeft = VW;
+      // Find circle edges at this Y
+      let circleLeft = preset.width;
       let circleRight = 0;
       for (const vc of verifyCircles) {
-        const dy = row - vc.cy * VF;
-        const rScaled = vc.r * VF;
-        if (Math.abs(dy) < rScaled) {
-          const dx = Math.sqrt(rScaled * rScaled - dy * dy);
-          const cl = vc.cx * VF - dx;
-          const cr = vc.cx * VF + dx;
+        const dy = rowY - vc.cy;
+        if (Math.abs(dy) < vc.r) {
+          const dx = Math.sqrt(vc.r * vc.r - dy * dy);
+          const cl = vc.cx - dx;
+          const cr = vc.cx + dx;
           if (cl < circleLeft) circleLeft = cl;
           if (cr > circleRight) circleRight = cr;
         }
       }
       if (circleRight <= circleLeft) continue;
 
-      const rowOff = row * VW * 4;
-      let bodyLeft = -1;
-      let bodyRight = -1;
-      for (let col = 0; col < VW; col++) {
-        const idx = rowOff + col * 4;
-        if (fPx[idx + 3] >= 200 && Math.max(fPx[idx], fPx[idx + 1], fPx[idx + 2]) > PIXEL_THRESHOLD) {
-          if (bodyLeft === -1) bodyLeft = col;
-          bodyRight = col;
-        }
-      }
-      if (bodyLeft === -1) continue;
-
-      rowData.push({
+      gapData.push({
         bodyWidth: bodyRight - bodyLeft,
         leftGap: bodyLeft - circleLeft,
         rightGap: circleRight - bodyRight,
       });
     }
 
-    if (rowData.length > 0) {
-      // Use only widest 20% of rows (shoulder/hip area) for correction
-      const sorted = [...rowData].sort((a, b) => b.bodyWidth - a.bodyWidth);
+    if (gapData.length > 0) {
+      const sorted = [...gapData].sort((a, b) => b.bodyWidth - a.bodyWidth);
       const topN = Math.max(10, Math.ceil(sorted.length * 0.2));
       const wideRows = sorted.slice(0, topN);
 
@@ -399,10 +389,10 @@ export async function analyzeAutofit(
       }
       const avgLeft = sumLeft / wideRows.length;
       const avgRight = sumRight / wideRows.length;
-      const correction = Math.round((avgRight - avgLeft) / 2 / VF);
+      const correction = Math.round((avgRight - avgLeft) / 2);
       resultOffsets.offsetX += correction;
       console.log('[autofit] clearance: leftGap=%.1f rightGap=%.1f correction=%dpx wideRows=%d/%d',
-        avgLeft / VF, avgRight / VF, correction, wideRows.length, rowData.length);
+        avgLeft, avgRight, correction, wideRows.length, gapData.length);
     }
   }
 
