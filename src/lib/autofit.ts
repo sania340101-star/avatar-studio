@@ -63,22 +63,7 @@ export async function analyzeAutofit(
       ...p,
     });
 
-  prog({ stage: 'loading', message: 'Loading face detection model...' });
-
-  // Load MediaPipe FaceLandmarker (CPU, lightweight)
-  const { FaceLandmarker, FilesetResolver } = await import('@mediapipe/tasks-vision');
-  const vision = await FilesetResolver.forVisionTasks(
-    'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.35/wasm',
-  );
-  const faceLandmarker = await FaceLandmarker.createFromOptions(vision, {
-    baseOptions: {
-      modelAssetPath:
-        'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/latest/face_landmarker.task',
-      delegate: 'CPU',
-    },
-    runningMode: 'IMAGE',
-    numFaces: 1,
-  });
+  prog({ stage: 'loading', message: 'Preparing video analysis...' });
 
   const PIXEL_THRESHOLD = 10;
   const SCAN_ROW_STEP = 1;
@@ -86,6 +71,7 @@ export async function analyzeAutofit(
 
   const uniqueUrls = [...new Set(clipUrls)];
   const anchorPoints: CollectedPoint[] = [];
+  const rowScan: { center: number; width: number }[] = [];
 
   const clipMeta: { url: string; duration: number; natW: number; natH: number }[] = [];
 
@@ -114,16 +100,13 @@ export async function analyzeAutofit(
   }
 
   if (clipMeta.length === 0) {
-    faceLandmarker.close();
     return { scale: 0, offsetX: 0, offsetY: 0, debug: `no_clips urls=${uniqueUrls.length}` };
   }
 
   const clipVideoElements: HTMLVideoElement[] = [];
   const clipVerifyTimes: number[][] = [];
 
-  // Phase 1: Face detection (MediaPipe) + pixel scan on first frame
-  let faceCenterNorm = -1;
-
+  // Phase 1: Pixel scan on first frame for body center + boundaries
   for (let ci = 0; ci < clipMeta.length; ci++) {
     const { url, duration, natW, natH } = clipMeta[ci];
 
@@ -172,28 +155,9 @@ export async function analyzeAutofit(
     canvas.height = canvasH;
     const ctx = canvas.getContext('2d')!;
 
-    // Force seek to 0.01 to guarantee frame decode on mobile
     await seekVideo(video, 0.01);
     ctx.drawImage(video, 0, 0, canvasW, canvasH);
 
-    // Face detection on first clip's first frame
-    if (ci === 0) {
-      try {
-        const faceResult = faceLandmarker.detect(canvas);
-        if (faceResult.faceLandmarks && faceResult.faceLandmarks.length > 0) {
-          const landmarks = faceResult.faceLandmarks[0];
-          const noseTip = landmarks[1];
-          if (noseTip) {
-            faceCenterNorm = noseTip.x;
-            console.log('[autofit] face detected: nose=%.4f', faceCenterNorm);
-          }
-        }
-      } catch (e) {
-        console.warn('[autofit] face detection failed:', e);
-      }
-    }
-
-    // Pixel scan for body boundaries (head top, left/right edges)
     const imageData = ctx.getImageData(0, 0, canvasW, canvasH);
     const pixels = imageData.data;
 
@@ -226,6 +190,7 @@ export async function analyzeAutofit(
       if (bestLen >= MIN_RUN_LENGTH) {
         const left = bestStart;
         const right = bestStart + bestLen - 1;
+        rowScan.push({ center: (left + right) / 2 / canvasW, width: bestLen });
         const eL = Math.max(0, left - expandPx) / canvasW;
         const eR = Math.min(canvasW - 1, right + expandPx) / canvasW;
         anchorPoints.push({ normX: eL, normY: row / canvasH, natW, natH });
@@ -237,19 +202,16 @@ export async function analyzeAutofit(
     canvas.remove();
   }
 
-  faceLandmarker.close();
-
-  // Use face center if detected, fall back to pixel-mass center
-  let bodyCenterNorm: number;
-  if (faceCenterNorm > 0) {
-    bodyCenterNorm = faceCenterNorm;
-  } else {
-    bodyCenterNorm = 0.5;
-    console.warn('[autofit] face not detected, using 0.5');
+  let bodyCenterNorm = 0.5;
+  if (rowScan.length > 0) {
+    const sorted = [...rowScan].sort((a, b) => b.width - a.width);
+    const topCount = Math.max(10, Math.ceil(sorted.length * 0.1));
+    const topRows = sorted.slice(0, topCount);
+    bodyCenterNorm = topRows.reduce((s, r) => s + r.center, 0) / topRows.length;
   }
 
   const natDims = clipMeta.map(c => `${c.natW}x${c.natH}`).join(',');
-  const debugInfo = `face ${natDims} clips=${clipMeta.length} faceCenter=${bodyCenterNorm.toFixed(4)}`;
+  const debugInfo = `pixel ${natDims} clips=${clipMeta.length} rows=${rowScan.length} bodyCenter=${bodyCenterNorm.toFixed(4)}`;
 
   if (anchorPoints.length === 0) {
     for (const v of clipVideoElements) v.remove();
@@ -366,11 +328,11 @@ export async function analyzeAutofit(
   const resultScale = Math.floor(lo * 100) / 100;
   const resultOffsets = computeOffsets(resultScale);
 
-  // Phase 3: Single-frame clearance correction
-  // Render at final position, measure left/right gaps to circle edges, adjust
+  // Phase 3: Clearance correction on widest body rows
+  // Render final frame, measure left/right gaps only on widest rows (shoulder/hip area)
   const vid0 = clipVideoElements[0];
   if (vid0 && vid0.videoWidth && vid0.videoHeight) {
-    await seekVideo(vid0, 0);
+    await seekVideo(vid0, 0.01);
     vCtx.clearRect(0, 0, VW, VH);
 
     const fElemW = preset.width * resultScale;
@@ -385,12 +347,10 @@ export async function analyzeAutofit(
 
     const fPx = vCtx.getImageData(0, 0, VW, VH).data;
 
-    let totalLeftGap = 0;
-    let totalRightGap = 0;
-    let gapRows = 0;
+    // Collect per-row body width and gaps
+    const rowData: { bodyWidth: number; leftGap: number; rightGap: number }[] = [];
 
     for (let row = 0; row < VH; row++) {
-      // Find circle edge at this row (scaled by VF)
       let circleLeft = VW;
       let circleRight = 0;
       for (const vc of verifyCircles) {
@@ -406,7 +366,6 @@ export async function analyzeAutofit(
       }
       if (circleRight <= circleLeft) continue;
 
-      // Find leftmost/rightmost body pixel in this row
       const rowOff = row * VW * 4;
       let bodyLeft = -1;
       let bodyRight = -1;
@@ -419,23 +378,35 @@ export async function analyzeAutofit(
       }
       if (bodyLeft === -1) continue;
 
-      const leftGap = bodyLeft - circleLeft;
-      const rightGap = circleRight - bodyRight;
-      totalLeftGap += leftGap;
-      totalRightGap += rightGap;
-      gapRows++;
+      rowData.push({
+        bodyWidth: bodyRight - bodyLeft,
+        leftGap: bodyLeft - circleLeft,
+        rightGap: circleRight - bodyRight,
+      });
     }
 
-    if (gapRows > 0) {
-      const avgLeftGap = totalLeftGap / gapRows;
-      const avgRightGap = totalRightGap / gapRows;
-      const correction = Math.round((avgRightGap - avgLeftGap) / 2 / VF);
+    if (rowData.length > 0) {
+      // Use only widest 20% of rows (shoulder/hip area) for correction
+      const sorted = [...rowData].sort((a, b) => b.bodyWidth - a.bodyWidth);
+      const topN = Math.max(10, Math.ceil(sorted.length * 0.2));
+      const wideRows = sorted.slice(0, topN);
+
+      let sumLeft = 0;
+      let sumRight = 0;
+      for (const r of wideRows) {
+        sumLeft += r.leftGap;
+        sumRight += r.rightGap;
+      }
+      const avgLeft = sumLeft / wideRows.length;
+      const avgRight = sumRight / wideRows.length;
+      const correction = Math.round((avgRight - avgLeft) / 2 / VF);
       resultOffsets.offsetX += correction;
-      console.log('[autofit] clearance: leftGap=%.1f rightGap=%.1f correction=%dpx rows=%d', avgLeftGap / VF, avgRightGap / VF, correction, gapRows);
+      console.log('[autofit] clearance: leftGap=%.1f rightGap=%.1f correction=%dpx wideRows=%d/%d',
+        avgLeft / VF, avgRight / VF, correction, wideRows.length, rowData.length);
     }
   }
 
-  console.log('[autofit] result: scale=%s ox=%d oy=%d faceCenter=%.4f', resultScale, resultOffsets.offsetX, resultOffsets.offsetY, bodyCenterNorm);
+  console.log('[autofit] result: scale=%s ox=%d oy=%d bodyCenter=%.4f', resultScale, resultOffsets.offsetX, resultOffsets.offsetY, bodyCenterNorm);
 
   vCanvas.remove();
   for (const v of clipVideoElements) v.remove();
