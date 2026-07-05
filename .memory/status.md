@@ -1,3 +1,40 @@
+## 2026-07-04: Autofit centering iterations (v1.11.0-v1.11.2) — PAUSED
+
+Tried 3 approaches to fix horizontal centering offset (~5-7px error):
+- v1.11.0: Full-frame body center (no Phase 3) — same result, X:-61 shifted left
+- v1.11.1: Phase 3 pixel-median refinement — agrees with Phase 1 (both ~0.504), no change
+- v1.11.2: Shoulder detection + percentile-bounds Phase 3 — same result again
+
+Root cause identified: ALL pixel-based methods find pixel-mass center at ~0.504, but human-perceived visual center is ~0.508. The ~0.4% difference = ~5px error. Pixel-mass includes asymmetric hair/clothing/arms pulling center away from face/spine midline.
+
+PLANNED FIX (not implemented): Equal clearance binary search — at found scale, binary search for leftmost/rightmost valid offsetX (body fits in circles), take midpoint. Bypasses body center detection entirely, directly optimizes equal distance from circle edges. Math proof: valid offsetX range ~90px wide at 112% scale, midpoint gives ~45px clearance per side.
+
+Status: Alex said "сохраняй, другая задача" — paused for higher-priority transcription bug.
+
+## 2026-07-03: Autofit algorithm rewrite (v1.10.89-v1.10.92)
+
+Complete rewrite of autofit algorithm:
+- Removed edge-detection-based binary search entirely (was missing arms/body)
+- Phase 1: Scan ONLY first frame per clip for anchor positioning (instant)
+- Phase 2: Pixel-perfect mask verification via destination-out compositing, binary search [0.5, 3.0] x 20 iterations
+- Progress fix (v1.10.92): "analyzing" shows 0% (instant), "verifying" goes 0→99% smoothly
+- ~260 lines total (was ~480)
+
+## 2026-07-03: Pixel-perfect mask verification (v1.10.89)
+
+Autofit Phase 3 — mask-based verification:
+- After edge-based binary search, adds pixel-perfect verification step
+- Renders video at computed scale/offset on canvas
+- Erases pixels inside circles via destination-out compositing
+- Checks if ANY body pixel (>threshold) remains outside circles
+- Binary search on scale (12 iterations) until zero outside pixels
+- Uses 12 sample frames per clip for verification
+- 3px safety from visual circle edge, alpha>=200 to ignore anti-aliasing
+- BUILTIN_SAFETY reduced to 10px (mask verification handles the rest)
+- Catches arm/body overflow that edge detection misses
+
+Root cause of prior arm overflow: edge detection could miss thin/motion-blurred arm pixels, allowing a too-large scale. Mask verification checks actual rendered pixels, not detected edges.
+
 ## 2026-07-03: Autofit rewrite + Upload fix + PWA (v1.10.60-v1.10.74)
 
 Autofit (v1.10.60-v1.10.71) — COMPLETE:
