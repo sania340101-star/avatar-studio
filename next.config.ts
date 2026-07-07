@@ -11,9 +11,6 @@ const nextConfig: NextConfig = {
   },
   env: {
     APP_VERSION: version,
-    JWT_SECRET: process.env.JWT_SECRET,
-    SSO_JWT_SECRET: process.env.SSO_JWT_SECRET,
-    INTERNAL_SERVICE_KEY: process.env.INTERNAL_SERVICE_KEY,
   },
 };
 
