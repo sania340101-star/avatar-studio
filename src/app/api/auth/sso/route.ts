@@ -84,7 +84,9 @@ export async function GET(request: NextRequest) {
   registerUser(userId, userName);
   audit({ event: 'sso_success', ip, userId, path: '/api/auth/sso' });
 
-  const redirectUrl = new URL('/generate', request.nextUrl.origin).toString();
+  const baseName = process.env.SITE_BASENAME;
+  const origin = baseName ? `https://${baseName}` : request.nextUrl.origin;
+  const redirectUrl = `${origin}/generate`;
 
   const response = NextResponse.redirect(redirectUrl);
   response.cookies.set('session', sessionToken, {
