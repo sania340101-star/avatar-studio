@@ -1,7 +1,7 @@
 async function getKey(): Promise<CryptoKey> {
-  const secret = process.env.JWT_SECRET ?? 'dev-secret-change-me';
-  if (secret === 'dev-secret-change-me') {
-    console.warn('[token] WARNING: Using default JWT_SECRET. Set JWT_SECRET env var in production.');
+  const secret = process.env.JWT_SECRET;
+  if (!secret) {
+    throw new Error('JWT_SECRET environment variable is required');
   }
   const enc = new TextEncoder();
   return crypto.subtle.importKey(
