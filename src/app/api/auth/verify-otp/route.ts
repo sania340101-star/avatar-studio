@@ -78,7 +78,7 @@ export async function POST(req: NextRequest) {
       secure: process.env.COOKIE_SECURE === 'true',
       sameSite: 'lax',
       path: '/',
-      maxAge: 86400,
+      maxAge: 604800,
     });
     res.cookies.set('user-info', JSON.stringify({
       userId,
@@ -92,7 +92,7 @@ export async function POST(req: NextRequest) {
       secure: process.env.COOKIE_SECURE === 'true',
       sameSite: 'lax',
       path: '/',
-      maxAge: 86400,
+      maxAge: 604800,
     });
     return res;
   } catch (e: unknown) {

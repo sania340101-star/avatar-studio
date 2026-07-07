@@ -93,7 +93,7 @@ export async function GET(request: NextRequest) {
     httpOnly: true,
     secure: process.env.COOKIE_SECURE === 'true',
     sameSite: 'lax',
-    maxAge: 86400,
+    maxAge: 604800,
     path: '/',
   });
   response.cookies.set('user-info', JSON.stringify({
@@ -106,7 +106,7 @@ export async function GET(request: NextRequest) {
     httpOnly: false,
     secure: process.env.COOKIE_SECURE === 'true',
     sameSite: 'lax',
-    maxAge: 86400,
+    maxAge: 604800,
     path: '/',
   });
   return response;

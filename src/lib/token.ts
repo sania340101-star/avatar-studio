@@ -22,7 +22,7 @@ function toBase64Url(buf: ArrayBuffer | Uint8Array): string {
 
 export async function signToken(
   payload: Record<string, unknown>,
-  ttlSeconds = 86400,
+  ttlSeconds = 604800,
 ): Promise<string> {
   const data = { ...payload, exp: Math.floor(Date.now() / 1000) + ttlSeconds };
   const enc = new TextEncoder();

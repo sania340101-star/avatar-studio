@@ -12,7 +12,7 @@ function getCookie(name: string): string | null {
 export function getSessionUser(): AppUser | null {
   if (typeof window === 'undefined') return null;
   try {
-    const raw = sessionStorage.getItem(SESSION_KEY);
+    const raw = localStorage.getItem(SESSION_KEY);
     if (raw) return JSON.parse(raw);
   } catch { /* fall through */ }
   try {
@@ -23,14 +23,14 @@ export function getSessionUser(): AppUser | null {
 }
 
 export function setSessionUser(user: AppUser): void {
-  sessionStorage.setItem(SESSION_KEY, JSON.stringify(user));
+  localStorage.setItem(SESSION_KEY, JSON.stringify(user));
   if (typeof document !== 'undefined') {
-    document.cookie = `${USER_INFO_COOKIE}=${encodeURIComponent(JSON.stringify(user))}; path=/; max-age=86400; samesite=lax`;
+    document.cookie = `${USER_INFO_COOKIE}=${encodeURIComponent(JSON.stringify(user))}; path=/; max-age=604800; samesite=lax`;
   }
 }
 
 export async function clearSession(): Promise<void> {
-  sessionStorage.removeItem(SESSION_KEY);
+  localStorage.removeItem(SESSION_KEY);
   try {
     await fetch('/api/auth/logout', { method: 'POST' });
   } catch { /* server may be unreachable, cookies cleared server-side anyway */ }
@@ -39,9 +39,9 @@ export async function clearSession(): Promise<void> {
 export async function initAuth(): Promise<AppUser | null> {
   if (typeof window === 'undefined') return null;
 
-  // 1. Check sessionStorage (but only trust if hasFalKey is true — otherwise re-verify)
+  // 1. Check localStorage (but only trust if hasFalKey is true — otherwise re-verify)
   try {
-    const raw = sessionStorage.getItem(SESSION_KEY);
+    const raw = localStorage.getItem(SESSION_KEY);
     if (raw) {
       const cached = JSON.parse(raw) as AppUser;
       if (cached.hasFalKey) return cached;
@@ -72,7 +72,7 @@ export async function initAuth(): Promise<AppUser | null> {
 
   // 4. Fall back to cookie if server unreachable
   if (cachedUser) {
-    sessionStorage.setItem(SESSION_KEY, JSON.stringify(cachedUser));
+    localStorage.setItem(SESSION_KEY, JSON.stringify(cachedUser));
     return cachedUser;
   }
 
