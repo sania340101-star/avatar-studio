@@ -23,7 +23,7 @@ export async function POST(req: NextRequest) {
           'Content-Type': 'application/json',
           'X-Service-Key': SERVICE_KEY,
         },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({ email, app_name: 'Avatar Studio' }),
       });
       const afData = await afRes.json();
       if (!afRes.ok) {
