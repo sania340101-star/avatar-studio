@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams } from 'next/navigation';
-import { DEVICE_PRESETS, DEVICE_MASKS } from '@/lib/models';
+import { DEVICE_PRESETS } from '@/lib/models';
 
 interface DisplayState {
   device: 'hh1x3' | 'solo';
@@ -143,8 +143,6 @@ export default function DisplayPage() {
   }, []);
 
   const preset = DEVICE_PRESETS[state.device];
-  const mask = DEVICE_MASKS[state.device];
-  const maskId = 'display-mask';
 
   if (!state.clipUrl) {
     return (
@@ -189,18 +187,9 @@ export default function DisplayPage() {
           viewBox={`0 0 ${preset.width} ${preset.height}`}
           style={{ maxWidth: '100vw', maxHeight: '100vh', width: 'auto', height: '100vh' }}
         >
-          <defs>
-            <clipPath id={maskId}>
-              {mask.circles.map((c, i) => (
-                <circle key={i} cx={c.cx} cy={c.cy} r={c.r} />
-              ))}
-            </clipPath>
-          </defs>
-
           <foreignObject
             x={0} y={0}
             width={preset.width} height={preset.height}
-            clipPath={`url(#${maskId})`}
           >
             <div style={{ width: preset.width, height: preset.height, overflow: 'hidden', position: 'relative' }}>
               <video
