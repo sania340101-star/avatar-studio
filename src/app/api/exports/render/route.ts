@@ -6,6 +6,8 @@ import { spawn, execSync } from 'child_process';
 import { writeFileSync, unlinkSync, existsSync } from 'fs';
 import { join } from 'path';
 
+const OUTPUT_FPS = 60;
+
 function resolveLocalPath(clipUrl: string): string | null {
   const match = clipUrl.match(/\/api\/files\/(.+)$/);
   if (!match) return null;
@@ -63,10 +65,9 @@ async function xfadeConcat(
     throw new Error('Need at least 2 clips for crossfade');
   }
 
-  const fps = probeFps(clipPaths[0]);
-  const blendSec = blendFrames / fps;
+  const blendSec = blendFrames / OUTPUT_FPS;
   const durations = clipPaths.map(p => probeDuration(p));
-  console.log(`[EXPORT] xfadeConcat: clips=${clipPaths.length} fps=${fps} blendSec=${blendSec.toFixed(4)} durations=[${durations.map(d => d.toFixed(4)).join(', ')}]`);
+  console.log(`[EXPORT] xfadeConcat: clips=${clipPaths.length} blendSec=${blendSec.toFixed(4)} durations=[${durations.map(d => d.toFixed(4)).join(', ')}]`);
 
   for (let i = 0; i < durations.length; i++) {
     if (durations[i] < blendSec * 2) {
@@ -100,6 +101,7 @@ async function xfadeConcat(
     ...inputs,
     '-filter_complex', filter,
     '-map', `[${lastLabel}]`,
+    '-r', String(OUTPUT_FPS),
     '-c:v', 'libx264',
     '-preset', 'fast',
     '-crf', String(crf),
@@ -116,10 +118,9 @@ async function seamlessLoop(
   transition: string,
   crf: number,
 ): Promise<void> {
-  const fps = probeFps(inputPath);
   const totalDuration = probeDuration(inputPath);
-  const blendSec = blendFrames / fps;
-  console.log(`[EXPORT] seamlessLoop: fps=${fps} duration=${totalDuration.toFixed(4)}s blendSec=${blendSec.toFixed(4)}s`);
+  const blendSec = blendFrames / OUTPUT_FPS;
+  console.log(`[EXPORT] seamlessLoop: duration=${totalDuration.toFixed(4)}s blendSec=${blendSec.toFixed(4)}s`);
 
   if (blendSec >= totalDuration * 0.5) {
     throw new Error('Blend too long for video duration');
@@ -140,6 +141,7 @@ async function seamlessLoop(
     '-i', inputPath,
     '-filter_complex', filter,
     '-map', '[out]',
+    '-r', String(OUTPUT_FPS),
     '-c:v', 'libx264',
     '-preset', 'fast',
     '-crf', String(crf),
@@ -213,10 +215,9 @@ async function processExport(sessionId: string, userId: string) {
       const inputPath = resolveLocalPath(clip.url);
       if (!inputPath) throw new Error(`Source file not found for clip 1: ${clip.url}`);
 
-      const fps = probeFps(inputPath);
       const totalDuration = probeDuration(inputPath);
-      const blendSec = blendFrames / fps;
-      console.log(`[EXPORT] single-clip: fps=${fps} duration=${totalDuration.toFixed(4)}s blendSec=${blendSec.toFixed(4)}s`);
+      const blendSec = blendFrames / OUTPUT_FPS;
+      console.log(`[EXPORT] single-clip: duration=${totalDuration.toFixed(4)}s blendSec=${blendSec.toFixed(4)}s`);
       if (blendSec >= totalDuration * 0.5) throw new Error('Blend too long for video duration');
 
       const tailStart = totalDuration - blendSec;
