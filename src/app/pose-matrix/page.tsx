@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { PoseMatrix, PoseMatrixPose, PoseMatrixClip, VideoModelOption } from '@/lib/types';
 import { VIDEO_MODEL_OPTIONS } from '@/lib/models';
+import AppShell from '@/components/AppShell';
 import ImagePicker from '@/components/ImagePicker';
 
 interface BatchJob {
@@ -201,6 +202,7 @@ export default function PoseMatrixPage() {
 
   if (!active) {
     return (
+      <AppShell>
       <div className="max-w-3xl mx-auto">
         <div className="flex items-center justify-between mb-6">
           <div>
@@ -230,10 +232,12 @@ export default function PoseMatrixPage() {
           ))}
         </div>
       </div>
+      </AppShell>
     );
   }
 
   return (
+    <AppShell>
     <div className="max-w-4xl mx-auto">
       <div className="flex items-center gap-3 mb-6">
         <button onClick={() => { setActive(null); setBatchId(null); setBatchJobs([]); }} className="text-sm" style={{ color: 'var(--text3)' }}>← Back</button>
@@ -522,5 +526,6 @@ export default function PoseMatrixPage() {
         </div>
       )}
     </div>
+    </AppShell>
   );
 }
