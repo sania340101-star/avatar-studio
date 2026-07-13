@@ -37,6 +37,15 @@ const GLOBAL_NAV = [
     ),
   },
   {
+    label: 'Pose Matrix',
+    href: '/pose-matrix',
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5" aria-hidden="true">
+        <circle cx="6" cy="6" r="2" /><circle cx="18" cy="6" r="2" /><circle cx="6" cy="18" r="2" /><circle cx="18" cy="18" r="2" /><path d="M8 6h8" /><path d="M8 18h8" /><path d="M6 8v8" /><path d="M18 8v8" />
+      </svg>
+    ),
+  },
+  {
     label: 'Tools',
     href: '/tools',
     icon: (

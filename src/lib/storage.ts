@@ -1,12 +1,13 @@
 import { readFileSync, writeFileSync, mkdirSync, existsSync, renameSync } from 'fs';
 import { join } from 'path';
-import { Project, Generation, Template, ProjectCacheData, ImageFormCache, VideoFormCache, ExportSession, RegisteredUser } from './types';
+import { Project, Generation, Template, ProjectCacheData, ImageFormCache, VideoFormCache, ExportSession, RegisteredUser, PoseMatrix } from './types';
 const DATA_DIR = process.env.DATA_DIR || join(/* turbopackIgnore: true */ process.cwd(), 'data');
 const PROJECTS_FILE = join(DATA_DIR, 'projects.json');
 const GENERATIONS_DIR = join(DATA_DIR, 'generations');
 const UPLOADS_DIR = join(DATA_DIR, 'uploads');
 const CACHE_DIR = join(DATA_DIR, 'cache');
 const EXPORTS_FILE = join(DATA_DIR, 'exports.json');
+const POSE_MATRICES_FILE = join(DATA_DIR, 'pose-matrices.json');
 const SAFE_ID = /^[a-zA-Z0-9_-]+$/;
 function safeId(id: string): string {
   const base = id.replace(/\.json$/, '');
@@ -431,4 +432,47 @@ export function shareExportSession(sourceSessionId: string, targetUserId: string
   all.push(copy);
   writeJson(EXPORTS_FILE, all);
   return copy.id;
+}
+
+// --- Pose Matrix ---
+export function getPoseMatrices(userId: string): PoseMatrix[] {
+  ensureDirs();
+  const all: PoseMatrix[] = readJson(POSE_MATRICES_FILE, []);
+  return all.filter(m => m.userId === userId).sort((a, b) => b.updatedAt - a.updatedAt);
+}
+export function getPoseMatrix(id: string): PoseMatrix | null {
+  ensureDirs();
+  const all: PoseMatrix[] = readJson(POSE_MATRICES_FILE, []);
+  return all.find(m => m.id === id) || null;
+}
+export function createPoseMatrix(data: Omit<PoseMatrix, 'id' | 'createdAt' | 'updatedAt'>): PoseMatrix {
+  ensureDirs();
+  const all: PoseMatrix[] = readJson(POSE_MATRICES_FILE, []);
+  const matrix: PoseMatrix = {
+    ...data,
+    id: `pm-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+  };
+  all.push(matrix);
+  writeJson(POSE_MATRICES_FILE, all);
+  return matrix;
+}
+export function updatePoseMatrix(id: string, updates: Partial<Omit<PoseMatrix, 'id' | 'userId' | 'createdAt'>>): PoseMatrix | null {
+  ensureDirs();
+  const all: PoseMatrix[] = readJson(POSE_MATRICES_FILE, []);
+  const idx = all.findIndex(m => m.id === id);
+  if (idx === -1) return null;
+  Object.assign(all[idx], updates, { updatedAt: Date.now() });
+  writeJson(POSE_MATRICES_FILE, all);
+  return all[idx];
+}
+export function deletePoseMatrix(id: string): boolean {
+  ensureDirs();
+  const all: PoseMatrix[] = readJson(POSE_MATRICES_FILE, []);
+  const idx = all.findIndex(m => m.id === id);
+  if (idx === -1) return false;
+  all.splice(idx, 1);
+  writeJson(POSE_MATRICES_FILE, all);
+  return true;
 }

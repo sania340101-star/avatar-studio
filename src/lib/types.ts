@@ -236,6 +236,36 @@ export interface ExportVersion {
   createdAt: number;
 }
 
+export interface PoseMatrixPose {
+  id: string;
+  name: string;
+  imageUrl: string;
+}
+
+export interface PoseMatrixClip {
+  id: string;
+  startPoseId: string;
+  endPoseId: string;
+  prompt: string;
+}
+
+export interface PoseMatrix {
+  id: string;
+  userId: string;
+  name: string;
+  poses: PoseMatrixPose[];
+  clips: PoseMatrixClip[];
+  modelId: string;
+  modelLabel: string;
+  duration: number;
+  aspectRatio: string;
+  quality: string;
+  fps: number;
+  lastBatchId?: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
 export interface ExportSession {
   id: string;
   userId: string;

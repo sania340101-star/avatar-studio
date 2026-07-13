@@ -1,3 +1,9 @@
+## 2026-07-09: Remove mask clipping from Open Display window (v1.11.12)
+- Open Display now shows full video without SVG clipPath mask
+- Users can see what actually gets cut off on the physical display vs what's clipped by software
+- Mask Preview in the main export editor is unchanged (still shows black overlay outside circles)
+- Removed unused DEVICE_MASKS import and maskId from display/page.tsx
+
 ## 2026-07-04: Autofit centering iterations (v1.11.0-v1.11.2) — PAUSED
 
 Tried 3 approaches to fix horizontal centering offset (~5-7px error):

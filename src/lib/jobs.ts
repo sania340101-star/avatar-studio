@@ -3,7 +3,7 @@ import { join, extname } from 'path';
 import { execSync } from 'child_process';
 import { getUploadsDir } from '@/lib/storage';
 import { checkBudget, recordSpending } from '@/lib/billing';
-import { JobData, TemplateSlot } from '@/lib/types';
+import { JobData, TemplateSlot, PoseMatrix } from '@/lib/types';
 
 const AGENT_URL = process.env.AGENT_URL || 'http://172.18.16.24:3391';
 const SERVICE_KEY = process.env.INTERNAL_SERVICE_KEY || '';
@@ -205,6 +205,70 @@ export function confirmJob(job: JobData, editedPrompt: string, editedModel: stri
     job.error = err instanceof Error ? err.message : 'Generation failed';
     updateJob(job);
   });
+}
+
+export function createBatchFromMatrix(
+  matrix: PoseMatrix,
+  userId: string,
+  projectId: string,
+  falKey: string,
+): { batchId: string; jobs: JobData[] } {
+  const budget = checkBudget(userId);
+  if (!budget.allowed) {
+    throw new Error(`Daily spending limit reached ($${budget.spent.toFixed(2)} / $${budget.limit.toFixed(2)}).`);
+  }
+
+  const batchId = `batch-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const batchJobs: JobData[] = [];
+  const poseMap = new Map(matrix.poses.map(p => [p.id, p]));
+
+  for (let i = 0; i < matrix.clips.length; i++) {
+    const clip = matrix.clips[i];
+    const startPose = poseMap.get(clip.startPoseId);
+    const endPose = poseMap.get(clip.endPoseId);
+    if (!startPose || !endPose) continue;
+
+    const isLoop = clip.startPoseId === clip.endPoseId;
+    const input: Record<string, unknown> = {
+      instruction: clip.prompt,
+      modelPref: matrix.modelId,
+      duration: matrix.duration,
+      aspectRatio: matrix.aspectRatio,
+      quality: matrix.quality,
+      fps: matrix.fps,
+      strategy: 'direct',
+      sourceImage: startPose.imageUrl,
+      endImage: endPose.imageUrl,
+      _poseMatrixId: matrix.id,
+      _clipType: isLoop ? 'loop' : 'transition',
+      _startPose: startPose.name,
+      _endPose: endPose.name,
+    };
+
+    const job: JobData = {
+      id: `job-${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${i}`,
+      userId,
+      projectId,
+      type: 'video',
+      status: 'generating',
+      input,
+      batchId,
+      slotIndex: i,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    };
+    jobs.set(job.id, job);
+    batchJobs.push(job);
+
+    runGenerate(job, clip.prompt, matrix.modelId, falKey).catch(err => {
+      job.status = 'error';
+      job.error = err instanceof Error ? err.message : 'Generation failed';
+      updateJob(job);
+    });
+  }
+
+  persistJobs();
+  return { batchId, jobs: batchJobs };
 }
 
 export function createBatchJobs(
