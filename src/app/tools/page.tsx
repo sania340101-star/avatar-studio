@@ -14,6 +14,16 @@ interface LoopStats {
   crf: number;
 }
 
+interface FrameComparison {
+  firstFrame: string;
+  lastFrame: string;
+  diffFrame: string;
+  psnr: string;
+  totalFrames: number;
+  fps: number;
+  duration: number;
+}
+
 const TRANSITIONS = [
   { value: 'fade', label: 'Fade' },
   { value: 'dissolve', label: 'Dissolve' },
@@ -92,6 +102,8 @@ export default function ToolsPage() {
   const [stats, setStats] = useState<LoopStats | null>(null);
   const [previewSrc, setPreviewSrc] = useState('');
   const [showGallery, setShowGallery] = useState(false);
+  const [comparing, setComparing] = useState(false);
+  const [comparison, setComparison] = useState<FrameComparison | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const hasSource = file || galleryUrl;
@@ -127,12 +139,34 @@ export default function ToolsPage() {
     return new File([blob], 'gallery-video.mp4', { type: blob.type || 'video/mp4' });
   }, []);
 
+  async function handleCompare() {
+    if (!resultUrl) return;
+    setComparing(true);
+    setComparison(null);
+    try {
+      const res = await fetch(resultUrl);
+      const blob = await res.blob();
+      const videoFile = new File([blob], 'output.mp4', { type: 'video/mp4' });
+      const fd = new FormData();
+      fd.append('file', videoFile);
+      const cmpRes = await fetch('/api/tools/compare-frames', { method: 'POST', body: fd });
+      const data = await cmpRes.json();
+      if (!cmpRes.ok) throw new Error(data.error || 'Comparison failed');
+      setComparison(data);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Comparison failed');
+    } finally {
+      setComparing(false);
+    }
+  }
+
   async function handleProcess() {
     if (!hasSource) return;
     setProcessing(true);
     setError('');
     setResultUrl('');
     setStats(null);
+    setComparison(null);
     try {
       const videoFile = file || await fetchAsFile(galleryUrl);
       const fd = new FormData();
@@ -334,14 +368,61 @@ export default function ToolsPage() {
                     <div>CRF: {stats.crf}</div>
                   </div>
 
-                  <a
-                    href={resultUrl}
-                    download
-                    className="block text-center w-full py-2 rounded-lg text-sm font-medium"
-                    style={{ background: 'var(--accent)', color: '#fff' }}
-                  >
-                    Download
-                  </a>
+                  <div className="flex gap-2">
+                    <a
+                      href={resultUrl}
+                      download
+                      className="flex-1 block text-center py-2 rounded-lg text-sm font-medium"
+                      style={{ background: 'var(--accent)', color: '#fff' }}
+                    >
+                      Download
+                    </a>
+                    <button
+                      onClick={handleCompare}
+                      disabled={comparing}
+                      className="flex-1 py-2 rounded-lg text-sm font-medium"
+                      style={{ border: '1px solid var(--border)', color: 'var(--text2)', opacity: comparing ? 0.6 : 1 }}
+                    >
+                      {comparing ? 'Comparing...' : 'Compare Frames'}
+                    </button>
+                  </div>
+
+                  {comparison && (
+                    <div className="space-y-3 pt-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--text3)' }}>Frame Comparison</span>
+                        <span className="text-xs px-2 py-0.5 rounded" style={{
+                          background: parseFloat(comparison.psnr) > 30 ? 'rgba(76,175,80,0.1)' : parseFloat(comparison.psnr) > 20 ? 'rgba(255,152,0,0.1)' : 'rgba(239,68,68,0.1)',
+                          color: parseFloat(comparison.psnr) > 30 ? 'var(--green)' : parseFloat(comparison.psnr) > 20 ? 'var(--orange, #f59e0b)' : 'var(--red)',
+                        }}>
+                          PSNR: {comparison.psnr} dB
+                        </span>
+                      </div>
+                      <p className="text-xs" style={{ color: 'var(--text3)' }}>
+                        {parseFloat(comparison.psnr) > 40 ? 'Virtually identical — perfect loop' :
+                         parseFloat(comparison.psnr) > 30 ? 'Very close — good loop quality' :
+                         parseFloat(comparison.psnr) > 20 ? 'Noticeable difference — try more blend frames' :
+                         'Significant difference — increase blend frames or try a different video'}
+                      </p>
+                      <div className="grid grid-cols-3 gap-2">
+                        <div>
+                          <p className="text-xs mb-1 text-center" style={{ color: 'var(--text3)' }}>First Frame</p>
+                          <img src={comparison.firstFrame} alt="First frame" className="w-full rounded-lg" />
+                        </div>
+                        <div>
+                          <p className="text-xs mb-1 text-center" style={{ color: 'var(--text3)' }}>Last Frame</p>
+                          <img src={comparison.lastFrame} alt="Last frame" className="w-full rounded-lg" />
+                        </div>
+                        <div>
+                          <p className="text-xs mb-1 text-center" style={{ color: 'var(--text3)' }}>Difference</p>
+                          <img src={comparison.diffFrame} alt="Difference" className="w-full rounded-lg" />
+                        </div>
+                      </div>
+                      <div className="text-xs" style={{ color: 'var(--text3)' }}>
+                        {comparison.totalFrames} frames, {comparison.fps} fps, {comparison.duration}s
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
