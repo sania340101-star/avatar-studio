@@ -79,8 +79,8 @@ export async function POST(req: NextRequest) {
 
     const filter = [
       `[0]split[body][pre]`,
-      `[pre]trim=st=0:end=${blendSec.toFixed(4)},setpts=PTS-STARTPTS[begin]`,
-      `[body]trim=st=0:end=${mainDur.toFixed(4)},setpts=PTS-STARTPTS[main]`,
+      `[pre]trim=start=0:end=${blendSec.toFixed(4)},setpts=PTS-STARTPTS[begin]`,
+      `[body]trim=start=0:end=${mainDur.toFixed(4)},setpts=PTS-STARTPTS[main]`,
       `[main][begin]xfade=transition=${transition}:duration=${blendSec.toFixed(4)}:offset=${offset.toFixed(4)}[out]`,
     ].join('; ');
 
