@@ -9,7 +9,8 @@ export type AuditEvent =
   | 'forbidden'
   | 'upload'
   | 'generate'
-  | 'otp_sent';
+  | 'otp_sent'
+  | 'seamless-loop';
 
 interface AuditEntry {
   ts: string;
