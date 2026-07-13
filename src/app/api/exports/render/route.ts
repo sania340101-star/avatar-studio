@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getExportSession, updateExportSession, addGeneration, getUploadsDir } from '@/lib/storage';
 import { DEVICE_PRESETS } from '@/lib/models';
 import { Generation, ExportSession } from '@/lib/types';
-import { spawn } from 'child_process';
+import { spawn, execSync } from 'child_process';
 import { writeFileSync, unlinkSync, existsSync } from 'fs';
 import { join } from 'path';
 
@@ -25,6 +25,125 @@ async function runFfmpeg(args: string[]): Promise<void> {
     });
     proc.on('error', reject);
   });
+}
+
+function probeFps(filePath: string): number {
+  try {
+    const raw = execSync(
+      `ffprobe -v error -select_streams v:0 -show_entries stream=r_frame_rate -of csv=p=0 "${filePath}"`,
+      { timeout: 15000 },
+    ).toString().trim();
+    const [num, den] = raw.split('/');
+    return parseInt(num) / (parseInt(den) || 1);
+  } catch {
+    return 60;
+  }
+}
+
+function probeDuration(filePath: string): number {
+  try {
+    const raw = execSync(
+      `ffprobe -v error -select_streams v:0 -show_entries stream=duration -of csv=p=0 "${filePath}"`,
+      { timeout: 15000 },
+    ).toString().trim();
+    return parseFloat(raw) || 0;
+  } catch {
+    return 0;
+  }
+}
+
+async function xfadeConcat(
+  clipPaths: string[],
+  outputPath: string,
+  blendFrames: number,
+  transition: string,
+  crf: number,
+): Promise<void> {
+  if (clipPaths.length < 2) {
+    throw new Error('Need at least 2 clips for crossfade');
+  }
+
+  const fps = probeFps(clipPaths[0]);
+  const blendSec = blendFrames / fps;
+  const durations = clipPaths.map(p => probeDuration(p));
+
+  for (let i = 0; i < durations.length; i++) {
+    if (durations[i] < blendSec * 2) {
+      throw new Error(`Clip ${i + 1} too short (${durations[i].toFixed(1)}s) for ${blendSec.toFixed(1)}s crossfade`);
+    }
+  }
+
+  const inputs = clipPaths.flatMap(p => ['-i', p]);
+  const n = clipPaths.length;
+  const filterParts: string[] = [];
+  let offset = durations[0] - blendSec;
+
+  filterParts.push(
+    `[0:v][1:v]xfade=transition=${transition}:duration=${blendSec.toFixed(4)}:offset=${offset.toFixed(4)}[v01]`
+  );
+
+  for (let i = 2; i < n; i++) {
+    const prevLabel = `v0${i - 1}`;
+    const nextLabel = i === n - 1 ? 'vout' : `v0${i}`;
+    offset += durations[i - 1] - blendSec;
+    filterParts.push(
+      `[${prevLabel}][${i}:v]xfade=transition=${transition}:duration=${blendSec.toFixed(4)}:offset=${offset.toFixed(4)}[${nextLabel}]`
+    );
+  }
+
+  const lastLabel = n === 2 ? 'v01' : 'vout';
+  const filter = filterParts.join('; ');
+
+  await runFfmpeg([
+    ...inputs,
+    '-filter_complex', filter,
+    '-map', `[${lastLabel}]`,
+    '-c:v', 'libx264',
+    '-preset', 'fast',
+    '-crf', String(crf),
+    '-pix_fmt', 'yuv420p',
+    '-an',
+    '-y', outputPath,
+  ]);
+}
+
+async function seamlessLoop(
+  inputPath: string,
+  outputPath: string,
+  blendFrames: number,
+  transition: string,
+  crf: number,
+): Promise<void> {
+  const fps = probeFps(inputPath);
+  const totalDuration = probeDuration(inputPath);
+  const blendSec = blendFrames / fps;
+
+  if (blendSec >= totalDuration * 0.5) {
+    throw new Error('Blend too long for video duration');
+  }
+
+  const tailStart = totalDuration - blendSec;
+  const bodyEnd = totalDuration - blendSec;
+  const filter = [
+    `[0]split=3[a][b][c]`,
+    `[a]trim=start=${tailStart.toFixed(4)}:end=${totalDuration.toFixed(4)},setpts=PTS-STARTPTS[tail]`,
+    `[b]trim=start=0:end=${blendSec.toFixed(4)},setpts=PTS-STARTPTS[head]`,
+    `[c]trim=start=${blendSec.toFixed(4)}:end=${bodyEnd.toFixed(4)},setpts=PTS-STARTPTS[body]`,
+    `[tail][head]xfade=transition=${transition}:duration=${blendSec.toFixed(4)}:offset=0[blend]`,
+    `[blend][body]concat=n=2:v=1:a=0[out]`,
+  ].join('; ');
+
+  await runFfmpeg([
+    '-i', inputPath,
+    '-filter_complex', filter,
+    '-map', '[out]',
+    '-c:v', 'libx264',
+    '-preset', 'fast',
+    '-crf', String(crf),
+    '-pix_fmt', 'yuv420p',
+    '-an',
+    '-y', outputPath,
+  ]);
 }
 
 async function processExport(sessionId: string, userId: string) {
@@ -71,22 +190,33 @@ async function processExport(sessionId: string, userId: string) {
       await runFfmpeg(ffArgs);
     }
 
-    const concatListPath = join(uploadsDir, `_export_concat_${sessionId}.txt`);
-    const concatContent = tempFiles.map(f => `file '${f.replace(/\\/g, '/')}'`).join('\n');
-    writeFileSync(concatListPath, concatContent);
-    tempFiles.push(concatListPath);
-
     const outputFilename = `export-${sessionId}-${Date.now()}.mp4`;
     const outputPath = join(uploadsDir, outputFilename);
+    const useCrossfade = session.crossfadeEnabled && tempFiles.length >= 2;
 
-    await runFfmpeg([
-      '-f', 'concat',
-      '-safe', '0',
-      '-i', concatListPath,
-      '-c', 'copy',
-      '-y',
-      outputPath,
-    ]);
+    if (useCrossfade) {
+      const blendFrames = session.crossfadeBlendFrames || 10;
+      const transition = session.crossfadeTransition || 'fade';
+      const crf = session.crossfadeCrf ?? 18;
+      const concatPath = join(uploadsDir, `_export_xfade_${sessionId}.mp4`);
+      tempFiles.push(concatPath);
+      await xfadeConcat(tempFiles.slice(0, session.clips.length), concatPath, blendFrames, transition, crf);
+      await seamlessLoop(concatPath, outputPath, blendFrames, transition, crf);
+    } else {
+      const concatListPath = join(uploadsDir, `_export_concat_${sessionId}.txt`);
+      const concatContent = tempFiles.map(f => `file '${f.replace(/\\/g, '/')}'`).join('\n');
+      writeFileSync(concatListPath, concatContent);
+      tempFiles.push(concatListPath);
+
+      await runFfmpeg([
+        '-f', 'concat',
+        '-safe', '0',
+        '-i', concatListPath,
+        '-c', 'copy',
+        '-y',
+        outputPath,
+      ]);
+    }
 
     const exportUrl = `/api/files/${outputFilename}`;
 

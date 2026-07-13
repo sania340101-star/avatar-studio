@@ -244,6 +244,10 @@ export interface ExportSession {
   clips: ExportClip[];
   transform: { offsetX: number; offsetY: number; scale: number };
   muteAudio?: boolean;
+  crossfadeEnabled?: boolean;
+  crossfadeBlendFrames?: number;
+  crossfadeTransition?: string;
+  crossfadeCrf?: number;
   status: 'draft' | 'exporting' | 'done' | 'error';
   exportUrl?: string;
   exports?: ExportVersion[];

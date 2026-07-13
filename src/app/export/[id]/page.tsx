@@ -980,6 +980,71 @@ function ExportEditorContent() {
                 />
                 <span className="text-xs" style={{ color: 'var(--text2)' }}>Mute audio</span>
               </label>
+              {session.clips.length >= 2 && (
+                <>
+                  <label className="flex items-center gap-2 mt-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={session.crossfadeEnabled || false}
+                      onChange={e => {
+                        const crossfadeEnabled = e.target.checked;
+                        setSession({ ...session, crossfadeEnabled, updatedAt: Date.now() });
+                        debouncedSave({ crossfadeEnabled });
+                      }}
+                      className="w-3.5 h-3.5 rounded"
+                    />
+                    <span className="text-xs" style={{ color: 'var(--text2)' }}>Seamless transitions</span>
+                  </label>
+                  {session.crossfadeEnabled && (
+                    <div className="mt-2 ml-5 space-y-2">
+                      <div className="flex items-center gap-2">
+                        <label className="text-xs whitespace-nowrap" style={{ color: 'var(--text3)' }}>
+                          Blend: <strong>{session.crossfadeBlendFrames || 10}</strong>
+                        </label>
+                        <input type="range" min={2} max={60} value={session.crossfadeBlendFrames || 10}
+                          onChange={e => {
+                            const crossfadeBlendFrames = parseInt(e.target.value);
+                            setSession({ ...session, crossfadeBlendFrames, updatedAt: Date.now() });
+                            debouncedSave({ crossfadeBlendFrames });
+                          }}
+                          className="flex-1" style={{ accentColor: 'var(--accent)' }} />
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <label className="text-xs whitespace-nowrap" style={{ color: 'var(--text3)' }}>Transition:</label>
+                        <select value={session.crossfadeTransition || 'fade'}
+                          onChange={e => {
+                            const crossfadeTransition = e.target.value;
+                            setSession({ ...session, crossfadeTransition, updatedAt: Date.now() });
+                            debouncedSave({ crossfadeTransition });
+                          }}
+                          className="flex-1 text-xs rounded px-2 py-1" style={{ background: 'var(--bg-input)', border: '1px solid var(--border)' }}>
+                          <option value="fade">Fade</option>
+                          <option value="dissolve">Dissolve</option>
+                          <option value="wipeleft">Wipe Left</option>
+                          <option value="wiperight">Wipe Right</option>
+                          <option value="smoothleft">Smooth Left</option>
+                          <option value="smoothright">Smooth Right</option>
+                          <option value="radial">Radial</option>
+                          <option value="zoomin">Zoom In</option>
+                        </select>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <label className="text-xs whitespace-nowrap" style={{ color: 'var(--text3)' }}>
+                          CRF: <strong>{session.crossfadeCrf ?? 18}</strong>
+                        </label>
+                        <input type="range" min={0} max={51} value={session.crossfadeCrf ?? 18}
+                          onChange={e => {
+                            const crossfadeCrf = parseInt(e.target.value);
+                            setSession({ ...session, crossfadeCrf, updatedAt: Date.now() });
+                            debouncedSave({ crossfadeCrf });
+                          }}
+                          className="flex-1" style={{ accentColor: 'var(--accent)' }} />
+                        <span className="text-xs" style={{ color: 'var(--text3)' }}>{(session.crossfadeCrf ?? 18) <= 15 ? 'High' : (session.crossfadeCrf ?? 18) <= 23 ? 'Good' : 'Low'}</span>
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
             </div>
             <button
               onClick={startExport}
