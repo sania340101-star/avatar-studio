@@ -239,7 +239,6 @@ export interface ExportVersion {
 export interface PoseMatrixPose {
   id: string;
   name: string;
-  imageUrl: string;
 }
 
 export interface PoseMatrixClip {

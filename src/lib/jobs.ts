@@ -212,6 +212,7 @@ export function createBatchFromMatrix(
   userId: string,
   projectId: string,
   falKey: string,
+  poseImages: Record<string, string>,
 ): { batchId: string; jobs: JobData[] } {
   const budget = checkBudget(userId);
   if (!budget.allowed) {
@@ -228,6 +229,10 @@ export function createBatchFromMatrix(
     const endPose = poseMap.get(clip.endPoseId);
     if (!startPose || !endPose) continue;
 
+    const startImage = poseImages[clip.startPoseId];
+    const endImage = poseImages[clip.endPoseId];
+    if (!startImage || !endImage) continue;
+
     const isLoop = clip.startPoseId === clip.endPoseId;
     const input: Record<string, unknown> = {
       instruction: clip.prompt,
@@ -237,8 +242,8 @@ export function createBatchFromMatrix(
       quality: matrix.quality,
       fps: matrix.fps,
       strategy: 'direct',
-      sourceImage: startPose.imageUrl,
-      endImage: endPose.imageUrl,
+      sourceImage: startImage,
+      endImage: endImage,
       _poseMatrixId: matrix.id,
       _clipType: isLoop ? 'loop' : 'transition',
       _startPose: startPose.name,

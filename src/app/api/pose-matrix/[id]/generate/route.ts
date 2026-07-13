@@ -22,9 +22,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   const body = await req.json().catch(() => ({}));
   const projectId = body.projectId || 'pose-matrix';
+  const poseImages: Record<string, string> = body.poseImages || {};
+
+  const missingPoses = matrix.poses.filter(p => !poseImages[p.id]);
+  if (missingPoses.length > 0) {
+    return NextResponse.json({ error: `Missing images for poses: ${missingPoses.map(p => p.name).join(', ')}` }, { status: 400 });
+  }
 
   try {
-    const { batchId, jobs } = createBatchFromMatrix(matrix, userId, projectId, falKey);
+    const { batchId, jobs } = createBatchFromMatrix(matrix, userId, projectId, falKey, poseImages);
     updatePoseMatrix(id, { lastBatchId: batchId });
     return NextResponse.json({ batchId, jobs });
   } catch (e: unknown) {

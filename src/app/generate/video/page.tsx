@@ -15,7 +15,7 @@ import {
   aspectRatioToNumeric,
 } from '@/lib/models';
 import { useProject } from '@/lib/ProjectContext';
-import { VideoModelTypeFilter, Generation, GenerationCost, TemplateRef, JobData, Template } from '@/lib/types';
+import { VideoModelTypeFilter, Generation, GenerationCost, TemplateRef, JobData, Template, PoseMatrix } from '@/lib/types';
 import { useProjectCache } from '@/lib/useProjectCache';
 import ImagePicker from '@/components/ImagePicker';
 import ReferenceUpload from '@/components/ReferenceUpload';
@@ -25,6 +25,236 @@ import VersionHistory from '@/components/VersionHistory';
 import StepBar from '@/components/StepBar';
 
 type Step = 'input' | 'review' | 'generating';
+
+function PoseMatrixRunner({ matrix, projectId, poseImages, setPoseImages, batchId, setBatchId, batchJobs, setBatchJobs, generating, setGenerating, error, setError, savedRef, onComplete }: {
+  matrix: PoseMatrix;
+  projectId: string;
+  poseImages: Record<string, string>;
+  setPoseImages: (v: Record<string, string>) => void;
+  batchId: string | null;
+  setBatchId: (v: string | null) => void;
+  batchJobs: JobData[];
+  setBatchJobs: (v: JobData[] | ((prev: JobData[]) => JobData[])) => void;
+  generating: boolean;
+  setGenerating: (v: boolean) => void;
+  error: string;
+  setError: (v: string) => void;
+  savedRef: React.MutableRefObject<string | null>;
+  onComplete?: () => void;
+}) {
+  const allPosesHaveImages = matrix.poses.every(p => poseImages[p.id]);
+  const poseMap = new Map(matrix.poses.map(p => [p.id, p]));
+  const completedJobs = batchJobs.filter(j => j.status === 'complete');
+  const errorJobs = batchJobs.filter(j => j.status === 'error');
+  const runningJobs = batchJobs.filter(j => j.status !== 'complete' && j.status !== 'error');
+
+  useEffect(() => {
+    if (!batchId) return;
+    const allDone = batchJobs.length > 0 && batchJobs.every(j => j.status === 'complete' || j.status === 'error');
+    if (allDone) return;
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch(`/api/jobs/batch?batchId=${batchId}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data.jobs)) setBatchJobs(data.jobs);
+        }
+      } catch {}
+    }, 2000);
+    return () => clearInterval(interval);
+  }, [batchId, batchJobs, setBatchJobs]);
+
+  useEffect(() => {
+    if (!batchId || savedRef.current === batchId) return;
+    const allDone = batchJobs.length > 0 && batchJobs.every(j => j.status === 'complete' || j.status === 'error');
+    if (!allDone) return;
+    savedRef.current = batchId;
+    const completed = batchJobs.filter(j => j.status === 'complete' && j.result?.video?.url);
+    const saves = completed.map(job => {
+      const clip = matrix.clips[job.slotIndex ?? 0];
+      const startPose = clip ? poseMap.get(clip.startPoseId) : null;
+      const endPose = clip ? poseMap.get(clip.endPoseId) : null;
+      return fetch('/api/generations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          projectId,
+          type: 'video',
+          modelId: job.result?.model || matrix.modelId,
+          modelLabel: job.result?.modelLabel || matrix.modelLabel,
+          prompt: job.result?.prompt || clip?.prompt || '',
+          params: {
+            poseMatrixId: matrix.id,
+            poseMatrixName: matrix.name,
+            slotIndex: job.slotIndex,
+            instruction: clip?.prompt || '',
+            startPose: startPose?.name,
+            endPose: endPose?.name,
+            clipType: clip?.startPoseId === clip?.endPoseId ? 'loop' : 'transition',
+            duration: matrix.duration,
+            aspectRatio: matrix.aspectRatio,
+            quality: matrix.quality,
+            fps: matrix.fps,
+          },
+          referenceUrls: [poseImages[clip?.startPoseId || ''], poseImages[clip?.endPoseId || '']].filter(Boolean),
+          resultUrls: job.result?.video?.url ? [job.result.video.url] : [],
+          status: 'completed',
+          actualCost: job.result?.cost || undefined,
+          batchId,
+        }),
+      }).catch(e => console.error('Failed to save pose matrix result:', e));
+    });
+    Promise.all(saves).then(() => onComplete?.());
+  }, [batchId, batchJobs, projectId, matrix, poseImages, poseMap, savedRef, onComplete]);
+
+  async function handleGenerate() {
+    setGenerating(true);
+    setError('');
+    setBatchId(null);
+    setBatchJobs([]);
+    try {
+      const res = await fetch(`/api/pose-matrix/${matrix.id}/generate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ projectId, poseImages }),
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      setBatchId(data.batchId);
+      setBatchJobs(data.jobs || []);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Generation failed');
+    } finally {
+      setGenerating(false);
+    }
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Pose image slots */}
+      <div className="p-4 rounded-xl" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+        <p className="text-sm font-medium mb-3">Pose Images ({Object.keys(poseImages).filter(k => poseImages[k]).length}/{matrix.poses.length})</p>
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+          {matrix.poses.map((pose, i) => (
+            <div key={pose.id} className="rounded-lg p-2" style={{ border: '1px solid var(--border)' }}>
+              <div className="flex items-center gap-1 mb-2">
+                <span className="text-xs font-bold w-5 text-center" style={{ color: 'var(--accent)' }}>{i + 1}</span>
+                <span className="text-xs font-medium" style={{ color: 'var(--text1)' }}>{pose.name}</span>
+              </div>
+              <ImagePicker value={poseImages[pose.id] || ''} onChange={url => setPoseImages({ ...poseImages, [pose.id]: url })} label="" />
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Matrix info */}
+      <div className="flex flex-wrap gap-2 text-xs" style={{ color: 'var(--text3)' }}>
+        <span className="px-2 py-1 rounded" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>{matrix.modelLabel}</span>
+        <span className="px-2 py-1 rounded" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>{matrix.duration}s</span>
+        <span className="px-2 py-1 rounded" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>{matrix.aspectRatio}</span>
+        <span className="px-2 py-1 rounded" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>{matrix.clips.length} clips</span>
+      </div>
+
+      {error && (
+        <div className="p-3 rounded-lg text-sm" style={{ background: 'rgba(239,68,68,0.1)', color: 'var(--red)', border: '1px solid rgba(239,68,68,0.2)' }}>
+          {error}
+        </div>
+      )}
+
+      {/* Generate button */}
+      {!batchId && (
+        <button onClick={handleGenerate} disabled={generating || !allPosesHaveImages || matrix.clips.length === 0}
+          className="w-full py-3 rounded-lg text-sm font-semibold text-white disabled:opacity-50"
+          style={{ background: generating ? 'var(--text3)' : 'var(--accent)' }}>
+          {generating ? 'Starting...' : `Generate ${matrix.clips.length} Clip${matrix.clips.length !== 1 ? 's' : ''}`}
+        </button>
+      )}
+
+      {/* Batch progress */}
+      {batchId && (
+        <div className="space-y-4">
+          <div className="flex items-center gap-3">
+            <span className="text-sm font-medium" style={{ color: 'var(--text2)' }}>
+              Progress: {completedJobs.length}/{batchJobs.length} complete
+              {errorJobs.length > 0 && `, ${errorJobs.length} failed`}
+            </span>
+            {runningJobs.length > 0 && (
+              <span className="w-4 h-4 border-2 rounded-full animate-spin" style={{ borderColor: 'var(--border)', borderTopColor: 'var(--accent)' }} />
+            )}
+          </div>
+
+          <div className="w-full h-2 rounded-full overflow-hidden" style={{ background: 'var(--border)' }}>
+            <div className="h-full rounded-full transition-all duration-500"
+              style={{ width: `${batchJobs.length > 0 ? (completedJobs.length / batchJobs.length) * 100 : 0}%`, background: errorJobs.length > 0 ? '#f59e0b' : 'var(--accent)' }} />
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {batchJobs.map((job, i) => {
+              const clip = matrix.clips[job.slotIndex ?? i];
+              const startPose = clip ? poseMap.get(clip.startPoseId) : null;
+              const endPose = clip ? poseMap.get(clip.endPoseId) : null;
+              const isLoop = clip?.startPoseId === clip?.endPoseId;
+              return (
+                <div key={job.id} className="rounded-xl border p-3" style={{ borderColor: 'var(--border)', background: 'var(--bg-card)' }}>
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="text-xs font-medium px-1.5 py-0.5 rounded" style={{
+                      background: isLoop ? 'var(--accent-subtle)' : 'rgba(76,175,80,0.15)',
+                      color: isLoop ? 'var(--accent)' : 'var(--green)',
+                    }}>
+                      {startPose?.name || '?'} → {endPose?.name || '?'}
+                    </span>
+                    <span className="text-xs truncate flex-1" style={{ color: 'var(--text3)' }}>{clip?.prompt || ''}</span>
+                    <span className="text-xs px-2 py-0.5 rounded font-medium shrink-0" style={{
+                      background: job.status === 'complete' ? 'rgba(76,175,80,0.15)' : job.status === 'error' ? 'rgba(239,68,68,0.15)' : 'rgba(108,60,224,0.1)',
+                      color: job.status === 'complete' ? 'var(--green)' : job.status === 'error' ? 'var(--red)' : 'var(--accent)',
+                    }}>
+                      {job.status === 'complete' ? 'Done' : job.status === 'error' ? 'Failed' : 'Generating...'}
+                    </span>
+                  </div>
+
+                  {job.status === 'complete' && job.result?.video?.url && (
+                    <div className="rounded-lg overflow-hidden border" style={{ borderColor: 'var(--border)' }}>
+                      <video src={job.result.video.url} className="w-full" controls />
+                    </div>
+                  )}
+
+                  {job.status === 'error' && (
+                    <div>
+                      <p className="text-xs mb-2" style={{ color: 'var(--red)' }}>{job.error || 'Unknown error'}</p>
+                      <button onClick={async () => {
+                        try {
+                          const res = await fetch(`/api/jobs/${job.id}/retry`, { method: 'POST' });
+                          if (res.ok) setBatchJobs(prev => prev.map(j => j.id === job.id ? { ...j, status: 'generating', error: undefined } : j));
+                        } catch {}
+                      }} className="px-3 py-1 rounded text-xs font-medium text-white" style={{ background: 'var(--accent)' }}>Retry</button>
+                    </div>
+                  )}
+
+                  {job.status !== 'complete' && job.status !== 'error' && (
+                    <div className="flex items-center justify-center py-6">
+                      <span className="w-6 h-6 border-2 rounded-full animate-spin" style={{ borderColor: 'var(--border)', borderTopColor: 'var(--accent)' }} />
+                    </div>
+                  )}
+
+                  {job.result?.cost?.amount != null && (
+                    <div className="mt-2 text-xs text-right" style={{ color: 'var(--text3)' }}>${job.result.cost.amount.toFixed(3)}</div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          {runningJobs.length === 0 && batchJobs.length > 0 && (
+            <button onClick={() => { setBatchId(null); setBatchJobs([]); savedRef.current = null; }}
+              className="w-full py-2.5 rounded-lg text-sm font-medium" style={{ border: '1px solid var(--border)', color: 'var(--text2)' }}>
+              Run Again
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function GenerateVideoPage() {
   const { user, activeProject } = useProject();
@@ -71,9 +301,26 @@ export default function GenerateVideoPage() {
   const [templates, setTemplates] = useState<Template[]>([]);
   const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null);
 
+  // Pose Matrix mode
+  const [poseMatrices, setPoseMatrices] = useState<PoseMatrix[]>([]);
+  const [selectedMatrix, setSelectedMatrix] = useState<PoseMatrix | null>(null);
+  const [poseImages, setPoseImages] = useState<Record<string, string>>({});
+  const [matrixBatchId, setMatrixBatchId] = useState<string | null>(null);
+  const [matrixBatchJobs, setMatrixBatchJobs] = useState<JobData[]>([]);
+  const [matrixGenerating, setMatrixGenerating] = useState(false);
+  const [matrixError, setMatrixError] = useState('');
+  const matrixSavedRef = useRef<string | null>(null);
+
+  // Generation mode
+  type GenMode = 'manual' | 'template' | 'pose-matrix';
+  const [genMode, setGenMode] = useState<GenMode>('manual');
+
   useEffect(() => {
     fetch('/api/templates').then(r => r.json()).then(data => {
       if (Array.isArray(data)) setTemplates(data.filter((t: Template) => t.slots?.length > 0));
+    }).catch(() => {});
+    fetch('/api/pose-matrix').then(r => r.json()).then(data => {
+      if (Array.isArray(data)) setPoseMatrices(data.filter((m: PoseMatrix) => m.clips?.length > 0));
     }).catch(() => {});
   }, []);
 
@@ -505,37 +752,76 @@ export default function GenerateVideoPage() {
         )}
       </div>
 
-      {/* Template selector */}
-      {templates.length > 0 && (
-        <div className="mb-4 p-3 rounded-xl flex items-center gap-3" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
-          <span className="text-sm font-medium" style={{ color: 'var(--text2)' }}>Template:</span>
-          <select
-            value={selectedTemplate?.id || ''}
-            onChange={e => {
-              if (!e.target.value) { setSelectedTemplate(null); return; }
-              const tmpl = templates.find(t => t.id === e.target.value);
-              if (tmpl) setSelectedTemplate(tmpl);
-            }}
-            className="flex-1 text-sm"
-          >
-            <option value="">None — configure manually</option>
-            {templates.map(t => {
-              const imgCount = t.slots.reduce((n, s) => n + s.references.filter(r => r.type === 'image').length, 0);
-              const vidCount = t.slots.reduce((n, s) => n + s.references.filter(r => r.type === 'video').length, 0);
-              const audCount = t.slots.reduce((n, s) => n + s.references.filter(r => r.type === 'audio').length, 0);
-              const refParts = [imgCount && `${imgCount} img`, vidCount && `${vidCount} vid`, audCount && `${audCount} aud`].filter(Boolean).join(', ');
-              return (
+      {/* Mode selector */}
+      {(templates.length > 0 || poseMatrices.length > 0) && (
+        <div className="mb-4 p-3 rounded-xl" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+          <div className="flex items-center gap-2 mb-3">
+            <span className="text-sm font-medium" style={{ color: 'var(--text2)' }}>Mode:</span>
+            <div className="flex gap-1">
+              {(['manual', 'template', 'pose-matrix'] as GenMode[]).map(mode => {
+                if (mode === 'template' && templates.length === 0) return null;
+                if (mode === 'pose-matrix' && poseMatrices.length === 0) return null;
+                return (
+                  <button key={mode} onClick={() => {
+                    setGenMode(mode);
+                    if (mode !== 'template') setSelectedTemplate(null);
+                    if (mode !== 'pose-matrix') { setSelectedMatrix(null); setPoseImages({}); setMatrixBatchId(null); setMatrixBatchJobs([]); }
+                  }} className="px-3 py-1 rounded text-xs font-medium transition-colors" style={{
+                    background: genMode === mode ? 'var(--accent)' : 'transparent',
+                    color: genMode === mode ? 'white' : 'var(--text3)',
+                    border: genMode === mode ? 'none' : '1px solid var(--border)',
+                  }}>
+                    {mode === 'manual' ? 'Manual' : mode === 'template' ? 'Template' : 'Pose Matrix'}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Template selector */}
+          {genMode === 'template' && (
+            <select
+              value={selectedTemplate?.id || ''}
+              onChange={e => {
+                if (!e.target.value) { setSelectedTemplate(null); return; }
+                const tmpl = templates.find(t => t.id === e.target.value);
+                if (tmpl) setSelectedTemplate(tmpl);
+              }}
+              className="w-full text-sm"
+            >
+              <option value="">Select a template...</option>
+              {templates.map(t => (
                 <option key={t.id} value={t.id}>
-                  {t.name} — {t.slots.length} slot{t.slots.length !== 1 ? 's' : ''}{refParts ? ` (${refParts})` : ''}
+                  {t.name} — {t.slots.length} slot{t.slots.length !== 1 ? 's' : ''}
                 </option>
-              );
-            })}
-          </select>
+              ))}
+            </select>
+          )}
+
+          {/* Pose Matrix selector */}
+          {genMode === 'pose-matrix' && (
+            <select
+              value={selectedMatrix?.id || ''}
+              onChange={e => {
+                if (!e.target.value) { setSelectedMatrix(null); setPoseImages({}); return; }
+                const m = poseMatrices.find(pm => pm.id === e.target.value);
+                if (m) { setSelectedMatrix(m); setPoseImages({}); setMatrixBatchId(null); setMatrixBatchJobs([]); setMatrixError(''); }
+              }}
+              className="w-full text-sm"
+            >
+              <option value="">Select a pose matrix template...</option>
+              {poseMatrices.map(m => (
+                <option key={m.id} value={m.id}>
+                  {m.name} — {m.poses.length} poses · {m.clips.length} clips · {m.modelLabel}
+                </option>
+              ))}
+            </select>
+          )}
         </div>
       )}
 
       {/* Template mode — inline BatchRunner */}
-      {selectedTemplate && (
+      {genMode === 'template' && selectedTemplate && (
         <BatchRunner
           template={selectedTemplate}
           projectId={activeProject.id}
@@ -546,8 +832,28 @@ export default function GenerateVideoPage() {
         />
       )}
 
+      {/* Pose Matrix mode */}
+      {genMode === 'pose-matrix' && selectedMatrix && (
+        <PoseMatrixRunner
+          matrix={selectedMatrix}
+          projectId={activeProject.id}
+          poseImages={poseImages}
+          setPoseImages={setPoseImages}
+          batchId={matrixBatchId}
+          setBatchId={setMatrixBatchId}
+          batchJobs={matrixBatchJobs}
+          setBatchJobs={setMatrixBatchJobs}
+          generating={matrixGenerating}
+          setGenerating={setMatrixGenerating}
+          error={matrixError}
+          setError={setMatrixError}
+          savedRef={matrixSavedRef}
+          onComplete={loadHistory}
+        />
+      )}
+
       {/* Manual mode */}
-      {!selectedTemplate && (
+      {genMode === 'manual' && (
         <>
       <StepBar
         current={effectiveView}
