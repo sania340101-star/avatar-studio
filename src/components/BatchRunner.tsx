@@ -23,6 +23,7 @@ interface BatchJob {
   id: string;
   status: string;
   slotIndex?: number;
+  input?: Record<string, unknown>;
   result?: { video?: { url: string }; prompt?: string; model?: string; modelLabel?: string; cost?: { amount?: number } };
   error?: string;
 }
@@ -316,7 +317,7 @@ export default function BatchRunner({ template, projectId, onBack, inline, exter
                       background: job.status === 'complete' ? 'rgba(76,175,80,0.15)' : job.status === 'error' ? 'rgba(239,68,68,0.15)' : 'rgba(108,60,224,0.1)',
                       color: job.status === 'complete' ? 'var(--green)' : job.status === 'error' ? 'var(--red)' : 'var(--accent)',
                     }}>
-                      {job.status === 'complete' ? 'Done' : job.status === 'error' ? 'Failed' : 'Generating...'}
+                      {job.status === 'complete' ? 'Done' : job.status === 'error' ? 'Failed' : job.status === 'recovering' ? 'Recovering...' : 'Generating...'}
                     </span>
                   </div>
 
@@ -340,21 +341,41 @@ export default function BatchRunner({ template, projectId, onBack, inline, exter
                   {job.status === 'error' && (
                     <div>
                       <p className="text-xs mb-2" style={{ color: 'var(--red)' }}>{job.error || 'Unknown error'}</p>
-                      <button
-                        onClick={async () => {
-                          try {
-                            const res = await fetch(`/api/jobs/${job.id}/retry`, { method: 'POST' });
-                            if (res.ok) {
-                              const updated = await res.json();
-                              setBatchJobs(prev => prev.map(j => j.id === job.id ? updated : j));
-                            }
-                          } catch {}
-                        }}
-                        className="px-3 py-1 rounded text-xs font-medium text-white"
-                        style={{ background: 'var(--accent)' }}
-                      >
-                        Retry
-                      </button>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={async () => {
+                            try {
+                              const res = await fetch(`/api/jobs/${job.id}/retry`, { method: 'POST' });
+                              if (res.ok) {
+                                const updated = await res.json();
+                                setBatchJobs(prev => prev.map(j => j.id === job.id ? updated : j));
+                              }
+                            } catch {}
+                          }}
+                          className="px-3 py-1 rounded text-xs font-medium text-white"
+                          style={{ background: 'var(--accent)' }}
+                        >
+                          Retry
+                        </button>
+                        {!!job.input?._falRequestId && (
+                          <button
+                            onClick={async () => {
+                              try {
+                                setBatchJobs(prev => prev.map(j => j.id === job.id ? { ...j, status: 'recovering', error: undefined } : j));
+                                const res = await fetch(`/api/jobs/${job.id}/recover`, { method: 'POST' });
+                                if (!res.ok) {
+                                  const data = await res.json();
+                                  setBatchJobs(prev => prev.map(j => j.id === job.id ? { ...j, status: 'error', error: data.error || 'Recovery failed' } : j));
+                                }
+                              } catch {}
+                            }}
+                            className="px-3 py-1 rounded text-xs font-medium"
+                            style={{ background: 'rgba(76,175,80,0.15)', color: 'var(--green)' }}
+                          >
+                            Recover
+                          </button>
+                        )}
+                      </div>
                     </div>
                   )}
 

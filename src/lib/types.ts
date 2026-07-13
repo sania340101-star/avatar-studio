@@ -170,7 +170,7 @@ export interface ProjectCacheData {
 }
 
 // Server-side job types (shared between API and client)
-export type JobStatus = 'preparing' | 'prepared' | 'generating' | 'complete' | 'error';
+export type JobStatus = 'preparing' | 'prepared' | 'generating' | 'recovering' | 'complete' | 'error';
 
 export interface VideoParams {
   aspectRatio?: string;

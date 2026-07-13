@@ -1,9 +1,9 @@
-import { writeFileSync, readFileSync, existsSync, unlinkSync, mkdirSync, renameSync } from 'fs';
+import { writeFileSync, readFileSync, existsSync, unlinkSync, mkdirSync, renameSync, statSync } from 'fs';
 import { join, extname } from 'path';
 import { execSync } from 'child_process';
 import { getUploadsDir } from '@/lib/storage';
 import { checkBudget, recordSpending } from '@/lib/billing';
-import { JobData, TemplateSlot, PoseMatrix } from '@/lib/types';
+import { JobData, TemplateSlot, PoseMatrix, GenerationCost } from '@/lib/types';
 
 const AGENT_URL = process.env.AGENT_URL || 'http://172.18.16.24:3391';
 const SERVICE_KEY = process.env.INTERNAL_SERVICE_KEY || '';
@@ -265,7 +265,7 @@ export function createBatchFromMatrix(
     jobs.set(job.id, job);
     batchJobs.push(job);
 
-    runGenerate(job, clip.prompt, matrix.modelId, falKey).catch(err => {
+    runGenerateThrottled(job, clip.prompt, matrix.modelId, falKey).catch(err => {
       job.status = 'error';
       job.error = err instanceof Error ? err.message : 'Generation failed';
       updateJob(job);
@@ -337,7 +337,7 @@ export function createBatchJobs(
     jobs.set(job.id, job);
     batchJobs.push(job);
 
-    runGenerate(job, instruction, slot.modelId, falKey).catch(err => {
+    runGenerateThrottled(job, instruction, slot.modelId, falKey).catch(err => {
       job.status = 'error';
       job.error = err instanceof Error ? err.message : 'Generation failed';
       updateJob(job);
@@ -377,6 +377,59 @@ export function retryJob(jobId: string, falKey: string): JobData | null {
   return job;
 }
 
+const AGENT_TIMEOUT = 5 * 60 * 1000;
+const MAX_RETRIES = 3;
+const RETRY_DELAYS = [2000, 4000, 8000];
+const MAX_CONCURRENT_GENERATE = 3;
+
+function isRetryableError(err: Error, status?: number): boolean {
+  if (err.name === 'AbortError') return false;
+  if (err.message.includes('spending limit')) return false;
+  if (status && status >= 400 && status < 500) return false;
+  return true;
+}
+
+function extractVideoUrl(data: Record<string, unknown>): string | undefined {
+  const video = data.video as { url?: string } | undefined;
+  const output = data.output as { url?: string } | undefined;
+  const result = data.result as { video?: { url?: string } } | undefined;
+  let url = video?.url || output?.url || result?.video?.url;
+  if (!url && typeof data.text === 'string') {
+    const m = data.text.match(/https?:\/\/[^\s"'\\]+\.(?:mp4|webm|mov)/i);
+    if (m) url = m[0];
+  }
+  if (!url) {
+    const json = JSON.stringify(data);
+    const m = json.match(/https?:\/\/[^\s"'\\]+\.(?:mp4|webm|mov)/i);
+    if (m) url = m[0];
+  }
+  return url;
+}
+
+function validateProxiedFile(localUrl: string): void {
+  if (!localUrl.startsWith('/api/files/')) return;
+  const filename = localUrl.replace('/api/files/', '');
+  const filePath = join(getUploadsDir(), filename);
+  const stats = statSync(filePath);
+  if (stats.size < 1024) {
+    throw new Error(`Downloaded file too small (${stats.size} bytes) — proxy may have failed`);
+  }
+}
+
+let _generateSlots = MAX_CONCURRENT_GENERATE;
+const _generateQueue: Array<() => void> = [];
+
+function acquireGenerateSlot(): Promise<void> {
+  if (_generateSlots > 0) { _generateSlots--; return Promise.resolve(); }
+  return new Promise(resolve => { _generateQueue.push(() => { _generateSlots--; resolve(); }); });
+}
+
+function releaseGenerateSlot(): void {
+  _generateSlots++;
+  const next = _generateQueue.shift();
+  if (next) next();
+}
+
 async function runPrepare(job: JobData, falKey: string) {
   const res = await fetch(`${AGENT_URL}/prepare`, {
     method: 'POST',
@@ -398,66 +451,169 @@ async function runPrepare(job: JobData, falKey: string) {
   updateJob(job);
 }
 
+async function fetchAgent(
+  job: JobData, prompt: string, model: string, falKey: string,
+): Promise<Record<string, unknown>> {
+  let lastError: Error | null = null;
+
+  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+    try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), AGENT_TIMEOUT);
+      const res = await fetch(`${AGENT_URL}/generate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Service-Key': SERVICE_KEY },
+        body: JSON.stringify({ ...job.input, type: job.type, instruction: prompt, model, falKey }),
+        signal: controller.signal,
+      });
+      clearTimeout(timer);
+      const data = await res.json();
+      if (!res.ok || data.error) {
+        const err = new Error(data.error || `Agent error (${res.status})`);
+        if (!isRetryableError(err, res.status)) throw err;
+        lastError = err;
+      } else {
+        return data as Record<string, unknown>;
+      }
+    } catch (e: unknown) {
+      const err = e instanceof Error ? e : new Error(String(e));
+      if (err.name === 'AbortError') {
+        throw new Error('Agent timed out (5 min). Generation may still be running on fal.ai — try Recover.');
+      }
+      if (!isRetryableError(err)) throw err;
+      lastError = err;
+    }
+    if (attempt < MAX_RETRIES - 1) {
+      console.log(`[jobs] fetchAgent retry ${attempt + 1}/${MAX_RETRIES} in ${RETRY_DELAYS[attempt]}ms: ${lastError?.message}`);
+      await new Promise(r => setTimeout(r, RETRY_DELAYS[attempt]));
+    }
+  }
+  throw lastError || new Error('Agent request failed after retries');
+}
+
+async function processVideoResult(job: JobData, data: Record<string, unknown>): Promise<void> {
+  const videoUrl = extractVideoUrl(data);
+  const localUrl = videoUrl ? await proxyResultUrl(videoUrl) : undefined;
+  if (!localUrl && !videoUrl) {
+    throw new Error('Generation completed but no video URL in response');
+  }
+  let finalUrl = localUrl || videoUrl!;
+  if (finalUrl.startsWith('/api/files/')) validateProxiedFile(finalUrl);
+  if (job.input.seamlessLoop && finalUrl.startsWith('/api/files/')) {
+    try {
+      finalUrl = await applySeamlessLoop(finalUrl, job.input.blendFrames as number || 10, job.input.loopTransition as string || 'fade', job.input.loopCrf as number ?? 18);
+    } catch (e) {
+      console.error('[jobs] seamless loop post-processing failed:', e instanceof Error ? e.message : e);
+    }
+  }
+  job.result = {
+    video: { url: finalUrl },
+    prompt: (data.prompt as string) || '',
+    model: (data.model as string) || '',
+    modelLabel: (data.modelLabel as string) || '',
+    reasoning: (data.reasoning as string) || undefined,
+    cost: data.cost as GenerationCost | undefined,
+  };
+}
+
 async function runGenerate(job: JobData, prompt: string, model: string, falKey: string) {
   const budget = checkBudget(job.userId);
   if (!budget.allowed) {
     throw new Error(`Daily spending limit reached ($${budget.spent.toFixed(2)} / $${budget.limit.toFixed(2)}).`);
   }
 
-  const res = await fetch(`${AGENT_URL}/generate`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'X-Service-Key': SERVICE_KEY },
-    body: JSON.stringify({ ...job.input, type: job.type, instruction: prompt, model, falKey }),
-  });
-  const data = await res.json();
-  if (!res.ok || data.error) throw new Error(data.error || `Agent error (${res.status})`);
+  const data = await fetchAgent(job, prompt, model, falKey);
 
   if (data.falRequestId) {
     job.input._falRequestId = data.falRequestId;
+    job.input._falModel = (data.model as string) || model;
+    updateJob(job);
   }
 
-  const costUsd = typeof data.cost?.amount === 'number' ? data.cost.amount : 0;
-  if (costUsd > 0) recordSpending(job.userId, costUsd, data.model || '', job.type);
+  const costUsd = typeof (data.cost as { amount?: number })?.amount === 'number' ? (data.cost as { amount: number }).amount : 0;
+  if (costUsd > 0) recordSpending(job.userId, costUsd, (data.model as string) || '', job.type);
 
   if (job.type === 'video') {
-    let videoUrl = data.video?.url
-      || data.output?.url
-      || data.result?.video?.url;
-    if (!videoUrl && typeof data.text === 'string') {
-      const m = data.text.match(/https?:\/\/[^\s"'\\]+\.(?:mp4|webm|mov)/i);
-      if (m) videoUrl = m[0];
-    }
-    if (!videoUrl) {
-      const json = JSON.stringify(data);
-      const m = json.match(/https?:\/\/[^\s"'\\]+\.(?:mp4|webm|mov)/i);
-      if (m) videoUrl = m[0];
-    }
-    const localUrl = videoUrl ? await proxyResultUrl(videoUrl) : undefined;
-    if (!localUrl && !videoUrl) {
-      throw new Error('Generation completed but no video URL in response');
-    }
-    let finalUrl = localUrl || videoUrl!;
-    if (job.input.seamlessLoop && finalUrl.startsWith('/api/files/')) {
-      try {
-        finalUrl = await applySeamlessLoop(finalUrl, job.input.blendFrames as number || 10, job.input.loopTransition as string || 'fade', job.input.loopCrf as number ?? 18);
-      } catch (e) {
-        console.error('[jobs] seamless loop post-processing failed:', e instanceof Error ? e.message : e);
-      }
-    }
-    job.result = {
-      video: { url: finalUrl },
-      prompt: data.prompt, model: data.model, modelLabel: data.modelLabel,
-      reasoning: data.reasoning, cost: data.cost || undefined,
-    };
+    await processVideoResult(job, data);
   } else {
-    const rawImages: { url: string }[] = data.images || [];
+    const rawImages: { url: string }[] = (data.images as { url: string }[]) || [];
     const images = await Promise.all(rawImages.map(async img => ({ url: await proxyResultUrl(img.url) })));
     job.result = {
-      images, prompt: data.prompt, model: data.model, modelLabel: data.modelLabel,
-      reasoning: data.reasoning, cost: data.cost || undefined,
+      images,
+      prompt: (data.prompt as string) || '',
+      model: (data.model as string) || '',
+      modelLabel: (data.modelLabel as string) || '',
+      reasoning: (data.reasoning as string) || undefined,
+      cost: data.cost as GenerationCost | undefined,
     };
   }
 
   job.status = 'complete';
   updateJob(job);
+}
+
+async function runGenerateThrottled(job: JobData, prompt: string, model: string, falKey: string) {
+  await acquireGenerateSlot();
+  try {
+    await runGenerate(job, prompt, model, falKey);
+  } finally {
+    releaseGenerateSlot();
+  }
+}
+
+async function recoverFromFal(job: JobData, requestId: string, model: string, falKey: string) {
+  const statusUrl = `https://queue.fal.run/${model}/requests/${requestId}/status`;
+  const responseUrl = `https://queue.fal.run/${model}/requests/${requestId}`;
+  const MAX_WAIT = 5 * 60 * 1000;
+  const start = Date.now();
+
+  while (true) {
+    const statusRes = await fetch(statusUrl, {
+      headers: { 'Authorization': `Key ${falKey}` },
+    });
+    if (!statusRes.ok) throw new Error(`fal.ai status check failed (${statusRes.status})`);
+    const statusData = await statusRes.json();
+
+    if (statusData.status === 'COMPLETED') break;
+    if (statusData.status === 'FAILED') throw new Error('Generation failed on fal.ai');
+    if (Date.now() - start > MAX_WAIT) {
+      throw new Error('Recovery timed out — generation may still be running on fal.ai');
+    }
+    await new Promise(r => setTimeout(r, 5000));
+  }
+
+  const resultRes = await fetch(responseUrl, {
+    headers: { 'Authorization': `Key ${falKey}` },
+  });
+  if (!resultRes.ok) throw new Error(`fal.ai result fetch failed (${resultRes.status})`);
+  const result = await resultRes.json();
+  if (!result.prompt) result.prompt = (job.input.instruction as string) || '';
+  if (!result.model) result.model = model;
+  if (!result.modelLabel) result.modelLabel = model.split('/').pop() || model;
+  await processVideoResult(job, result);
+  job.status = 'complete';
+  updateJob(job);
+}
+
+export async function recoverJob(jobId: string, falKey: string): Promise<JobData | null> {
+  const job = jobs.get(jobId);
+  if (!job || job.status !== 'error') return null;
+
+  const requestId = job.input._falRequestId as string | undefined;
+  const model = (job.input._falModel as string)
+    || (job.input.modelPref as string)
+    || (job.input.model as string) || '';
+  if (!requestId || !model) return null;
+
+  job.status = 'recovering';
+  job.error = undefined;
+  updateJob(job);
+
+  recoverFromFal(job, requestId, model, falKey).catch(err => {
+    job.status = 'error';
+    job.error = err instanceof Error ? err.message : 'Recovery failed';
+    updateJob(job);
+  });
+
+  return job;
 }
