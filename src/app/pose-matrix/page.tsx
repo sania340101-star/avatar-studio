@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { PoseMatrix, PoseMatrixPose, PoseMatrixClip, VideoModelOption } from '@/lib/types';
-import { VIDEO_MODELS } from '@/lib/models';
+import { VIDEO_MODEL_OPTIONS } from '@/lib/models';
 import ImagePicker from '@/components/ImagePicker';
 
 interface BatchJob {
@@ -14,7 +14,7 @@ interface BatchJob {
   error?: string;
 }
 
-const START_END_MODELS = VIDEO_MODELS.filter(m => m.startEndFrame);
+const START_END_MODELS = VIDEO_MODEL_OPTIONS.filter(m => m.startEndFrame);
 
 function uid() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
