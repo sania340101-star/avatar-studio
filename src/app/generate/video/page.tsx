@@ -69,11 +69,12 @@ function PoseMatrixRunner({ matrix, projectId, poseImages, setPoseImages, batchI
     const allDone = batchJobs.length > 0 && batchJobs.every(j => j.status === 'complete' || j.status === 'error');
     if (!allDone) return;
     savedRef.current = batchId;
+    const pm = new Map(matrix.poses.map(p => [p.id, p]));
     const completed = batchJobs.filter(j => j.status === 'complete' && j.result?.video?.url);
     const saves = completed.map(job => {
       const clip = matrix.clips[job.slotIndex ?? 0];
-      const startPose = clip ? poseMap.get(clip.startPoseId) : null;
-      const endPose = clip ? poseMap.get(clip.endPoseId) : null;
+      const startPose = clip ? pm.get(clip.startPoseId) : null;
+      const endPose = clip ? pm.get(clip.endPoseId) : null;
       return fetch('/api/generations', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -105,7 +106,7 @@ function PoseMatrixRunner({ matrix, projectId, poseImages, setPoseImages, batchI
       }).catch(e => console.error('Failed to save pose matrix result:', e));
     });
     Promise.all(saves).then(() => onComplete?.());
-  }, [batchId, batchJobs, projectId, matrix, poseImages, poseMap, savedRef, onComplete]);
+  }, [batchId, batchJobs, projectId, matrix, poseImages, savedRef, onComplete]);
 
   async function handleGenerate() {
     setGenerating(true);
