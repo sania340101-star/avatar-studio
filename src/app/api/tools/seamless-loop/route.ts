@@ -8,6 +8,20 @@ import { verifyToken } from '@/lib/token';
 
 const MAX_FILE_SIZE = 100 * 1024 * 1024;
 
+const TRANSITIONS = [
+  'fade', 'dissolve', 'wipeleft', 'wiperight', 'wipeup', 'wipedown',
+  'slideleft', 'slideright', 'slideup', 'slidedown',
+  'smoothleft', 'smoothright', 'smoothup', 'smoothdown',
+  'circlecrop', 'rectcrop', 'circleopen', 'circleclose',
+  'horzopen', 'horzclose', 'vertopen', 'vertclose',
+  'diagbl', 'diagbr', 'diagtl', 'diagtr',
+  'radial', 'zoomin',
+] as const;
+
+export async function GET() {
+  return NextResponse.json({ transitions: TRANSITIONS });
+}
+
 export async function POST(req: NextRequest) {
   const sessionCookie = req.cookies.get('session')?.value;
   if (!sessionCookie) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -24,6 +38,14 @@ export async function POST(req: NextRequest) {
 
   const blendFrames = parseInt(formData.get('blendFrames') as string) || 10;
   if (blendFrames < 2 || blendFrames > 60) return NextResponse.json({ error: 'blendFrames must be 2-60' }, { status: 400 });
+
+  const transition = (formData.get('transition') as string) || 'fade';
+  if (!TRANSITIONS.includes(transition as typeof TRANSITIONS[number])) {
+    return NextResponse.json({ error: `Unknown transition. Available: ${TRANSITIONS.join(', ')}` }, { status: 400 });
+  }
+
+  const crf = parseInt(formData.get('crf') as string) || 18;
+  if (crf < 0 || crf > 51) return NextResponse.json({ error: 'crf must be 0-51' }, { status: 400 });
 
   const uploadsDir = getUploadsDir();
   const ts = Date.now();
@@ -59,15 +81,15 @@ export async function POST(req: NextRequest) {
       `[0]split[body][pre]`,
       `[pre]trim=st=0:end=${blendSec.toFixed(4)},setpts=PTS-STARTPTS[begin]`,
       `[body]trim=st=0:end=${mainDur.toFixed(4)},setpts=PTS-STARTPTS[main]`,
-      `[main][begin]xfade=transition=fade:duration=${blendSec.toFixed(4)}:offset=${offset.toFixed(4)}[out]`,
+      `[main][begin]xfade=transition=${transition}:duration=${blendSec.toFixed(4)}:offset=${offset.toFixed(4)}[out]`,
     ].join('; ');
 
-    const ffmpegCmd = `ffmpeg -y -i "${inputPath}" -filter_complex "${filter}" -map "[out]" -c:v libx264 -preset fast -crf 18 -pix_fmt yuv420p -an "${outputPath}"`;
+    const ffmpegCmd = `ffmpeg -y -i "${inputPath}" -filter_complex "${filter}" -map "[out]" -c:v libx264 -preset fast -crf ${crf} -pix_fmt yuv420p -an "${outputPath}"`;
     execSync(ffmpegCmd, { timeout: 120000 });
 
     if (!existsSync(outputPath)) throw new Error('ffmpeg produced no output');
 
-    audit({ event: 'seamless-loop', ip, userId, path: '/api/tools/seamless-loop', detail: `blend=${blendFrames} fps=${fps.toFixed(1)} dur=${totalDuration.toFixed(1)}s` });
+    audit({ event: 'seamless-loop', ip, userId, path: '/api/tools/seamless-loop', detail: `blend=${blendFrames} transition=${transition} crf=${crf} fps=${fps.toFixed(1)} dur=${totalDuration.toFixed(1)}s` });
 
     return NextResponse.json({
       url: `/api/files/${outputName}`,
@@ -78,6 +100,8 @@ export async function POST(req: NextRequest) {
         fps: +fps.toFixed(1),
         blendFrames,
         blendSeconds: +blendSec.toFixed(2),
+        transition,
+        crf,
       },
     });
   } catch (e: unknown) {
