@@ -350,7 +350,7 @@ export default function PoseMatrixPage() {
                     <span className="text-xs font-medium px-2 py-0.5 rounded shrink-0 mt-1" style={{ background: 'var(--accent-subtle)', color: 'var(--accent)' }}>
                       {pose?.name || '?'} → {pose?.name || '?'}
                     </span>
-                    <input value={clip.prompt} onChange={e => updateClip(clip.id, { prompt: e.target.value })} placeholder="Prompt..."
+                    <input value={clip.prompt} onChange={e => updateClip(clip.id, { prompt: e.target.value })} placeholder="Instruction for the agent..."
                       className="flex-1 text-xs px-2 py-1 rounded bg-transparent outline-none" style={{ border: '1px solid var(--border)', color: 'var(--text1)' }} />
                     <button onClick={() => removeClip(clip.id)} className="text-xs shrink-0 mt-1" style={{ color: 'var(--red)' }}>×</button>
                   </div>
@@ -373,7 +373,7 @@ export default function PoseMatrixPage() {
                     <span className="text-xs font-medium px-2 py-0.5 rounded shrink-0 mt-1" style={{ background: 'rgba(76,175,80,0.15)', color: 'var(--green)' }}>
                       {start?.name || '?'} → {end?.name || '?'}
                     </span>
-                    <input value={clip.prompt} onChange={e => updateClip(clip.id, { prompt: e.target.value })} placeholder="Prompt..."
+                    <input value={clip.prompt} onChange={e => updateClip(clip.id, { prompt: e.target.value })} placeholder="Instruction for the agent..."
                       className="flex-1 text-xs px-2 py-1 rounded bg-transparent outline-none" style={{ border: '1px solid var(--border)', color: 'var(--text1)' }} />
                     <button onClick={() => removeClip(clip.id)} className="text-xs shrink-0 mt-1" style={{ color: 'var(--red)' }}>×</button>
                   </div>
