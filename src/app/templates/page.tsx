@@ -469,6 +469,42 @@ function SlotCard({ slot, index, total, onChange, onRemove }: {
             </div>
           )}
 
+          <div className="rounded-lg p-3" style={{ background: 'var(--bg-input)', border: '1px solid var(--border)' }}>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={slot.seamlessLoop || false}
+                onChange={e => updateField('seamlessLoop', e.target.checked)}
+                style={{ accentColor: 'var(--accent)' }}
+              />
+              <span className="text-sm font-medium">Seamless Loop</span>
+              <span className="text-xs" style={{ color: 'var(--text3)' }}>ffmpeg crossfade post-processing</span>
+            </label>
+            {slot.seamlessLoop && (
+              <div className="mt-3 space-y-2 pl-6">
+                <div className="flex items-center gap-3">
+                  <label htmlFor={`blend-${slot.id}`} className="text-xs whitespace-nowrap" style={{ color: 'var(--text2)' }}>
+                    Blend: <strong>{slot.blendFrames || 10}</strong>
+                  </label>
+                  <input id={`blend-${slot.id}`} type="range" min={2} max={60} value={slot.blendFrames || 10} onChange={e => updateField('blendFrames', parseInt(e.target.value))} className="flex-1" style={{ accentColor: 'var(--accent)' }} />
+                </div>
+                <div className="flex items-center gap-3">
+                  <label htmlFor={`loop-trans-${slot.id}`} className="text-xs whitespace-nowrap" style={{ color: 'var(--text2)' }}>Transition:</label>
+                  <select id={`loop-trans-${slot.id}`} value={slot.loopTransition || 'fade'} onChange={e => updateField('loopTransition', e.target.value)} className="flex-1 text-xs rounded px-2 py-1" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+                    <option value="fade">Fade</option>
+                    <option value="dissolve">Dissolve</option>
+                    <option value="wipeleft">Wipe Left</option>
+                    <option value="wiperight">Wipe Right</option>
+                    <option value="smoothleft">Smooth Left</option>
+                    <option value="smoothright">Smooth Right</option>
+                    <option value="radial">Radial</option>
+                    <option value="zoomin">Zoom In</option>
+                  </select>
+                </div>
+              </div>
+            )}
+          </div>
+
           <div>
             <label htmlFor={`input-slot-instruction-${slot.id}`} className="block text-xs mb-1" style={{ color: 'var(--text3)' }}>Instruction</label>
             <textarea

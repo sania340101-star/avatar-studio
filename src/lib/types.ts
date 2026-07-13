@@ -60,6 +60,9 @@ export interface TemplateSlot {
   fps: number;
   strategy: string;
   references: TemplateRef[];
+  seamlessLoop?: boolean;
+  blendFrames?: number;
+  loopTransition?: string;
 }
 
 export interface Template {

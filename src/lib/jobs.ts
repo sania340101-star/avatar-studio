@@ -1,5 +1,6 @@
-import { writeFileSync } from 'fs';
+import { writeFileSync, existsSync, unlinkSync } from 'fs';
 import { join, extname } from 'path';
+import { execSync } from 'child_process';
 import { getUploadsDir } from '@/lib/storage';
 import { checkBudget, recordSpending } from '@/lib/billing';
 import { JobData, TemplateSlot } from '@/lib/types';
@@ -54,6 +55,44 @@ export async function proxyResultUrl(url: string): Promise<string> {
     console.error(`[proxyResultUrl] error for ${url}:`, e instanceof Error ? e.message : e);
     return url;
   }
+}
+
+async function applySeamlessLoop(localUrl: string, blendFrames: number, transition: string): Promise<string> {
+  const uploadsDir = getUploadsDir();
+  const filename = localUrl.replace('/api/files/', '');
+  const inputPath = join(uploadsDir, filename);
+  const ts = Date.now();
+  const outputName = `${ts}-loop-output.mp4`;
+  const outputPath = join(uploadsDir, outputName);
+
+  const probeCmd = `ffprobe -v error -select_streams v:0 -show_entries stream=r_frame_rate,duration -of json "${inputPath}"`;
+  const probeRaw = execSync(probeCmd, { timeout: 15000 }).toString();
+  const stream = JSON.parse(probeRaw).streams?.[0];
+  if (!stream) throw new Error('Could not probe video for seamless loop');
+
+  const [num, den] = (stream.r_frame_rate || '30/1').split('/');
+  const fps = parseInt(num) / (parseInt(den) || 1);
+  const totalDuration = parseFloat(stream.duration || '0');
+  const blendSec = blendFrames / fps;
+  if (blendSec >= totalDuration * 0.5) throw new Error('Blend too long for video duration');
+
+  const tailStart = totalDuration - blendSec;
+  const bodyEnd = totalDuration - blendSec;
+  const filter = [
+    `[0]split=3[a][b][c]`,
+    `[a]trim=start=${tailStart.toFixed(4)}:end=${totalDuration.toFixed(4)},setpts=PTS-STARTPTS[tail]`,
+    `[b]trim=start=0:end=${blendSec.toFixed(4)},setpts=PTS-STARTPTS[head]`,
+    `[c]trim=start=${blendSec.toFixed(4)}:end=${bodyEnd.toFixed(4)},setpts=PTS-STARTPTS[body]`,
+    `[tail][head]xfade=transition=${transition}:duration=${blendSec.toFixed(4)}:offset=0[blend]`,
+    `[blend][body]concat=n=2:v=1:a=0[out]`,
+  ].join('; ');
+
+  const cmd = `ffmpeg -y -i "${inputPath}" -filter_complex "${filter}" -map "[out]" -c:v libx264 -preset fast -crf 18 -pix_fmt yuv420p -an "${outputPath}"`;
+  execSync(cmd, { timeout: 120000 });
+
+  if (!existsSync(outputPath)) throw new Error('ffmpeg seamless loop produced no output');
+  console.log(`[jobs] seamless loop applied: ${filename} -> ${outputName} (blend=${blendFrames}, transition=${transition})`);
+  return `/api/files/${outputName}`;
 }
 
 export function getJob(jobId: string): JobData | null {
@@ -164,6 +203,11 @@ export function createBatchJobs(
       fps: slot.fps,
       strategy: slot.strategy,
     };
+    if (slot.seamlessLoop) {
+      input.seamlessLoop = true;
+      input.blendFrames = slot.blendFrames || 10;
+      input.loopTransition = slot.loopTransition || 'fade';
+    }
     if (imageRefs.length > 0) input.sourceImage = sharedInput.sourceImage || imageRefs[0].url;
     if (imageRefs.length > 1) input.endImage = imageRefs[1].url;
     if (videoRefs.length > 0) input.sourceVideo = videoRefs[0].url;
@@ -258,8 +302,16 @@ async function runGenerate(job: JobData, prompt: string, model: string, falKey: 
     if (!localUrl && !videoUrl) {
       throw new Error('Generation completed but no video URL in response');
     }
+    let finalUrl = localUrl || videoUrl!;
+    if (job.input.seamlessLoop && finalUrl.startsWith('/api/files/')) {
+      try {
+        finalUrl = await applySeamlessLoop(finalUrl, job.input.blendFrames as number || 10, job.input.loopTransition as string || 'fade');
+      } catch (e) {
+        console.error('[jobs] seamless loop post-processing failed:', e instanceof Error ? e.message : e);
+      }
+    }
     job.result = {
-      video: { url: localUrl || videoUrl! },
+      video: { url: finalUrl },
       prompt: data.prompt, model: data.model, modelLabel: data.modelLabel,
       reasoning: data.reasoning, cost: data.cost || undefined,
     };
