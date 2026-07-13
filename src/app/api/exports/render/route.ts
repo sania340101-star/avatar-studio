@@ -192,16 +192,22 @@ async function processExport(sessionId: string, userId: string) {
 
     const outputFilename = `export-${sessionId}-${Date.now()}.mp4`;
     const outputPath = join(uploadsDir, outputFilename);
-    const useCrossfade = session.crossfadeEnabled && tempFiles.length >= 2;
+    const clipCount = session.clips.length;
+    const useSeamless = session.crossfadeEnabled;
 
-    if (useCrossfade) {
+    if (useSeamless) {
       const blendFrames = session.crossfadeBlendFrames || 10;
       const transition = session.crossfadeTransition || 'fade';
       const crf = session.crossfadeCrf ?? 18;
-      const concatPath = join(uploadsDir, `_export_xfade_${sessionId}.mp4`);
-      tempFiles.push(concatPath);
-      await xfadeConcat(tempFiles.slice(0, session.clips.length), concatPath, blendFrames, transition, crf);
-      await seamlessLoop(concatPath, outputPath, blendFrames, transition, crf);
+
+      if (clipCount === 1) {
+        await seamlessLoop(tempFiles[0], outputPath, blendFrames, transition, crf);
+      } else {
+        const concatPath = join(uploadsDir, `_export_xfade_${sessionId}.mp4`);
+        tempFiles.push(concatPath);
+        await xfadeConcat(tempFiles.slice(0, clipCount), concatPath, blendFrames, transition, crf);
+        await seamlessLoop(concatPath, outputPath, blendFrames, transition, crf);
+      }
     } else {
       const concatListPath = join(uploadsDir, `_export_concat_${sessionId}.txt`);
       const concatContent = tempFiles.map(f => `file '${f.replace(/\\/g, '/')}'`).join('\n');

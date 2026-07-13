@@ -980,7 +980,7 @@ function ExportEditorContent() {
                 />
                 <span className="text-xs" style={{ color: 'var(--text2)' }}>Mute audio</span>
               </label>
-              {session.clips.length >= 2 && (
+              {session.clips.length >= 1 && (
                 <>
                   <label className="flex items-center gap-2 mt-2 cursor-pointer">
                     <input
