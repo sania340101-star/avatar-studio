@@ -338,7 +338,24 @@ export default function BatchRunner({ template, projectId, onBack, inline, exter
                   )}
 
                   {job.status === 'error' && (
-                    <p className="text-xs" style={{ color: 'var(--red)' }}>{job.error || 'Unknown error'}</p>
+                    <div>
+                      <p className="text-xs mb-2" style={{ color: 'var(--red)' }}>{job.error || 'Unknown error'}</p>
+                      <button
+                        onClick={async () => {
+                          try {
+                            const res = await fetch(`/api/jobs/${job.id}/retry`, { method: 'POST' });
+                            if (res.ok) {
+                              const updated = await res.json();
+                              setBatchJobs(prev => prev.map(j => j.id === job.id ? updated : j));
+                            }
+                          } catch {}
+                        }}
+                        className="px-3 py-1 rounded text-xs font-medium text-white"
+                        style={{ background: 'var(--accent)' }}
+                      >
+                        Retry
+                      </button>
+                    </div>
                   )}
 
                   {job.status !== 'complete' && job.status !== 'error' && (
@@ -357,7 +374,7 @@ export default function BatchRunner({ template, projectId, onBack, inline, exter
             })}
           </div>
 
-          {completedJobs.length === batchJobs.length && batchJobs.length > 0 && (
+          {runningJobs.length === 0 && batchJobs.length > 0 && (
             <button
               onClick={() => { setBatchId(null); setBatchJobs([]); }}
               className="w-full py-2.5 rounded-lg text-sm font-medium"

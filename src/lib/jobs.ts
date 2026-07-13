@@ -1,4 +1,4 @@
-import { writeFileSync, existsSync, unlinkSync } from 'fs';
+import { writeFileSync, readFileSync, existsSync, unlinkSync, mkdirSync, renameSync } from 'fs';
 import { join, extname } from 'path';
 import { execSync } from 'child_process';
 import { getUploadsDir } from '@/lib/storage';
@@ -7,19 +7,50 @@ import { JobData, TemplateSlot } from '@/lib/types';
 
 const AGENT_URL = process.env.AGENT_URL || 'http://172.18.16.24:3391';
 const SERVICE_KEY = process.env.INTERNAL_SERVICE_KEY || '';
+const DATA_DIR = process.env.DATA_DIR || join(process.cwd(), 'data');
+const JOBS_FILE = join(DATA_DIR, 'jobs.json');
 
-const g = globalThis as unknown as { __avatarJobs?: Map<string, JobData> };
+function ensureDataDir() {
+  if (!existsSync(DATA_DIR)) mkdirSync(DATA_DIR, { recursive: true });
+}
+
+function loadJobs(): Map<string, JobData> {
+  try {
+    const data: JobData[] = JSON.parse(readFileSync(JOBS_FILE, 'utf-8'));
+    return new Map(data.map(j => [j.id, j]));
+  } catch {
+    return new Map();
+  }
+}
+
+function persistJobs() {
+  ensureDataDir();
+  const arr = Array.from(jobs.values());
+  const tmp = JOBS_FILE + '.tmp';
+  writeFileSync(tmp, JSON.stringify(arr, null, 2));
+  renameSync(tmp, JOBS_FILE);
+}
+
+const g = globalThis as unknown as { __avatarJobs?: Map<string, JobData>; __avatarJobsLoaded?: boolean };
 if (!g.__avatarJobs) g.__avatarJobs = new Map();
+if (!g.__avatarJobsLoaded) {
+  const loaded = loadJobs();
+  for (const [id, job] of loaded) g.__avatarJobs.set(id, job);
+  g.__avatarJobsLoaded = true;
+}
 const jobs = g.__avatarJobs;
 
-const COMPLETED_TTL = 60 * 60 * 1000;
+const COMPLETED_TTL = 24 * 60 * 60 * 1000;
 setInterval(() => {
   const now = Date.now();
+  let changed = false;
   for (const [id, job] of jobs) {
     if ((job.status === 'complete' || job.status === 'error') && now - job.updatedAt > COMPLETED_TTL) {
       jobs.delete(id);
+      changed = true;
     }
   }
+  if (changed) persistJobs();
 }, 5 * 60 * 1000).unref?.();
 
 const ALLOWED_RESULT_HOSTS = ['fal.media', 'v3.fal.media', 'storage.googleapis.com', 'fal-cdn.batuhan.co'];
@@ -95,6 +126,12 @@ async function applySeamlessLoop(localUrl: string, blendFrames: number, transiti
   return `/api/files/${outputName}`;
 }
 
+function updateJob(job: JobData) {
+  job.updatedAt = Date.now();
+  jobs.set(job.id, job);
+  persistJobs();
+}
+
 export function getJob(jobId: string): JobData | null {
   return jobs.get(jobId) || null;
 }
@@ -120,7 +157,7 @@ export function createJob(
   if (existing) {
     existing.status = 'error';
     existing.error = 'Cancelled — new job started';
-    existing.updatedAt = Date.now();
+    updateJob(existing);
   }
 
   const job: JobData = {
@@ -134,11 +171,12 @@ export function createJob(
     updatedAt: Date.now(),
   };
   jobs.set(job.id, job);
+  persistJobs();
 
   runPrepare(job, falKey).catch(err => {
     job.status = 'error';
     job.error = err instanceof Error ? err.message : 'Prepare failed';
-    job.updatedAt = Date.now();
+    updateJob(job);
   });
 
   return job;
@@ -151,7 +189,7 @@ export function confirmJob(job: JobData, editedPrompt: string, editedModel: stri
   if (!budget.allowed) {
     job.status = 'error';
     job.error = `Daily spending limit reached ($${budget.spent.toFixed(2)} / $${budget.limit.toFixed(2)}).`;
-    job.updatedAt = Date.now();
+    updateJob(job);
     return;
   }
 
@@ -160,12 +198,12 @@ export function confirmJob(job: JobData, editedPrompt: string, editedModel: stri
   }
 
   job.status = 'generating';
-  job.updatedAt = Date.now();
+  updateJob(job);
 
   runGenerate(job, editedPrompt, editedModel, falKey).catch(err => {
     job.status = 'error';
     job.error = err instanceof Error ? err.message : 'Generation failed';
-    job.updatedAt = Date.now();
+    updateJob(job);
   });
 }
 
@@ -233,10 +271,11 @@ export function createBatchJobs(
     runGenerate(job, instruction, slot.modelId, falKey).catch(err => {
       job.status = 'error';
       job.error = err instanceof Error ? err.message : 'Generation failed';
-      job.updatedAt = Date.now();
+      updateJob(job);
     });
   }
 
+  persistJobs();
   return { batchId, jobs: batchJobs };
 }
 
@@ -246,6 +285,27 @@ export function getBatchJobs(batchId: string): JobData[] {
     if (job.batchId === batchId) result.push(job);
   }
   return result.sort((a, b) => (a.slotIndex ?? 0) - (b.slotIndex ?? 0));
+}
+
+export function retryJob(jobId: string, falKey: string): JobData | null {
+  const job = jobs.get(jobId);
+  if (!job || job.status !== 'error') return null;
+
+  job.status = 'generating';
+  job.error = undefined;
+  job.result = undefined;
+  updateJob(job);
+
+  const prompt = (job.input.instruction as string) || '';
+  const model = (job.input.modelPref as string) || (job.input.model as string) || '';
+
+  runGenerate(job, prompt, model, falKey).catch(err => {
+    job.status = 'error';
+    job.error = err instanceof Error ? err.message : 'Generation failed';
+    updateJob(job);
+  });
+
+  return job;
 }
 
 async function runPrepare(job: JobData, falKey: string) {
@@ -266,7 +326,7 @@ async function runPrepare(job: JobData, falKey: string) {
     params: data.params || undefined,
   };
   job.status = 'prepared';
-  job.updatedAt = Date.now();
+  updateJob(job);
 }
 
 async function runGenerate(job: JobData, prompt: string, model: string, falKey: string) {
@@ -282,6 +342,10 @@ async function runGenerate(job: JobData, prompt: string, model: string, falKey: 
   });
   const data = await res.json();
   if (!res.ok || data.error) throw new Error(data.error || `Agent error (${res.status})`);
+
+  if (data.falRequestId) {
+    job.input._falRequestId = data.falRequestId;
+  }
 
   const costUsd = typeof data.cost?.amount === 'number' ? data.cost.amount : 0;
   if (costUsd > 0) recordSpending(job.userId, costUsd, data.model || '', job.type);
@@ -326,5 +390,5 @@ async function runGenerate(job: JobData, prompt: string, model: string, falKey: 
   }
 
   job.status = 'complete';
-  job.updatedAt = Date.now();
+  updateJob(job);
 }

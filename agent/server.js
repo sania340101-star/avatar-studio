@@ -810,6 +810,7 @@ async function directFalGenerate(modelId, body, falKey, falUploadedUrls, falMedi
     model: modelId,
     modelLabel: body.modelLabel || modelId.split('/').pop(),
     cost,
+    falRequestId: requestId,
   };
 }
 
