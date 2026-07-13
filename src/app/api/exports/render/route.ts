@@ -66,6 +66,7 @@ async function xfadeConcat(
   const fps = probeFps(clipPaths[0]);
   const blendSec = blendFrames / fps;
   const durations = clipPaths.map(p => probeDuration(p));
+  console.log(`[EXPORT] xfadeConcat: clips=${clipPaths.length} fps=${fps} blendSec=${blendSec.toFixed(4)} durations=[${durations.map(d => d.toFixed(4)).join(', ')}]`);
 
   for (let i = 0; i < durations.length; i++) {
     if (durations[i] < blendSec * 2) {
@@ -93,6 +94,7 @@ async function xfadeConcat(
 
   const lastLabel = n === 2 ? 'v01' : 'vout';
   const filter = filterParts.join('; ');
+  console.log(`[EXPORT] xfadeConcat filter: ${filter}`);
 
   await runFfmpeg([
     ...inputs,
@@ -117,6 +119,7 @@ async function seamlessLoop(
   const fps = probeFps(inputPath);
   const totalDuration = probeDuration(inputPath);
   const blendSec = blendFrames / fps;
+  console.log(`[EXPORT] seamlessLoop: fps=${fps} duration=${totalDuration.toFixed(4)}s blendSec=${blendSec.toFixed(4)}s`);
 
   if (blendSec >= totalDuration * 0.5) {
     throw new Error('Blend too long for video duration');
@@ -203,6 +206,8 @@ async function processExport(sessionId: string, userId: string) {
     const crossTransition = session.crossfadeTransition || 'fade';
     const crossCrf = session.crossfadeCrf ?? 18;
 
+    console.log(`[EXPORT] session=${sessionId} clips=${clipCount} seamless=${useSeamless} blend=${blendFrames} transition=${crossTransition} crf=${crossCrf} device=${session.device} scale=${transform.scale} offset=${transform.offsetX},${transform.offsetY}`);
+
     if (useSeamless && clipCount === 1) {
       const clip = session.clips[0];
       const inputPath = resolveLocalPath(clip.url);
@@ -211,6 +216,7 @@ async function processExport(sessionId: string, userId: string) {
       const fps = probeFps(inputPath);
       const totalDuration = probeDuration(inputPath);
       const blendSec = blendFrames / fps;
+      console.log(`[EXPORT] single-clip: fps=${fps} duration=${totalDuration.toFixed(4)}s blendSec=${blendSec.toFixed(4)}s`);
       if (blendSec >= totalDuration * 0.5) throw new Error('Blend too long for video duration');
 
       const tailStart = totalDuration - blendSec;
@@ -252,6 +258,7 @@ async function processExport(sessionId: string, userId: string) {
 
       const tempOut = join(uploadsDir, `_export_tmp_${sessionId}_${i}.mp4`);
       tempFiles.push(tempOut);
+      console.log(`[EXPORT] processing clip ${i + 1}/${clipCount}: ${inputPath}`);
 
       const ffArgs = [
         '-i', inputPath,
@@ -303,6 +310,7 @@ async function processExport(sessionId: string, userId: string) {
     finishExport(session, sessionId, userId, exportUrl, preset, W, H, transform);
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : 'Export failed';
+    console.error(`[EXPORT] FAILED session=${sessionId}: ${msg}`);
     updateExportSession(sessionId, { status: 'error', error: msg });
   } finally {
     for (const f of tempFiles) {
