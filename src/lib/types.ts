@@ -63,6 +63,7 @@ export interface TemplateSlot {
   seamlessLoop?: boolean;
   blendFrames?: number;
   loopTransition?: string;
+  loopCrf?: number;
 }
 
 export interface Template {
