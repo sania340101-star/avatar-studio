@@ -206,7 +206,7 @@ async function processExport(sessionId: string, userId: string) {
     const useSeamless = session.crossfadeEnabled;
     const blendFrames = session.crossfadeBlendFrames || 10;
     const crossTransition = session.crossfadeTransition || 'fade';
-    const crossCrf = session.crossfadeCrf ?? 18;
+    const crossCrf = Math.max(1, session.crossfadeCrf ?? 18);
 
     console.log(`[EXPORT] session=${sessionId} clips=${clipCount} seamless=${useSeamless} blend=${blendFrames} transition=${crossTransition} crf=${crossCrf} device=${session.device} scale=${transform.scale} offset=${transform.offsetX},${transform.offsetY}`);
 

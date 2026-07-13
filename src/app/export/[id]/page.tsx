@@ -1064,9 +1064,9 @@ function ExportEditorContent() {
                   </span>
                 </label>
                 <div className="flex items-center gap-2">
-                  <button onClick={() => { const v = Math.max(0, (session.crossfadeCrf ?? 18) - 1); setSession({ ...session, crossfadeCrf: v, updatedAt: Date.now() }); debouncedSave({ crossfadeCrf: v }); }}
+                  <button onClick={() => { const v = Math.max(1, (session.crossfadeCrf ?? 18) - 1); setSession({ ...session, crossfadeCrf: v, updatedAt: Date.now() }); debouncedSave({ crossfadeCrf: v }); }}
                     className="w-7 h-7 rounded flex items-center justify-center text-sm font-bold shrink-0" style={{ background: 'var(--bg-input)', border: '1px solid var(--border)' }}>−</button>
-                  <input type="range" min={0} max={51} value={session.crossfadeCrf ?? 18}
+                  <input type="range" min={1} max={51} value={session.crossfadeCrf ?? 18}
                     onChange={e => {
                       const crossfadeCrf = parseInt(e.target.value);
                       setSession({ ...session, crossfadeCrf, updatedAt: Date.now() });
