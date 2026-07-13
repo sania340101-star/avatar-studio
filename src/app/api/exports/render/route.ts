@@ -48,6 +48,14 @@ function probeDuration(filePath: string): number {
       `ffprobe -v error -select_streams v:0 -show_entries stream=duration -of csv=p=0 "${filePath}"`,
       { timeout: 15000 },
     ).toString().trim();
+    const dur = parseFloat(raw);
+    if (dur > 0) return dur;
+  } catch {}
+  try {
+    const raw = execSync(
+      `ffprobe -v error -show_entries format=duration -of csv=p=0 "${filePath}"`,
+      { timeout: 15000 },
+    ).toString().trim();
     return parseFloat(raw) || 0;
   } catch {
     return 0;
