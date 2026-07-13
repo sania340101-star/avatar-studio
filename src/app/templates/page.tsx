@@ -501,6 +501,13 @@ function SlotCard({ slot, index, total, onChange, onRemove }: {
                     <option value="zoomin">Zoom In</option>
                   </select>
                 </div>
+                <div className="flex items-center gap-3">
+                  <label htmlFor={`loop-crf-${slot.id}`} className="text-xs whitespace-nowrap" style={{ color: 'var(--text2)' }}>
+                    Quality (CRF): <strong>{slot.loopCrf ?? 18}</strong>
+                  </label>
+                  <input id={`loop-crf-${slot.id}`} type="range" min={0} max={51} value={slot.loopCrf ?? 18} onChange={e => updateField('loopCrf', parseInt(e.target.value))} className="flex-1" style={{ accentColor: 'var(--accent)' }} />
+                  <span className="text-xs" style={{ color: 'var(--text3)' }}>{(slot.loopCrf ?? 18) <= 15 ? 'High' : (slot.loopCrf ?? 18) <= 23 ? 'Good' : 'Low'}</span>
+                </div>
               </div>
             )}
           </div>

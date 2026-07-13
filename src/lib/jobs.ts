@@ -57,7 +57,7 @@ export async function proxyResultUrl(url: string): Promise<string> {
   }
 }
 
-async function applySeamlessLoop(localUrl: string, blendFrames: number, transition: string): Promise<string> {
+async function applySeamlessLoop(localUrl: string, blendFrames: number, transition: string, crf: number = 18): Promise<string> {
   const uploadsDir = getUploadsDir();
   const filename = localUrl.replace('/api/files/', '');
   const inputPath = join(uploadsDir, filename);
@@ -87,11 +87,11 @@ async function applySeamlessLoop(localUrl: string, blendFrames: number, transiti
     `[blend][body]concat=n=2:v=1:a=0[out]`,
   ].join('; ');
 
-  const cmd = `ffmpeg -y -i "${inputPath}" -filter_complex "${filter}" -map "[out]" -c:v libx264 -preset fast -crf 18 -pix_fmt yuv420p -an "${outputPath}"`;
+  const cmd = `ffmpeg -y -i "${inputPath}" -filter_complex "${filter}" -map "[out]" -c:v libx264 -preset fast -crf ${crf} -pix_fmt yuv420p -an "${outputPath}"`;
   execSync(cmd, { timeout: 120000 });
 
   if (!existsSync(outputPath)) throw new Error('ffmpeg seamless loop produced no output');
-  console.log(`[jobs] seamless loop applied: ${filename} -> ${outputName} (blend=${blendFrames}, transition=${transition})`);
+  console.log(`[jobs] seamless loop applied: ${filename} -> ${outputName} (blend=${blendFrames}, transition=${transition}, crf=${crf})`);
   return `/api/files/${outputName}`;
 }
 
@@ -207,6 +207,7 @@ export function createBatchJobs(
       input.seamlessLoop = true;
       input.blendFrames = slot.blendFrames || 10;
       input.loopTransition = slot.loopTransition || 'fade';
+      input.loopCrf = slot.loopCrf ?? 18;
     }
     if (imageRefs.length > 0) input.sourceImage = sharedInput.sourceImage || imageRefs[0].url;
     if (imageRefs.length > 1) input.endImage = imageRefs[1].url;
@@ -305,7 +306,7 @@ async function runGenerate(job: JobData, prompt: string, model: string, falKey: 
     let finalUrl = localUrl || videoUrl!;
     if (job.input.seamlessLoop && finalUrl.startsWith('/api/files/')) {
       try {
-        finalUrl = await applySeamlessLoop(finalUrl, job.input.blendFrames as number || 10, job.input.loopTransition as string || 'fade');
+        finalUrl = await applySeamlessLoop(finalUrl, job.input.blendFrames as number || 10, job.input.loopTransition as string || 'fade', job.input.loopCrf as number ?? 18);
       } catch (e) {
         console.error('[jobs] seamless loop post-processing failed:', e instanceof Error ? e.message : e);
       }
