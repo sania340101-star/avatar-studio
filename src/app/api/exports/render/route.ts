@@ -146,6 +146,44 @@ async function seamlessLoop(
   ]);
 }
 
+function finishExport(
+  session: ExportSession, sessionId: string, userId: string,
+  exportUrl: string, preset: { name: string }, W: number, H: number,
+  transform: { offsetX: number; offsetY: number; scale: number },
+) {
+  const gen: Generation = {
+    id: `gen-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    projectId: session.clips.find(c => c.projectId)?.projectId || 'exports',
+    userId,
+    type: 'export',
+    modelId: 'ffmpeg',
+    modelLabel: `Export — ${preset.name}`,
+    prompt: `${session.name} (${session.clips.length} clips, ${W}x${H}@60fps)`,
+    params: {
+      exportSessionId: session.id,
+      device: session.device,
+      clipCount: session.clips.length,
+      resolution: `${W}x${H}`,
+      fps: 60,
+      transform,
+    },
+    referenceUrls: session.clips.map(c => c.url),
+    resultUrls: [exportUrl],
+    status: 'completed',
+    createdAt: Date.now(),
+  };
+  addGeneration(gen);
+
+  const currentSession = getExportSession(sessionId);
+  const prevExports = currentSession?.exports || [];
+  const newVersion = { id: gen.id, url: exportUrl, createdAt: gen.createdAt };
+  updateExportSession(sessionId, {
+    status: 'done',
+    exportUrl,
+    exports: [...prevExports, newVersion],
+  } as Partial<ExportSession>);
+}
+
 async function processExport(sessionId: string, userId: string) {
   const session = getExportSession(sessionId);
   if (!session || session.userId !== userId) return;
@@ -159,8 +197,55 @@ async function processExport(sessionId: string, userId: string) {
   try {
     const scaledW = Math.round(W * transform.scale);
     const scaledH = Math.round(H * transform.scale);
+    const clipCount = session.clips.length;
+    const useSeamless = session.crossfadeEnabled;
+    const blendFrames = session.crossfadeBlendFrames || 10;
+    const crossTransition = session.crossfadeTransition || 'fade';
+    const crossCrf = session.crossfadeCrf ?? 18;
 
-    for (let i = 0; i < session.clips.length; i++) {
+    if (useSeamless && clipCount === 1) {
+      const clip = session.clips[0];
+      const inputPath = resolveLocalPath(clip.url);
+      if (!inputPath) throw new Error(`Source file not found for clip 1: ${clip.url}`);
+
+      const fps = probeFps(inputPath);
+      const totalDuration = probeDuration(inputPath);
+      const blendSec = blendFrames / fps;
+      if (blendSec >= totalDuration * 0.5) throw new Error('Blend too long for video duration');
+
+      const tailStart = totalDuration - blendSec;
+      const bodyEnd = totalDuration - blendSec;
+      const filter = [
+        `[0:v]split=3[a][b][c]`,
+        `[a]trim=start=${tailStart.toFixed(4)}:end=${totalDuration.toFixed(4)},setpts=PTS-STARTPTS[tail]`,
+        `[b]trim=start=0:end=${blendSec.toFixed(4)},setpts=PTS-STARTPTS[head]`,
+        `[c]trim=start=${blendSec.toFixed(4)}:end=${bodyEnd.toFixed(4)},setpts=PTS-STARTPTS[body]`,
+        `[tail][head]xfade=transition=${crossTransition}:duration=${blendSec.toFixed(4)}:offset=0[blend]`,
+        `[blend][body]concat=n=2:v=1:a=0[looped]`,
+        `[looped]scale=${scaledW}:${scaledH}:force_original_aspect_ratio=increase,crop=${scaledW}:${scaledH},setsar=1[sc]`,
+        `color=black:s=${W}x${H}:r=60:d=999[bg]`,
+        `[bg][sc]overlay=${transform.offsetX}:${transform.offsetY}:shortest=1[out]`,
+      ].join('; ');
+
+      const outputFilename = `export-${sessionId}-${Date.now()}.mp4`;
+      const outputPath = join(uploadsDir, outputFilename);
+
+      await runFfmpeg([
+        '-i', inputPath,
+        '-filter_complex', filter,
+        '-map', '[out]',
+        '-r', '60',
+        '-c:v', 'libx264', '-preset', 'fast', '-crf', String(crossCrf), '-pix_fmt', 'yuv420p',
+        '-an',
+        '-y', outputPath,
+      ]);
+
+      const exportUrl = `/api/files/${outputFilename}`;
+      finishExport(session, sessionId, userId, exportUrl, preset, W, H, transform);
+      return;
+    }
+
+    for (let i = 0; i < clipCount; i++) {
       const clip = session.clips[i];
       const inputPath = resolveLocalPath(clip.url);
       if (!inputPath) throw new Error(`Source file not found for clip ${i + 1}: ${clip.url}`);
@@ -178,7 +263,7 @@ async function processExport(sessionId: string, userId: string) {
         '-r', '60',
         '-c:v', 'libx264',
         '-preset', 'fast',
-        '-crf', '18',
+        '-crf', useSeamless ? String(crossCrf) : '18',
         '-pix_fmt', 'yuv420p',
       ];
       if (session.muteAudio) {
@@ -192,22 +277,12 @@ async function processExport(sessionId: string, userId: string) {
 
     const outputFilename = `export-${sessionId}-${Date.now()}.mp4`;
     const outputPath = join(uploadsDir, outputFilename);
-    const clipCount = session.clips.length;
-    const useSeamless = session.crossfadeEnabled;
 
     if (useSeamless) {
-      const blendFrames = session.crossfadeBlendFrames || 10;
-      const transition = session.crossfadeTransition || 'fade';
-      const crf = session.crossfadeCrf ?? 18;
-
-      if (clipCount === 1) {
-        await seamlessLoop(tempFiles[0], outputPath, blendFrames, transition, crf);
-      } else {
-        const concatPath = join(uploadsDir, `_export_xfade_${sessionId}.mp4`);
-        tempFiles.push(concatPath);
-        await xfadeConcat(tempFiles.slice(0, clipCount), concatPath, blendFrames, transition, crf);
-        await seamlessLoop(concatPath, outputPath, blendFrames, transition, crf);
-      }
+      const concatPath = join(uploadsDir, `_export_xfade_${sessionId}.mp4`);
+      tempFiles.push(concatPath);
+      await xfadeConcat(tempFiles.slice(0, clipCount), concatPath, blendFrames, crossTransition, crossCrf);
+      await seamlessLoop(concatPath, outputPath, blendFrames, crossTransition, crossCrf);
     } else {
       const concatListPath = join(uploadsDir, `_export_concat_${sessionId}.txt`);
       const concatContent = tempFiles.map(f => `file '${f.replace(/\\/g, '/')}'`).join('\n');
@@ -225,38 +300,7 @@ async function processExport(sessionId: string, userId: string) {
     }
 
     const exportUrl = `/api/files/${outputFilename}`;
-
-    const gen: Generation = {
-      id: `gen-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-      projectId: session.clips.find(c => c.projectId)?.projectId || 'exports',
-      userId,
-      type: 'export',
-      modelId: 'ffmpeg',
-      modelLabel: `Export — ${preset.name}`,
-      prompt: `${session.name} (${session.clips.length} clips, ${W}x${H}@60fps)`,
-      params: {
-        exportSessionId: session.id,
-        device: session.device,
-        clipCount: session.clips.length,
-        resolution: `${W}x${H}`,
-        fps: 60,
-        transform,
-      },
-      referenceUrls: session.clips.map(c => c.url),
-      resultUrls: [exportUrl],
-      status: 'completed',
-      createdAt: Date.now(),
-    };
-    addGeneration(gen);
-
-    const currentSession = getExportSession(sessionId);
-    const prevExports = currentSession?.exports || [];
-    const newVersion = { id: gen.id, url: exportUrl, createdAt: gen.createdAt };
-    updateExportSession(sessionId, {
-      status: 'done',
-      exportUrl,
-      exports: [...prevExports, newVersion],
-    } as Partial<ExportSession>);
+    finishExport(session, sessionId, userId, exportUrl, preset, W, H, transform);
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : 'Export failed';
     updateExportSession(sessionId, { status: 'error', error: msg });
