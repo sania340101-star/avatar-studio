@@ -717,59 +717,9 @@ export default function GenerateVideoPage() {
         </span>
       </div>
 
-      {/* References — always visible */}
-      <div className="space-y-3 p-4 rounded-xl mb-4 mt-3" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
-        <p className="text-sm font-medium" style={{ color: 'var(--text1)' }}>References</p>
-
-        {!selectedTemplate && (selectedType as string) !== 'text-to-video' && (
-          <div className="p-2 rounded-lg text-xs" style={{ background: 'var(--accent-subtle)', color: 'var(--text2)' }}>
-            {selectedType === 'avatar' && 'Talking avatar: provide image + audio file'}
-            {selectedType === 'lip-sync' && 'Lip-sync: provide video + audio file'}
-            {selectedType === 'motion-control' && 'Motion control: image + reference video for motion transfer'}
-            {selectedType === 'start-end-frame' && 'Start/end frame: provide start image + optional end image'}
-            {selectedType === 'multi-reference' && 'Multi-reference: provide 2+ reference images'}
-            {selectedType === 'video-edit' && 'Video edit: provide source video + describe changes'}
-            {selectedType === 'utility' && 'Utility: provide source video for processing'}
-            {selectedType === 'image-to-video' && 'Image to video: provide source image + prompt'}
-          </div>
-        )}
-
-        {selectedTemplate && (
-          <div className="p-2 rounded-lg text-xs" style={{ background: 'var(--accent-subtle)', color: 'var(--text2)' }}>
-            Shared references for all {selectedTemplate.slots.length} slot{selectedTemplate.slots.length !== 1 ? 's' : ''} in template
-          </div>
-        )}
-
-        <ImagePicker value={sourceImage} onChange={setSourceImage} label="Source Image" refNumber={1} />
-        <ImagePicker value={endImage} onChange={setEndImage} label="End Image (optional)" refNumber={2} />
-
-        <ReferenceUpload
-          references={sourceVideo ? [sourceVideo] : []}
-          onChange={refs => setSourceVideo(refs[0] || null)}
-          accept="video/*"
-          label="Source Video (optional)"
-        />
-
-        <ReferenceUpload
-          references={audioRef ? [audioRef] : []}
-          onChange={refs => setAudioRef(refs[0] || null)}
-          accept="audio/*"
-          label="Audio File (optional)"
-        />
-
-        {!selectedTemplate && selectedType === 'multi-reference' && (
-          <ReferenceUpload
-            references={multiRefs}
-            onChange={setMultiRefs}
-            accept="image/*"
-            label="Reference Images (2+)"
-          />
-        )}
-      </div>
-
-      {/* Mode selector */}
+      {/* Mode selector — top of page */}
       {(templates.length > 0 || poseMatrices.length > 0) && (
-        <div className="mb-4 p-3 rounded-xl" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+        <div className="mb-4 mt-3 p-3 rounded-xl" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
           <div className="flex items-center gap-2 mb-3">
             <span className="text-sm font-medium" style={{ color: 'var(--text2)' }}>Mode:</span>
             <div className="flex gap-1">
@@ -831,6 +781,58 @@ export default function GenerateVideoPage() {
                 </option>
               ))}
             </select>
+          )}
+        </div>
+      )}
+
+      {/* References — hidden in pose-matrix mode (poses ARE the references) */}
+      {genMode !== 'pose-matrix' && (
+        <div className="space-y-3 p-4 rounded-xl mb-4" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+          <p className="text-sm font-medium" style={{ color: 'var(--text1)' }}>References</p>
+
+          {!selectedTemplate && (selectedType as string) !== 'text-to-video' && (
+            <div className="p-2 rounded-lg text-xs" style={{ background: 'var(--accent-subtle)', color: 'var(--text2)' }}>
+              {selectedType === 'avatar' && 'Talking avatar: provide image + audio file'}
+              {selectedType === 'lip-sync' && 'Lip-sync: provide video + audio file'}
+              {selectedType === 'motion-control' && 'Motion control: image + reference video for motion transfer'}
+              {selectedType === 'start-end-frame' && 'Start/end frame: provide start image + optional end image'}
+              {selectedType === 'multi-reference' && 'Multi-reference: provide 2+ reference images'}
+              {selectedType === 'video-edit' && 'Video edit: provide source video + describe changes'}
+              {selectedType === 'utility' && 'Utility: provide source video for processing'}
+              {selectedType === 'image-to-video' && 'Image to video: provide source image + prompt'}
+            </div>
+          )}
+
+          {selectedTemplate && (
+            <div className="p-2 rounded-lg text-xs" style={{ background: 'var(--accent-subtle)', color: 'var(--text2)' }}>
+              Shared references for all {selectedTemplate.slots.length} slot{selectedTemplate.slots.length !== 1 ? 's' : ''} in template
+            </div>
+          )}
+
+          <ImagePicker value={sourceImage} onChange={setSourceImage} label="Source Image" refNumber={1} />
+          <ImagePicker value={endImage} onChange={setEndImage} label="End Image (optional)" refNumber={2} />
+
+          <ReferenceUpload
+            references={sourceVideo ? [sourceVideo] : []}
+            onChange={refs => setSourceVideo(refs[0] || null)}
+            accept="video/*"
+            label="Source Video (optional)"
+          />
+
+          <ReferenceUpload
+            references={audioRef ? [audioRef] : []}
+            onChange={refs => setAudioRef(refs[0] || null)}
+            accept="audio/*"
+            label="Audio File (optional)"
+          />
+
+          {!selectedTemplate && selectedType === 'multi-reference' && (
+            <ReferenceUpload
+              references={multiRefs}
+              onChange={setMultiRefs}
+              accept="image/*"
+              label="Reference Images (2+)"
+            />
           )}
         </div>
       )}
