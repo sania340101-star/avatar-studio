@@ -476,3 +476,19 @@ export function deletePoseMatrix(id: string): boolean {
   writeJson(POSE_MATRICES_FILE, all);
   return true;
 }
+export function sharePoseMatrix(sourceId: string, targetUserId: string): string {
+  ensureDirs();
+  const source = getPoseMatrix(sourceId);
+  if (!source) throw new Error('Pose matrix not found');
+  const all: PoseMatrix[] = readJson(POSE_MATRICES_FILE, []);
+  const copy: PoseMatrix = {
+    ...source,
+    id: newId('pm'),
+    userId: targetUserId,
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+  };
+  all.push(copy);
+  writeJson(POSE_MATRICES_FILE, all);
+  return copy.id;
+}

@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { RegisteredUser } from '@/lib/types';
 
 interface ShareDialogProps {
-  entityType: 'project' | 'template' | 'export' | 'generation';
+  entityType: 'project' | 'template' | 'export' | 'generation' | 'pose-matrix';
   entityId: string;
   entityName: string;
   projectId?: string;
@@ -53,7 +53,7 @@ export default function ShareDialog({ entityType, entityId, entityName, projectI
       (u.email || '').toLowerCase().includes(search.toLowerCase()))
     : users;
 
-  const typeLabel = entityType === 'project' ? 'Project' : entityType === 'template' ? 'Template' : entityType === 'generation' ? 'Generation' : 'Export';
+  const typeLabel = entityType === 'project' ? 'Project' : entityType === 'template' ? 'Template' : entityType === 'generation' ? 'Generation' : entityType === 'pose-matrix' ? 'Pose Matrix' : 'Export';
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={onClose}>

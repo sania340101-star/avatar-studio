@@ -3,9 +3,10 @@ import {
   getProject, getTemplate, getExportSession, getRegisteredUsers,
   shareProject, shareTemplate, shareExportSession,
   getGenerations, shareGeneration,
+  getPoseMatrix, sharePoseMatrix,
 } from '@/lib/storage';
 
-const VALID_TYPES = ['project', 'template', 'export', 'generation'] as const;
+const VALID_TYPES = ['project', 'template', 'export', 'generation', 'pose-matrix'] as const;
 type ShareType = typeof VALID_TYPES[number];
 
 export async function POST(req: NextRequest) {
@@ -78,6 +79,14 @@ export async function POST(req: NextRequest) {
       }
       const result = shareGeneration(projectId, entityId, targetUserId);
       return NextResponse.json({ ok: true, newEntityId: result.generationId, projectId: result.projectId });
+    }
+
+    if (entityType === 'pose-matrix') {
+      const source = getPoseMatrix(entityId);
+      if (!source) return NextResponse.json({ error: 'Pose matrix not found' }, { status: 404 });
+      if (source.userId !== userId) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      const newId = sharePoseMatrix(entityId, targetUserId);
+      return NextResponse.json({ ok: true, newEntityId: newId });
     }
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : 'Share failed' }, { status: 500 });

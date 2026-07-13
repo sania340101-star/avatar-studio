@@ -20,6 +20,7 @@ import { useProjectCache } from '@/lib/useProjectCache';
 import ImagePicker from '@/components/ImagePicker';
 import ReferenceUpload from '@/components/ReferenceUpload';
 import BatchRunner from '@/components/BatchRunner';
+import ShareDialog from '@/components/ShareDialog';
 import { DEFAULT_SYSTEM_PROMPT } from '@/lib/constants';
 import VersionHistory from '@/components/VersionHistory';
 import StepBar from '@/components/StepBar';
@@ -325,6 +326,7 @@ export default function GenerateVideoPage() {
   const [matrixGenerating, setMatrixGenerating] = useState(false);
   const [matrixError, setMatrixError] = useState('');
   const matrixSavedRef = useRef<string | null>(null);
+  const [shareMatrix, setShareMatrix] = useState<{ id: string; name: string } | null>(null);
 
   // Generation mode
   type GenMode = 'manual' | 'template' | 'pose-matrix';
@@ -765,22 +767,36 @@ export default function GenerateVideoPage() {
 
           {/* Pose Matrix selector */}
           {genMode === 'pose-matrix' && (
-            <select
-              value={selectedMatrix?.id || ''}
-              onChange={e => {
-                if (!e.target.value) { setSelectedMatrix(null); setPoseImages({}); return; }
-                const m = poseMatrices.find(pm => pm.id === e.target.value);
-                if (m) { setSelectedMatrix(m); setPoseImages({}); setMatrixBatchId(null); setMatrixBatchJobs([]); setMatrixError(''); }
-              }}
-              className="w-full text-sm"
-            >
-              <option value="">Select a pose matrix template...</option>
-              {poseMatrices.map(m => (
-                <option key={m.id} value={m.id}>
-                  {m.name} — {m.poses.length} poses · {m.clips.length} clips · {m.modelLabel}
-                </option>
-              ))}
-            </select>
+            <div className="flex gap-2 items-center">
+              <select
+                value={selectedMatrix?.id || ''}
+                onChange={e => {
+                  if (!e.target.value) { setSelectedMatrix(null); setPoseImages({}); return; }
+                  const m = poseMatrices.find(pm => pm.id === e.target.value);
+                  if (m) { setSelectedMatrix(m); setPoseImages({}); setMatrixBatchId(null); setMatrixBatchJobs([]); setMatrixError(''); }
+                }}
+                className="flex-1 text-sm"
+              >
+                <option value="">Select a pose matrix template...</option>
+                {poseMatrices.map(m => (
+                  <option key={m.id} value={m.id}>
+                    {m.name} — {m.poses.length} poses · {m.clips.length} clips · {m.modelLabel}
+                  </option>
+                ))}
+              </select>
+              {selectedMatrix && (
+                <button
+                  onClick={() => setShareMatrix({ id: selectedMatrix.id, name: selectedMatrix.name })}
+                  className="w-8 h-8 rounded-lg flex items-center justify-center opacity-50 hover:opacity-100 flex-shrink-0"
+                  style={{ color: 'var(--text3)' }}
+                  title="Share"
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
+                    <circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" /><line x1="8.59" y1="13.51" x2="15.42" y2="17.49" /><line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
+                  </svg>
+                </button>
+              )}
+            </div>
           )}
         </div>
       )}
@@ -1176,6 +1192,15 @@ export default function GenerateVideoPage() {
       )}
 
       <VersionHistory generations={history} onSelect={handleSelectVersion} onDelete={handleDeleteVersion} />
+
+      {shareMatrix && (
+        <ShareDialog
+          entityType="pose-matrix"
+          entityId={shareMatrix.id}
+          entityName={shareMatrix.name}
+          onClose={() => setShareMatrix(null)}
+        />
+      )}
     </div>
   );
 }
