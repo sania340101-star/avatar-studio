@@ -74,14 +74,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: `Blend duration (${blendSec.toFixed(2)}s) exceeds half the video length (${totalDuration.toFixed(2)}s). Reduce blendFrames.` }, { status: 400 });
     }
 
-    const mainDur = totalDuration - blendSec;
-    const offset = mainDur - blendSec;
+    const tailStart = totalDuration - blendSec;
+    const bodyEnd = totalDuration - blendSec;
 
     const filter = [
-      `[0]split[body][pre]`,
-      `[pre]trim=start=0:end=${blendSec.toFixed(4)},setpts=PTS-STARTPTS[begin]`,
-      `[body]trim=start=0:end=${mainDur.toFixed(4)},setpts=PTS-STARTPTS[main]`,
-      `[main][begin]xfade=transition=${transition}:duration=${blendSec.toFixed(4)}:offset=${offset.toFixed(4)}[out]`,
+      `[0]split=3[a][b][c]`,
+      `[a]trim=start=${tailStart.toFixed(4)}:end=${totalDuration.toFixed(4)},setpts=PTS-STARTPTS[tail]`,
+      `[b]trim=start=0:end=${blendSec.toFixed(4)},setpts=PTS-STARTPTS[head]`,
+      `[c]trim=start=${blendSec.toFixed(4)}:end=${bodyEnd.toFixed(4)},setpts=PTS-STARTPTS[body]`,
+      `[tail][head]xfade=transition=${transition}:duration=${blendSec.toFixed(4)}:offset=0[blend]`,
+      `[blend][body]concat=n=2:v=1:a=0[out]`,
     ].join('; ');
 
     const ffmpegCmd = `ffmpeg -y -i "${inputPath}" -filter_complex "${filter}" -map "[out]" -c:v libx264 -preset fast -crf ${crf} -pix_fmt yuv420p -an "${outputPath}"`;
