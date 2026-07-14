@@ -20,12 +20,14 @@ export async function GET(request: NextRequest) {
 
   let userName = '';
   let email = '';
+  let authMethod: 'sso' | 'otp' = 'otp';
   try {
     const userInfo = request.cookies.get('user-info')?.value;
     if (userInfo) {
       const info = JSON.parse(decodeURIComponent(userInfo));
       userName = info.userName || '';
       email = info.email || '';
+      if (info.authMethod === 'sso') authMethod = 'sso';
     }
   } catch { /* ignore */ }
 
@@ -35,7 +37,7 @@ export async function GET(request: NextRequest) {
       userName,
       email,
       role: payload.role ?? 'user',
-      authMethod: 'otp',
+      authMethod,
       hasFalKey: !!(session?.falKey || process.env.FAL_KEY),
       hasAnthropicKey: !!(session?.anthropicKey || process.env.ANTHROPIC_API_KEY),
     },
