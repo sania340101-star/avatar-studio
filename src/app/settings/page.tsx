@@ -129,6 +129,8 @@ export default function SettingsPage() {
                 <span style={{ color: 'var(--text2)' }}>Anthropic (Claude)</span>
                 {user?.hasAnthropicKey ? (
                   <span className="px-2 py-0.5 rounded text-xs font-medium" style={{ background: 'rgba(76,175,80,0.1)', color: 'var(--green)' }}>Configured</span>
+                ) : !isOtp ? (
+                  <span className="px-2 py-0.5 rounded text-xs font-medium" style={{ background: 'rgba(76,175,80,0.05)', color: 'var(--text3)' }}>Via agent</span>
                 ) : (
                   <span className="px-2 py-0.5 rounded text-xs font-medium" style={{ background: 'rgba(239,68,68,0.1)', color: 'var(--red)' }}>Not configured</span>
                 )}
