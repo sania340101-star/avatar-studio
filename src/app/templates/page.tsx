@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import AppShell from '@/components/AppShell';
 import TemplateTabs from '@/components/TemplateTabs';
 import { useProject } from '@/lib/ProjectContext';
@@ -17,7 +17,7 @@ import ImagePicker from '@/components/ImagePicker';
 import ReferenceUpload from '@/components/ReferenceUpload';
 import { getTemplateView, setTemplateView } from '@/lib/nav-state';
 
-type View = 'list' | 'create' | 'edit';
+type View = 'list' | 'edit';
 const TEMPLATE_FORM_KEY = 'avatar-studio:template-form';
 
 function makeSlotId(): string {
@@ -52,7 +52,7 @@ function TemplatesContent() {
   const { user, activeProject } = useProject();
   const [view, setView] = useState<View>(() => {
     const saved = getTemplateView();
-    if (saved?.view === 'create' || saved?.view === 'edit') return saved.view as View;
+    if (saved?.view === 'edit') return 'edit';
     return 'list';
   });
   const [templates, setTemplates] = useState<Template[]>([]);
@@ -89,6 +89,29 @@ function TemplatesContent() {
     load();
   }
 
+  async function handleCreate() {
+    sessionStorage.removeItem(TEMPLATE_FORM_KEY);
+    const body = {
+      name: 'New Template',
+      description: '',
+      type: 'video' as const,
+      device: 'any',
+      promptTemplate: '',
+      slots: [defaultSlot()],
+      createdBy: user?.userId || '',
+    };
+    const res = await fetch('/api/templates', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (res.ok) {
+      const created = await res.json();
+      setEditingTemplate(created);
+      setView('edit');
+    }
+  }
+
   return (
     <div>
       {view === 'list' && (
@@ -96,16 +119,15 @@ function TemplatesContent() {
           templates={templates}
           onEdit={handleEdit}
           onDelete={handleDelete}
-          onCreate={() => { sessionStorage.removeItem(TEMPLATE_FORM_KEY); setEditingTemplate(null); setView('create'); }}
+          onCreate={handleCreate}
           onReload={load}
         />
       )}
-      {(view === 'create' || view === 'edit') && (
+      {view === 'edit' && editingTemplate && (
         <TemplateForm
           userId={user?.userId || ''}
           existing={editingTemplate}
-          onSave={() => { load(); setView('list'); }}
-          onCancel={() => setView('list')}
+          onBack={() => { load(); setView('list'); }}
         />
       )}
     </div>
@@ -135,7 +157,7 @@ function TemplateList({ templates, onEdit, onDelete, onCreate, onReload }: {
   }
 
   return (
-    <>
+    <div className="max-w-4xl mx-auto">
       <TemplateTabs />
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
         <div>
@@ -245,7 +267,7 @@ function TemplateList({ templates, onEdit, onDelete, onCreate, onReload }: {
           onClose={() => setShareTemplate(null)}
         />
       )}
-    </>
+    </div>
   );
 }
 
@@ -495,49 +517,6 @@ function SlotCard({ slot, index, total, onChange, onRemove }: {
             </div>
           )}
 
-          <div className="rounded-lg p-3" style={{ background: 'var(--bg-input)', border: '1px solid var(--border)' }}>
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={slot.seamlessLoop || false}
-                onChange={e => updateField('seamlessLoop', e.target.checked)}
-                style={{ accentColor: 'var(--accent)' }}
-              />
-              <span className="text-sm font-medium">Seamless Loop</span>
-              <span className="text-xs" style={{ color: 'var(--text3)' }}>ffmpeg crossfade post-processing</span>
-            </label>
-            {slot.seamlessLoop && (
-              <div className="mt-3 space-y-2 pl-6">
-                <div className="flex items-center gap-3">
-                  <label htmlFor={`blend-${slot.id}`} className="text-xs whitespace-nowrap" style={{ color: 'var(--text2)' }}>
-                    Blend: <strong>{slot.blendFrames || 10}</strong>
-                  </label>
-                  <input id={`blend-${slot.id}`} type="range" min={2} max={60} value={slot.blendFrames || 10} onChange={e => updateField('blendFrames', parseInt(e.target.value))} className="flex-1" style={{ accentColor: 'var(--accent)' }} />
-                </div>
-                <div className="flex items-center gap-3">
-                  <label htmlFor={`loop-trans-${slot.id}`} className="text-xs whitespace-nowrap" style={{ color: 'var(--text2)' }}>Transition:</label>
-                  <select id={`loop-trans-${slot.id}`} value={slot.loopTransition || 'fade'} onChange={e => updateField('loopTransition', e.target.value)} className="flex-1 text-xs rounded px-2 py-1" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
-                    <option value="fade">Fade</option>
-                    <option value="dissolve">Dissolve</option>
-                    <option value="wipeleft">Wipe Left</option>
-                    <option value="wiperight">Wipe Right</option>
-                    <option value="smoothleft">Smooth Left</option>
-                    <option value="smoothright">Smooth Right</option>
-                    <option value="radial">Radial</option>
-                    <option value="zoomin">Zoom In</option>
-                  </select>
-                </div>
-                <div className="flex items-center gap-3">
-                  <label htmlFor={`loop-crf-${slot.id}`} className="text-xs whitespace-nowrap" style={{ color: 'var(--text2)' }}>
-                    Quality (CRF): <strong>{slot.loopCrf ?? 18}</strong>
-                  </label>
-                  <input id={`loop-crf-${slot.id}`} type="range" min={0} max={51} value={slot.loopCrf ?? 18} onChange={e => updateField('loopCrf', parseInt(e.target.value))} className="flex-1" style={{ accentColor: 'var(--accent)' }} />
-                  <span className="text-xs" style={{ color: 'var(--text3)' }}>{(slot.loopCrf ?? 18) <= 15 ? 'High' : (slot.loopCrf ?? 18) <= 23 ? 'Good' : 'Low'}</span>
-                </div>
-              </div>
-            )}
-          </div>
-
           <div>
             <label htmlFor={`input-slot-instruction-${slot.id}`} className="block text-xs mb-1" style={{ color: 'var(--text3)' }}>Instruction</label>
             <textarea
@@ -554,30 +533,44 @@ function SlotCard({ slot, index, total, onChange, onRemove }: {
   );
 }
 
-function TemplateForm({ userId, existing, onSave, onCancel }: {
+function TemplateForm({ userId, existing, onBack }: {
   userId: string;
-  existing: Template | null;
-  onSave: () => void;
-  onCancel: () => void;
+  existing: Template;
+  onBack: () => void;
 }) {
-  const [name, setName] = useState(() => {
-    try { const s = sessionStorage.getItem(TEMPLATE_FORM_KEY); if (s) { const d = JSON.parse(s); if (d.name !== undefined) return d.name; } } catch {}
-    return existing?.name || '';
-  });
-  const [description, setDescription] = useState(() => {
-    try { const s = sessionStorage.getItem(TEMPLATE_FORM_KEY); if (s) { const d = JSON.parse(s); if (d.description !== undefined) return d.description; } } catch {}
-    return existing?.description || '';
-  });
-  const [slots, setSlots] = useState<TemplateSlot[]>(() => {
-    try { const s = sessionStorage.getItem(TEMPLATE_FORM_KEY); if (s) { const d = JSON.parse(s); if (d.slots?.length) return d.slots; } } catch {}
-    if (existing?.slots?.length) return existing.slots;
-    return [defaultSlot()];
-  });
-  const [saving, setSaving] = useState(false);
+  const [name, setName] = useState(existing.name || '');
+  const [description, setDescription] = useState(existing.description || '');
+  const [slots, setSlots] = useState<TemplateSlot[]>(
+    existing.slots?.length ? existing.slots : [defaultSlot()]
+  );
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const isInitial = useRef(true);
 
   useEffect(() => {
-    sessionStorage.setItem(TEMPLATE_FORM_KEY, JSON.stringify({ name, description, slots }));
-  }, [name, description, slots]);
+    if (isInitial.current) { isInitial.current = false; return; }
+    clearTimeout(saveTimer.current);
+    setSaveStatus('idle');
+    saveTimer.current = setTimeout(async () => {
+      setSaveStatus('saving');
+      await fetch('/api/templates', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: existing.id,
+          name: name.trim() || 'New Template',
+          description: description.trim(),
+          type: 'video',
+          device: 'any',
+          promptTemplate: '',
+          slots,
+          createdBy: userId,
+        }),
+      });
+      setSaveStatus('saved');
+    }, 600);
+    return () => clearTimeout(saveTimer.current);
+  }, [name, description, slots, existing.id, userId]);
 
   function updateSlot(index: number, updated: TemplateSlot) {
     setSlots(prev => prev.map((s, i) => i === index ? updated : s));
@@ -593,42 +586,14 @@ function TemplateForm({ userId, existing, onSave, onCancel }: {
     setSlots(prev => [...prev, cloneSlot(last)]);
   }
 
-  async function handleSave() {
-    if (!name.trim() || slots.length === 0) return;
-    setSaving(true);
-
-    const body = {
-      name: name.trim(),
-      description: description.trim(),
-      type: 'video' as const,
-      device: 'any',
-      promptTemplate: '',
-      slots,
-      createdBy: userId,
-    };
-
-    if (existing) {
-      await fetch('/api/templates', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: existing.id, ...body }),
-      });
-    } else {
-      await fetch('/api/templates', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
-    }
-    setSaving(false);
-    onSave();
-  }
-
   return (
-    <>
+    <div className="max-w-4xl mx-auto">
       <div className="flex items-center gap-3 mb-6">
-        <button onClick={onCancel} className="text-sm" style={{ color: 'var(--text3)' }}>← Back</button>
-        <h2 className="text-xl font-semibold">{existing ? 'Edit Template' : 'New Template'}</h2>
+        <button onClick={onBack} className="text-sm" style={{ color: 'var(--text3)' }}>← Back</button>
+        <h2 className="text-xl font-semibold">Edit Template</h2>
+        <span className="text-xs ml-auto" style={{ color: saveStatus === 'saving' ? 'var(--accent)' : 'var(--text3)' }}>
+          {saveStatus === 'saving' ? 'Saving...' : saveStatus === 'saved' ? 'Saved ✓' : ''}
+        </span>
       </div>
 
       <div className="space-y-5">
@@ -668,20 +633,8 @@ function TemplateForm({ userId, existing, onSave, onCancel }: {
             ))}
           </div>
         </div>
-
-        <div className="flex gap-3 pt-2">
-          <button onClick={onCancel} className="px-5 py-2.5 rounded-lg text-sm" style={{ color: 'var(--text2)', background: 'var(--bg-input)' }}>Cancel</button>
-          <button
-            onClick={handleSave}
-            disabled={saving || !name.trim() || slots.length === 0}
-            className="px-6 py-2.5 rounded-lg text-sm font-semibold text-white disabled:opacity-50"
-            style={{ background: 'var(--accent)' }}
-          >
-            {saving ? 'Saving...' : existing ? 'Save Changes' : 'Create Template'}
-          </button>
-        </div>
       </div>
-    </>
+    </div>
   );
 }
 
