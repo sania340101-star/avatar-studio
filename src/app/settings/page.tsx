@@ -158,8 +158,9 @@ export default function SettingsPage() {
                       });
                       if (res.ok) {
                         const data = await res.json();
-                        const updated = { ...user, hasFalKey: data.hasFalKey, hasAnthropicKey: data.hasAnthropicKey };
-                        setSessionUser(updated);
+                        if (user) {
+                          setSessionUser({ ...user, hasFalKey: data.hasFalKey, hasAnthropicKey: data.hasAnthropicKey });
+                        }
                         setFalKeyInput('');
                         setAnthropicKeyInput('');
                         setKeySaved(true);
