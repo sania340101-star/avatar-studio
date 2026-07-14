@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import AppShell from '@/components/AppShell';
-import { Generation } from '@/lib/types';
+import GalleryBrowser, { GalleryItem } from '@/components/GalleryBrowser';
 
 interface LoopStats {
   inputDuration: number;
@@ -44,51 +44,6 @@ const TRANSITIONS = [
   { value: 'zoomin', label: 'Zoom In' },
 ];
 
-function GalleryPicker({ onSelect, onClose }: { onSelect: (url: string, name: string) => void; onClose: () => void }) {
-  const [generations, setGenerations] = useState<Generation[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    fetch('/api/generations?type=video')
-      .then(r => r.json())
-      .then(data => { if (Array.isArray(data)) setGenerations(data.filter(g => g.resultUrls.length > 0)); })
-      .finally(() => setLoading(false));
-  }, []);
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.5)' }}>
-      <div className="rounded-2xl p-6 w-full max-w-2xl max-h-[80vh] flex flex-col" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="font-semibold">Select from Gallery</h3>
-          <button onClick={onClose} className="text-sm px-3 py-1 rounded-lg" style={{ color: 'var(--text2)', border: '1px solid var(--border)' }}>Close</button>
-        </div>
-        {loading ? (
-          <p className="text-sm text-center py-8" style={{ color: 'var(--text3)' }}>Loading...</p>
-        ) : generations.length === 0 ? (
-          <p className="text-sm text-center py-8" style={{ color: 'var(--text3)' }}>No video generations found</p>
-        ) : (
-          <div className="overflow-y-auto grid grid-cols-3 gap-3">
-            {generations.map(gen => (
-              <button
-                key={gen.id}
-                onClick={() => onSelect(gen.resultUrls[0], gen.prompt.slice(0, 40) || gen.modelLabel)}
-                className="rounded-lg overflow-hidden text-left transition-all hover:ring-2 hover:ring-[var(--accent)]"
-                style={{ border: '1px solid var(--border)' }}
-              >
-                <video src={gen.resultUrls[0]} className="w-full aspect-video object-cover" muted />
-                <div className="p-2">
-                  <p className="text-xs truncate" style={{ color: 'var(--text2)' }}>{gen.prompt.slice(0, 50) || gen.modelLabel}</p>
-                  <p className="text-xs" style={{ color: 'var(--text3)' }}>{gen.modelLabel}</p>
-                </div>
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
 export default function ToolsPage() {
   const [file, setFile] = useState<File | null>(null);
   const [galleryUrl, setGalleryUrl] = useState('');
@@ -104,33 +59,19 @@ export default function ToolsPage() {
   const [showGallery, setShowGallery] = useState(false);
   const [comparing, setComparing] = useState(false);
   const [comparison, setComparison] = useState<FrameComparison | null>(null);
-  const fileRef = useRef<HTMLInputElement>(null);
-
   const hasSource = file || galleryUrl;
   const sourceName = file ? file.name : galleryName;
   const sourceSize = file ? `${(file.size / 1024 / 1024).toFixed(1)} MB` : '';
 
-  function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
-    const f = e.target.files?.[0];
-    if (!f) return;
-    setFile(f);
-    setGalleryUrl('');
-    setGalleryName('');
-    setError('');
-    setResultUrl('');
-    setStats(null);
-    setPreviewSrc(URL.createObjectURL(f));
-  }
-
-  function handleGallerySelect(url: string, name: string) {
-    setGalleryUrl(url);
-    setGalleryName(name);
+  function handleGallerySelect(items: GalleryItem[]) {
+    if (!items.length) return;
+    setGalleryUrl(items[0].url);
+    setGalleryName(items[0].name);
     setFile(null);
     setError('');
     setResultUrl('');
     setStats(null);
-    setPreviewSrc(url);
-    setShowGallery(false);
+    setPreviewSrc(items[0].url);
   }
 
   const fetchAsFile = useCallback(async (url: string): Promise<File> => {
@@ -194,7 +135,7 @@ export default function ToolsPage() {
     setStats(null);
     setError('');
     setPreviewSrc('');
-    if (fileRef.current) fileRef.current.value = '';
+    setComparison(null);
   }
 
   const crfLabel = crf <= 15 ? 'Very high' : crf <= 20 ? 'High' : crf <= 28 ? 'Medium' : 'Low';
@@ -223,36 +164,14 @@ export default function ToolsPage() {
           </p>
 
           {!hasSource ? (
-            <div className="space-y-3">
-              <label
-                className="flex flex-col items-center justify-center gap-3 rounded-xl p-8 cursor-pointer transition-colors"
-                style={{ border: '2px dashed var(--border)', background: 'var(--bg-input)' }}
-              >
-                <svg viewBox="0 0 24 24" fill="none" stroke="var(--text3)" strokeWidth="1.5" className="w-10 h-10">
-                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" />
-                </svg>
-                <span className="text-sm font-medium" style={{ color: 'var(--text2)' }}>Drop a video or click to upload</span>
-                <span className="text-xs" style={{ color: 'var(--text3)' }}>MP4, WebM, MOV — up to 100MB</span>
-                <input ref={fileRef} type="file" accept="video/*" onChange={handleFile} className="hidden" />
-              </label>
-
-              <div className="flex items-center gap-3">
-                <div className="flex-1 h-px" style={{ background: 'var(--border)' }} />
-                <span className="text-xs" style={{ color: 'var(--text3)' }}>or</span>
-                <div className="flex-1 h-px" style={{ background: 'var(--border)' }} />
-              </div>
-
-              <button
-                onClick={() => setShowGallery(true)}
-                className="w-full py-3 rounded-xl text-sm font-medium flex items-center justify-center gap-2 transition-colors"
-                style={{ border: '1px solid var(--border)', color: 'var(--text2)', background: 'var(--bg-input)' }}
-              >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
-                  <path d="M4 4h16v16H4z" /><path d="M4 4l8 8" /><path d="M20 4l-8 8" />
-                </svg>
-                Select from Gallery
-              </button>
-            </div>
+            <button
+              onClick={() => setShowGallery(true)}
+              className="w-full py-8 rounded-xl border-2 border-dashed text-sm font-medium flex flex-col items-center justify-center gap-2"
+              style={{ borderColor: 'var(--border)', color: 'var(--text3)' }}
+            >
+              <span className="text-2xl">+</span>
+              <span>Add video</span>
+            </button>
           ) : (
             <div className="space-y-4">
               <div className="flex items-center justify-between">
@@ -430,7 +349,13 @@ export default function ToolsPage() {
         </div>
       </div>
 
-      {showGallery && <GalleryPicker onSelect={handleGallerySelect} onClose={() => setShowGallery(false)} />}
+      <GalleryBrowser
+        open={showGallery}
+        onClose={() => setShowGallery(false)}
+        onSelect={handleGallerySelect}
+        accept="video"
+        multiple={false}
+      />
     </AppShell>
   );
 }

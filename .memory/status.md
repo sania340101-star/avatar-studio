@@ -1,3 +1,21 @@
+## 2026-07-15: Unified Gallery Browser for references (v1.19.0)
+
+- GalleryBrowser component: reusable modal — project filter, sort, multi/single select, upload from computer
+- ReferenceUpload: "Browse Gallery" button alongside "Upload" (hidden for audio-only accept)
+- ImagePicker: rewritten to use GalleryBrowser in single-select mode (was custom modal with simple grid)
+- Generate Image page: Gallery + Upload buttons in reference grid
+- Works everywhere: Generate Image, Generate Video, Templates/Slots, BatchRunner, Pose Matrix
+- Deployed to D30
+
+## 2026-07-14: Auth security + UX + agent fixes (v1.18.4-v1.18.9)
+
+- v1.18.4: Video mode tab reorder (Manual → Pose Matrix → Slots)
+- v1.18.5: OTP key editing — Settings page with fal.ai + Anthropic key inputs for OTP users, PATCH /api/auth/keys endpoint
+- v1.18.6: Pose Matrix defaults — Kling O3 Pro model, 60fps
+- v1.18.7: SECURITY — API key isolation. Non-AF OTP users no longer get server env keys (process.env.FAL_KEY / ANTHROPIC_API_KEY). SSO stores env keys in session at login. All 10 API endpoints stripped of env fallback. /api/auth/me fixed: reads authMethod from cookie, env fallback only for SSO.
+- v1.18.8: Three-dot project menu always visible (Tailwind v4 md:group-hover: compound variant didn't generate CSS)
+- v1.18.9: Agent prepare fix — reference images now uploaded to fal CDN for both prepare and generate steps (was generate-only, causing Claude to waste turns trying to upload locally). callClaude error handling: rejects on error_max_turns. runPrepare validates non-empty result. Docker build switched to webpack (Turbopack lost native SWC bindings cache).
+
 ## 2026-07-14: UI unification + gallery markers (v1.17.7-v1.18.3)
 
 - Unified Templates section: Pose Matrix + Slots under one sidebar entry with TemplateTabs

@@ -1,3 +1,36 @@
+## 2026-07-15: Unified Gallery Browser for all reference pickers
+
+- `src/components/GalleryBrowser.tsx` (NEW) — reusable modal: fetches from /api/generations, project filter, sort, grid with image/video thumbnails, multi-select with checkmarks, single-select (click-to-pick), upload from computer inside modal
+- Props: `open`, `onClose`, `onSelect(items: GalleryItem[])`, `accept: 'image'|'video'|'all'`, `multiple: boolean`
+- Exports `GalleryItem` interface: `{ url, type, name }`
+- `src/components/ReferenceUpload.tsx` — added "Browse Gallery" button (accent-colored) next to "Upload" (dashed). Uses `acceptToGalleryType()` to map `accept` prop: audio/* → null (no gallery), video/* → 'video', image/* → 'image', undefined → 'all'
+- `src/components/ImagePicker.tsx` — rewritten: removed custom modal with simple grid, now opens GalleryBrowser with `accept="image" multiple={false}`. Single-click picks and closes.
+- `src/app/generate/image/page.tsx` — added Gallery button (with landscape icon) next to Upload "+" button in reference grid. Gallery icon: rect+circle+path SVG.
+
+Integration points (all automatically get gallery browsing):
+- Generate Image: references (images)
+- Generate Video: source image, end image (ImagePicker), source video (ReferenceUpload), multi-refs (ReferenceUpload)
+- Templates/Slots: source image, end image (ImagePicker), source video, audio (ReferenceUpload)
+- BatchRunner: source image, end image (ImagePicker), source video, audio (ReferenceUpload)
+- Pose Matrix: pose images (ImagePicker)
+
+## 2026-07-14: Auth key isolation + OTP key management
+
+- API key security model: SSO users get env keys stored in session at login time. Non-AF OTP users get NO keys — must enter their own in Settings.
+- `src/lib/sessions.ts`: `updateSessionKeys()` — PATCH session with new fal/anthropic keys
+- `src/app/api/auth/keys/route.ts` (NEW) — PATCH endpoint for OTP users to save API keys
+- `src/app/settings/page.tsx` — conditional UI: OTP users see key input fields, SSO users see "Via agent" badge
+- `src/app/api/auth/me/route.ts` — reads authMethod from user-info cookie, env fallback only for SSO users
+- `src/lib/auth.ts` — `initAuth()` rewritten: always calls /api/auth/me first, localStorage/cookie as fallbacks only
+- All 10 API endpoints (generate, jobs, pricing, spending, pose-matrix, etc.) use only `session.falKey` — no `|| process.env.FAL_KEY` fallback
+- `src/app/api/auth/verify-otp/route.ts` — non-AF OTP users: no env keys; AF OTP users: keys from serviceKeys + env fallback
+- `src/app/api/auth/sso/route.ts` — stores `process.env.FAL_KEY` / `ANTHROPIC_API_KEY` in session at login
+- Sidebar three-dot menu: changed from `md:opacity-0 md:group-hover:opacity-100` to `opacity-50 hover:opacity-100` (Tailwind v4 compound variant fix)
+- `agent/server.js`: reference upload now runs for BOTH prepare and generate (was `isGenerate && falKey` → now `falKey`)
+- `agent/server.js`: `callClaude()` rejects on `parsed.is_error` (e.g. error_max_turns) instead of resolving with empty result
+- `src/lib/jobs.ts`: `runPrepare()` validates non-empty result (`!data.prompt && !data.model` → error)
+- `Dockerfile`: `next build --webpack` (Turbopack requires native SWC bindings not available in Alpine WASM fallback)
+
 ## 2026-07-14: Unified Templates + Gallery batch types
 
 - TemplateTabs component (`src/components/TemplateTabs.tsx`): shared tab switcher between /pose-matrix and /templates
