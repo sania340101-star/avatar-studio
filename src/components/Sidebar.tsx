@@ -226,7 +226,7 @@ export default function Sidebar({ open, onClose, user }: { open?: boolean; onClo
                     <div className="relative flex-shrink-0">
                       <button
                         onClick={e => { e.stopPropagation(); e.preventDefault(); setMenuOpenId(menuOpenId === p.id ? null : p.id); }}
-                        className="md:opacity-0 md:group-hover:opacity-100 transition-opacity px-1.5 py-2"
+                        className="opacity-50 hover:opacity-100 transition-opacity px-1.5 py-2"
                         style={{ color: 'var(--text3)' }}
                         aria-label="Project actions"
                       >
