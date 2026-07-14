@@ -1,3 +1,12 @@
+## 2026-07-13: Pose Matrix feature (v1.15.0)
+
+- New page /pose-matrix: define keyframe poses, create loops (A→A) and transitions (A→B) with prompts
+- Batch generation via start-end frame models (Kling, Veo, Seedance, PixVerse, Vidu)
+- CRUD API + JSON persistence in data/pose-matrices.json
+- createBatchFromMatrix() in jobs.ts for batch job creation
+- UI: pose management, clip builder, "Add All Transitions", model selector, progress tracking, retry, preview
+- Fix: VIDEO_MODELS → VIDEO_MODEL_OPTIONS import (build failure)
+
 ## 2026-07-09: Remove mask clipping from Open Display window (v1.11.12)
 - Open Display now shows full video without SVG clipPath mask
 - Users can see what actually gets cut off on the physical display vs what's clipped by software

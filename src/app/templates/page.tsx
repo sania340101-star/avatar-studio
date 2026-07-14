@@ -96,6 +96,7 @@ function TemplatesContent() {
           onEdit={handleEdit}
           onDelete={handleDelete}
           onCreate={() => { sessionStorage.removeItem(TEMPLATE_FORM_KEY); setEditingTemplate(null); setView('create'); }}
+          onReload={load}
         />
       )}
       {(view === 'create' || view === 'edit') && (
@@ -110,14 +111,27 @@ function TemplatesContent() {
   );
 }
 
-function TemplateList({ templates, onEdit, onDelete, onCreate }: {
+function TemplateList({ templates, onEdit, onDelete, onCreate, onReload }: {
   templates: Template[];
   onEdit: (t: Template) => void;
   onDelete: (id: string) => void;
   onCreate: () => void;
+  onReload: () => void;
 }) {
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [shareTemplate, setShareTemplate] = useState<{ id: string; name: string } | null>(null);
+  const [duplicating, setDuplicating] = useState<string | null>(null);
+
+  async function handleDuplicate(id: string) {
+    setDuplicating(id);
+    const res = await fetch('/api/duplicate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ entityType: 'template', entityId: id }),
+    });
+    if (res.ok) onReload();
+    setDuplicating(null);
+  }
 
   return (
     <>
@@ -168,6 +182,16 @@ function TemplateList({ templates, onEdit, onDelete, onCreate }: {
                     >
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
                         <circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" /><line x1="8.59" y1="13.51" x2="15.42" y2="17.49" /><line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
+                      </svg>
+                    </button>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); handleDuplicate(tmpl.id); }}
+                      className="w-7 h-7 rounded-lg flex items-center justify-center opacity-50 hover:opacity-100 flex-shrink-0"
+                      style={{ color: 'var(--text3)', opacity: duplicating === tmpl.id ? 1 : undefined }}
+                      title="Duplicate"
+                    >
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
+                        <rect x="9" y="9" width="13" height="13" rx="2" ry="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
                       </svg>
                     </button>
                     <button

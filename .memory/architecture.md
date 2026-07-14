@@ -200,3 +200,15 @@ Key files:
 
 Auth: dual mode — SSO JWT from Agent Factory OR Email OTP (fallback)
 Templates: stored in data/templates.json, shared across users
+
+## 2026-07-13: Generation pipeline stability hardening
+
+- `fetchAgent()` — 5 min timeout + 3x retry with backoff (2/4/8s) for transient network errors
+- `falRequestId` saved to job.input immediately after agent returns (enables recovery)
+- `validateProxiedFile()` — rejects downloaded files < 1KB (catches corrupt downloads)
+- `extractVideoUrl()` + `processVideoResult()` — shared helpers for runGenerate + recoverFromFal
+- `recoverFromFal()` — polls fal.ai directly by saved requestId, fetches result when COMPLETED
+- `recoverJob()` — exported, used by `/api/jobs/[id]/recover` endpoint
+- `runGenerateThrottled()` — semaphore wrapper, max 3 concurrent generations for batch jobs
+- Recover button in BatchRunner + PoseMatrixRunner (green, shown only when falRequestId exists)
+- `recovering` job status added to JobStatus type

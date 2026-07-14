@@ -74,7 +74,7 @@ interface SpendingData {
 
 export default function Sidebar({ open, onClose, user }: { open?: boolean; onClose?: () => void; user?: AppUser | null }) {
   const pathname = usePathname();
-  const { projects, activeProject, setActiveProjectId, createProject, deleteProject, renameProject } = useProject();
+  const { projects, activeProject, setActiveProjectId, createProject, deleteProject, renameProject, refreshProjects } = useProject();
   const [creating, setCreating] = useState(false);
   const [newTitle, setNewTitle] = useState('');
   const [projectSearch, setProjectSearch] = useState('');
@@ -267,6 +267,16 @@ export default function Sidebar({ open, onClose, user }: { open?: boolean; onClo
                               <circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" /><line x1="8.59" y1="13.51" x2="15.42" y2="17.49" /><line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
                             </svg>
                             Share
+                          </button>
+                          <button
+                            onClick={async e => { e.stopPropagation(); setMenuOpenId(null); await fetch('/api/duplicate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ entityType: 'project', entityId: p.id }) }); refreshProjects(); }}
+                            className="w-full text-left px-3 py-1.5 flex items-center gap-2 hover:opacity-80"
+                            style={{ color: 'var(--text2)' }}
+                          >
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5" aria-hidden="true">
+                              <rect x="9" y="9" width="13" height="13" rx="2" ry="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                            </svg>
+                            Duplicate
                           </button>
                           <div className="my-1" style={{ borderTop: '1px solid var(--border)' }} />
                           <button
