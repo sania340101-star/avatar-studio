@@ -6,6 +6,7 @@ import { VIDEO_MODEL_OPTIONS } from '@/lib/models';
 import AppShell from '@/components/AppShell';
 import ShareDialog from '@/components/ShareDialog';
 import ConfirmDialog from '@/components/ConfirmDialog';
+import TemplateTabs from '@/components/TemplateTabs';
 
 const START_END_MODELS = VIDEO_MODEL_OPTIONS.filter(m => m.startEndFrame);
 
@@ -168,6 +169,7 @@ export default function PoseMatrixPage() {
     return (
       <AppShell>
       <div className="max-w-3xl mx-auto">
+        <TemplateTabs />
         <div className="flex items-center justify-between mb-6">
           <div>
             <h1 className="text-2xl font-bold">Pose Matrix</h1>

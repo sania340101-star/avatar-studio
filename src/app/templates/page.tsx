@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import AppShell from '@/components/AppShell';
+import TemplateTabs from '@/components/TemplateTabs';
 import { useProject } from '@/lib/ProjectContext';
 import { Template, TemplateSlot, TemplateRef, VideoModelTypeFilter } from '@/lib/types';
 import ShareDialog from '@/components/ShareDialog';
@@ -135,9 +136,10 @@ function TemplateList({ templates, onEdit, onDelete, onCreate, onReload }: {
 
   return (
     <>
+      <TemplateTabs />
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
         <div>
-          <h2 className="text-xl font-semibold">Templates</h2>
+          <h2 className="text-xl font-semibold">Slot Templates</h2>
           <p className="text-sm" style={{ color: 'var(--text3)' }}>Reusable generation presets with multiple slots</p>
         </div>
         <button onClick={onCreate} className="w-full sm:w-auto px-4 py-2 rounded-lg text-sm font-semibold text-white" style={{ background: 'var(--accent)' }}>

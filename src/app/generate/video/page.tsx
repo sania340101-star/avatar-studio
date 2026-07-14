@@ -762,7 +762,7 @@ export default function GenerateVideoPage() {
                     color: genMode === mode ? 'white' : 'var(--text3)',
                     border: genMode === mode ? 'none' : '1px solid var(--border)',
                   }}>
-                    {mode === 'manual' ? 'Manual' : mode === 'template' ? 'Template' : 'Pose Matrix'}
+                    {mode === 'manual' ? 'Manual' : mode === 'template' ? 'Slots' : 'Pose Matrix'}
                   </button>
                 );
               })}

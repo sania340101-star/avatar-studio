@@ -11,7 +11,8 @@ import ConfirmDialog from '@/components/ConfirmDialog';
 const GLOBAL_NAV = [
   {
     label: 'Templates',
-    href: '/templates',
+    href: '/pose-matrix',
+    match: ['/pose-matrix', '/templates'],
     icon: (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5" aria-hidden="true">
         <rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" />
@@ -33,15 +34,6 @@ const GLOBAL_NAV = [
     icon: (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5" aria-hidden="true">
         <rect x="2" y="3" width="20" height="14" rx="2" /><path d="M8 21h8" /><path d="M12 17v4" /><polygon points="10 8 16 11 10 14 10 8" />
-      </svg>
-    ),
-  },
-  {
-    label: 'Pose Matrix',
-    href: '/pose-matrix',
-    icon: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5" aria-hidden="true">
-        <circle cx="6" cy="6" r="2" /><circle cx="18" cy="6" r="2" /><circle cx="6" cy="18" r="2" /><circle cx="18" cy="18" r="2" /><path d="M8 6h8" /><path d="M8 18h8" /><path d="M6 8v8" /><path d="M18 8v8" />
       </svg>
     ),
   },
@@ -305,7 +297,8 @@ export default function Sidebar({ open, onClose, user }: { open?: boolean; onClo
           <p className="text-xs font-semibold uppercase tracking-wider px-3 mb-1" style={{ color: 'var(--text3)' }}>Global</p>
           <div className="space-y-0.5">
             {GLOBAL_NAV.map(item => {
-              const active = pathname.startsWith(item.href);
+              const matchPaths = (item as { match?: string[] }).match;
+              const active = matchPaths ? matchPaths.some(m => pathname.startsWith(m)) : pathname.startsWith(item.href);
               return (
                 <Link
                   key={item.href}
