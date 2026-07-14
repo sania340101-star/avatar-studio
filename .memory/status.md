@@ -1,3 +1,14 @@
+## 2026-07-14: UI unification + gallery markers (v1.17.7-v1.18.3)
+
+- Unified Templates section: Pose Matrix + Slots under one sidebar entry with TemplateTabs
+- Slots auto-save: debounced 600ms PATCH, "New Template" creates immediately, no Cancel/Save
+- Seamless Loop removed from slot editor (lives in Export only)
+- Gallery batch markers: "Pose Matrix" (cyan) vs "Slots" (purple), clip breakdown, pose names
+- Preset editor for Pose Matrix global instructions: CRUD API + modal, 8 defaults
+- Rich clip browser in Export: source badges, filters, batch grouping
+- Seamless defaults: Blend 10, Smooth Left, CRF 0
+- Width consistency: both tabs at max-w-4xl
+
 ## 2026-07-13: Pose Matrix feature (v1.15.0)
 
 - New page /pose-matrix: define keyframe poses, create loops (A→A) and transitions (A→B) with prompts

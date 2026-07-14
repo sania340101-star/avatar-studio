@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
   }
 
   const session = getSession(payload.sessionId as string);
-  if (!session && !process.env.FAL_KEY) {
+  if (!session) {
     return NextResponse.json({ user: null });
   }
 
@@ -31,15 +31,16 @@ export async function GET(request: NextRequest) {
     }
   } catch { /* ignore */ }
 
+  const isSso = authMethod === 'sso';
   return NextResponse.json({
     user: {
-      userId: session?.userId ?? (payload.userId as string) ?? 'unknown',
+      userId: session.userId ?? (payload.userId as string) ?? 'unknown',
       userName,
       email,
       role: payload.role ?? 'user',
       authMethod,
-      hasFalKey: !!(session?.falKey || process.env.FAL_KEY),
-      hasAnthropicKey: !!(session?.anthropicKey || process.env.ANTHROPIC_API_KEY),
+      hasFalKey: !!(session.falKey || (isSso && process.env.FAL_KEY)),
+      hasAnthropicKey: !!(session.anthropicKey || (isSso && process.env.ANTHROPIC_API_KEY)),
     },
   });
 }

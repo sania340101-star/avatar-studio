@@ -9,7 +9,7 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const { type, instruction } = body;
-    const falKey = body.falKey || process.env.FAL_KEY;
+    const falKey = body.falKey;
 
     if (!falKey) {
       return NextResponse.json({ error: 'fal.ai API key not configured. Launch from Agent Factory or add key in Settings.' }, { status: 400 });

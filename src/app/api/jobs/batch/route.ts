@@ -9,7 +9,7 @@ export async function POST(req: NextRequest) {
 
   const sessionId = req.headers.get('x-session-id');
   const session = sessionId ? getSession(sessionId) : null;
-  const falKey = session?.falKey || process.env.FAL_KEY;
+  const falKey = session?.falKey;
   if (!falKey) return NextResponse.json({ error: 'fal.ai API key not configured.' }, { status: 400 });
 
   const body = await req.json();

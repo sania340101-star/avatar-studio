@@ -43,10 +43,12 @@ export async function POST(req: NextRequest) {
       userName = user.userName || email.split('@')[0];
       userEmail = user.email || email.toLowerCase();
       role = user.role || 'user';
-      const sk = afData.serviceKeys || {};
       const isAfUser = afData.isAfUser === true;
-      falKey = sk.fal_ai_api_key || sk.fal_ai_access_token || (isAfUser ? process.env.FAL_KEY : undefined);
-      anthropicKey = sk.anthropic_api_key || (isAfUser ? process.env.ANTHROPIC_API_KEY : undefined);
+      if (isAfUser) {
+        const sk = afData.serviceKeys || {};
+        falKey = sk.fal_ai_api_key || sk.fal_ai_access_token || process.env.FAL_KEY;
+        anthropicKey = sk.anthropic_api_key || process.env.ANTHROPIC_API_KEY;
+      }
     } else {
       if (!verifyOtp(email, code)) {
         audit({ event: 'login_failed', ip, path: '/api/auth/verify-otp', detail: `email=${email}` });
@@ -55,8 +57,6 @@ export async function POST(req: NextRequest) {
       userId = `otp-${Buffer.from(email.toLowerCase()).toString('base64url')}`;
       userName = email.split('@')[0];
       userEmail = email.toLowerCase();
-      falKey = process.env.FAL_KEY;
-      anthropicKey = process.env.ANTHROPIC_API_KEY;
     }
     const sessionId = createSession(userId, falKey, anthropicKey);
     const token = await signToken({ userId, sessionId, role });

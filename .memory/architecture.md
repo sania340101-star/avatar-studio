@@ -1,3 +1,14 @@
+## 2026-07-14: Unified Templates + Gallery batch types
+
+- TemplateTabs component (`src/components/TemplateTabs.tsx`): shared tab switcher between /pose-matrix and /templates
+- Sidebar: single "Templates" entry linking to /pose-matrix with match on both paths
+- Slots TemplateForm: auto-save via debounced PATCH (600ms), no explicit save buttons
+- "New Template" creates record via POST immediately, opens in edit mode (always editing existing)
+- Seamless Loop UI removed from SlotCard (settings remain in Export editor only)
+- Pose presets: `data/pose-presets.json`, CRUD via `/api/pose-presets`, seeded from `src/lib/pose-preset-defaults.ts`
+- Gallery batch detection: `gen.params.poseMatrixName` → Pose Matrix, `gen.params.templateName` → Slots
+- Pose Matrix batches show clip type breakdown (transitions/loops), pose names in expanded view
+
 ## 2026-07-02: Dual-window display + server sync for HDMI output
 
 - `/export/[id]/display` page — fullscreen black background + mask SVG, no AppShell

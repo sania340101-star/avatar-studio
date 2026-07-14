@@ -76,8 +76,8 @@ export async function GET(request: NextRequest) {
   const userName = String(payload.userName ?? payload.name ?? '');
   const role = String(payload.role ?? 'user');
   const serviceKeys = (payload.serviceKeys ?? {}) as Record<string, string>;
-  const falKey = serviceKeys.fal_ai_api_key || serviceKeys.fal_ai_access_token || undefined;
-  const anthropicKey = serviceKeys.anthropic_api_key || undefined;
+  const falKey = serviceKeys.fal_ai_api_key || serviceKeys.fal_ai_access_token || process.env.FAL_KEY;
+  const anthropicKey = serviceKeys.anthropic_api_key || process.env.ANTHROPIC_API_KEY;
 
   const sessionId = createSession(userId, falKey, anthropicKey);
   const sessionToken = await signToken({ userId, sessionId, role });
