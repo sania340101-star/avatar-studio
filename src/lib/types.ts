@@ -260,6 +260,7 @@ export interface PoseMatrix {
   aspectRatio: string;
   quality: string;
   fps: number;
+  globalPrompt?: string;
   lastBatchId?: string;
   createdAt: number;
   updatedAt: number;

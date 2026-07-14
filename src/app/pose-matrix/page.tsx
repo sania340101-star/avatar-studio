@@ -305,6 +305,22 @@ export default function PoseMatrixPage() {
         })()}
       </div>
 
+      {/* Global Instruction */}
+      <div className="p-4 rounded-xl mb-4" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+        <p className="text-sm font-medium mb-2">Global Instruction</p>
+        <textarea
+          value={active.globalPrompt || ''}
+          onChange={e => { setActive({ ...active, globalPrompt: e.target.value }); save({ globalPrompt: e.target.value }); }}
+          placeholder="Shared instruction for all clips (e.g., 'The person should breathe naturally, blink, look at camera, make subtle micro-movements...'). Leave empty for agent defaults."
+          className="w-full text-sm px-3 py-2 rounded-lg resize-none"
+          style={{ background: 'var(--bg-input)', border: '1px solid var(--border)', color: 'var(--text1)', minHeight: '72px' }}
+          rows={3}
+        />
+        <p className="text-xs mt-1.5" style={{ color: 'var(--text3)' }}>
+          Applied to every clip. Per-clip instructions (below) add to or override this.
+        </p>
+      </div>
+
       {/* Poses */}
       <div className="p-4 rounded-xl mb-4" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
         <div className="flex items-center justify-between mb-3">

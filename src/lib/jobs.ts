@@ -234,8 +234,20 @@ export function createBatchFromMatrix(
     if (!startImage || !endImage) continue;
 
     const isLoop = clip.startPoseId === clip.endPoseId;
+    const clipPrompt = clip.prompt?.trim() || '';
+    const globalPrompt = matrix.globalPrompt?.trim() || '';
+    let instruction: string;
+    if (globalPrompt && clipPrompt) {
+      instruction = `${globalPrompt}\n\nSpecific instruction for this clip (${startPose.name} → ${endPose.name}): ${clipPrompt}`;
+    } else if (clipPrompt) {
+      instruction = clipPrompt;
+    } else if (globalPrompt) {
+      instruction = `${globalPrompt}\n\nThis is a ${isLoop ? 'loop' : 'transition'} clip: ${startPose.name} → ${endPose.name}. Generate natural movement for this pose ${isLoop ? 'hold' : 'transition'}.`;
+    } else {
+      instruction = `Realistic avatar ${isLoop ? 'holding pose' : 'transitioning between poses'}: ${startPose.name} → ${endPose.name}. The person should move naturally — subtle breathing, blinking, slight head movement, micro-movements of hands and body. Smooth and lifelike.`;
+    }
     const input: Record<string, unknown> = {
-      instruction: clip.prompt,
+      instruction,
       modelPref: matrix.modelId,
       duration: matrix.duration,
       aspectRatio: matrix.aspectRatio,
@@ -265,7 +277,7 @@ export function createBatchFromMatrix(
     jobs.set(job.id, job);
     batchJobs.push(job);
 
-    runGenerateThrottled(job, clip.prompt, matrix.modelId, falKey).catch(err => {
+    runGenerateThrottled(job, instruction, matrix.modelId, falKey).catch(err => {
       job.status = 'error';
       job.error = err instanceof Error ? err.message : 'Generation failed';
       updateJob(job);
