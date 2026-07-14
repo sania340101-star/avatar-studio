@@ -41,7 +41,6 @@ export default function GenerateImagePage() {
   const [results, setResults] = useState<GeneratedImage[]>([]);
   const [error, setError] = useState('');
   const [history, setHistory] = useState<Generation[]>([]);
-  const fileRef = useRef<HTMLInputElement>(null);
   const [showGallery, setShowGallery] = useState(false);
 
   // Dynamic pricing
@@ -248,19 +247,6 @@ export default function GenerateImagePage() {
     return () => clearTimeout(timer);
   }, [modelPref, effectiveView]);
 
-  async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    const files = e.target.files;
-    if (!files) return;
-    for (const file of Array.from(files)) {
-      const formData = new FormData();
-      formData.append('file', file);
-      const res = await fetch('/api/upload', { method: 'POST', body: formData });
-      const data = await res.json();
-      if (data.url) setReferences(prev => [...prev, { url: data.url, name: file.name }]);
-    }
-    e.target.value = '';
-  }
-
   async function handlePrepare() {
     if (!instruction.trim() || !activeProject) return;
     setError('');
@@ -404,21 +390,12 @@ export default function GenerateImagePage() {
               ))}
               <button
                 onClick={() => setShowGallery(true)}
-                className="w-20 h-20 rounded-lg border-2 flex flex-col items-center justify-center text-xs gap-1"
-                style={{ borderColor: 'var(--accent)', color: 'var(--accent)', background: 'var(--accent-subtle)' }}
-              >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-6 h-6"><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="8.5" cy="8.5" r="1.5" /><path d="m21 15-5-5L5 21" /></svg>
-                <span>Gallery</span>
-              </button>
-              <button
-                onClick={() => fileRef.current?.click()}
                 className="w-20 h-20 rounded-lg border-2 border-dashed flex flex-col items-center justify-center text-xs gap-1"
                 style={{ borderColor: 'var(--border)', color: 'var(--text3)' }}
               >
                 <span className="text-2xl">+</span>
-                <span>Upload</span>
+                <span>Add</span>
               </button>
-              <input ref={fileRef} type="file" accept="image/*" multiple className="hidden" onChange={handleFileUpload} />
             </div>
             <GalleryBrowser
               open={showGallery}

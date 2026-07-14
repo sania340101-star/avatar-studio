@@ -167,33 +167,34 @@ export default function ReferenceUpload({ references, onChange, accept, label = 
         </div>
       )}
 
-      <div className="flex gap-2">
-        {galleryType && (
-          <button
-            onClick={() => setShowGallery(true)}
-            className="flex-1 py-2.5 rounded-lg border text-sm font-medium"
-            style={{ borderColor: 'var(--accent)', color: 'var(--accent)', background: 'var(--accent-subtle)' }}
-          >
-            Browse Gallery
-          </button>
-        )}
+      {galleryType ? (
         <button
-          onClick={() => fileRef.current?.click()}
-          disabled={uploading}
-          className={`${galleryType ? 'flex-1' : 'w-full'} py-2.5 rounded-lg border-2 border-dashed text-sm`}
+          onClick={() => setShowGallery(true)}
+          className="w-full py-2.5 rounded-lg border-2 border-dashed text-sm"
           style={{ borderColor: 'var(--border)', color: 'var(--text3)' }}
         >
-          {uploading ? 'Uploading...' : accept === 'video/*' ? '+ Upload video' : accept === 'audio/*' ? '+ Add audio' : accept === 'image/*' ? '+ Upload images' : '+ Upload file'}
+          + Add {accept === 'video/*' ? 'video' : accept === 'image/*' ? 'images' : 'file'}
         </button>
-      </div>
-      <input
-        ref={fileRef}
-        type="file"
-        accept={accept || 'image/*,video/*,audio/*'}
-        multiple
-        className="hidden"
-        onChange={handleUpload}
-      />
+      ) : (
+        <>
+          <button
+            onClick={() => fileRef.current?.click()}
+            disabled={uploading}
+            className="w-full py-2.5 rounded-lg border-2 border-dashed text-sm"
+            style={{ borderColor: 'var(--border)', color: 'var(--text3)' }}
+          >
+            {uploading ? 'Uploading...' : '+ Add audio'}
+          </button>
+          <input
+            ref={fileRef}
+            type="file"
+            accept={accept || 'image/*,video/*,audio/*'}
+            multiple
+            className="hidden"
+            onChange={handleUpload}
+          />
+        </>
+      )}
 
       {error && (
         <p className="text-xs mt-1" style={{ color: 'var(--red, #ef4444)' }}>{error}</p>
