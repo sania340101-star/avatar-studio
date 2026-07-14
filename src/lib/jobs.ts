@@ -450,6 +450,7 @@ async function runPrepare(job: JobData, falKey: string) {
   });
   const data = await res.json();
   if (!res.ok || data.error) throw new Error(data.error || `Agent error (${res.status})`);
+  if (!data.prompt && !data.model) throw new Error('Agent returned empty result — no prompt or model selected. Check fal.ai API key validity.');
 
   job.prepareResult = {
     prompt: data.prompt || '',

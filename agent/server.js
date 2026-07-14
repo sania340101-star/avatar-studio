@@ -898,6 +898,15 @@ function callClaude(token, mcpConfig, systemPrompt, userPrompt, tools, maxTurns,
       if (err && !stdout) return reject(new Error(stderr || err.message));
       try {
         const parsed = JSON.parse(stdout);
+        if (parsed.is_error) {
+          const reason = parsed.subtype === 'error_max_turns'
+            ? 'Agent exhausted all turns without producing a result. This usually means a reference image could not be processed.'
+            : parsed.subtype || 'unknown error';
+          console.error(`[agent] claude error (${useModel}): ${reason}, cost: $${parsed.total_cost_usd || 0}`);
+          const dumpFile = path.join(TMP_DIR, `debug-${Date.now()}.json`);
+          writeFileSync(dumpFile, stdout);
+          return reject(new Error(reason));
+        }
         const text = parsed.result || '';
         if (!text) {
           console.log(`[agent] empty result from ${useModel}, stdout len:`, stdout.length, 'cost:', parsed.cost_usd);
@@ -1057,8 +1066,8 @@ const server = http.createServer(async (req, res) => {
     let falUploadedUrls = [];
     const falMediaUrls = {};
 
-    if (isGenerate && falKey) {
-      // Upload other image references
+    if (falKey) {
+      // Upload image references to fal CDN (both prepare and generate need CDN URLs)
       if (imageFiles.length > 0) {
         falUploadedUrls = await uploadReferencesToFal(imageFiles, falKey);
         console.log(`[agent] uploaded ${falUploadedUrls.length}/${imageFiles.length} image refs to fal.ai`);
