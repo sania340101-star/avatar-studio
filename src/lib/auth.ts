@@ -39,25 +39,7 @@ export async function clearSession(): Promise<void> {
 export async function initAuth(): Promise<AppUser | null> {
   if (typeof window === 'undefined') return null;
 
-  // 1. Check localStorage (but only trust if hasFalKey is true — otherwise re-verify)
-  try {
-    const raw = localStorage.getItem(SESSION_KEY);
-    if (raw) {
-      const cached = JSON.parse(raw) as AppUser;
-      if (cached.hasFalKey) return cached;
-    }
-  } catch { /* fall through */ }
-
-  // 2. Check user-info cookie (set by server on SSO)
-  let cachedUser: AppUser | null = null;
-  try {
-    const cookie = getCookie(USER_INFO_COOKIE);
-    if (cookie) {
-      cachedUser = JSON.parse(cookie);
-    }
-  } catch { /* fall through */ }
-
-  // 3. Ask the server to verify (always, to pick up env fallback keys)
+  // 1. Ask the server for authoritative user data
   try {
     const res = await fetch('/api/auth/me');
     if (res.ok) {
@@ -68,13 +50,23 @@ export async function initAuth(): Promise<AppUser | null> {
         return user;
       }
     }
-  } catch { /* server unreachable */ }
+  } catch { /* server unreachable — fall through to cache */ }
 
-  // 4. Fall back to cookie if server unreachable
-  if (cachedUser) {
-    localStorage.setItem(SESSION_KEY, JSON.stringify(cachedUser));
-    return cachedUser;
-  }
+  // 2. Fall back to localStorage cache
+  try {
+    const raw = localStorage.getItem(SESSION_KEY);
+    if (raw) return JSON.parse(raw) as AppUser;
+  } catch { /* fall through */ }
+
+  // 3. Fall back to user-info cookie
+  try {
+    const cookie = getCookie(USER_INFO_COOKIE);
+    if (cookie) {
+      const user = JSON.parse(cookie) as AppUser;
+      localStorage.setItem(SESSION_KEY, JSON.stringify(user));
+      return user;
+    }
+  } catch { /* fall through */ }
 
   return null;
 }
