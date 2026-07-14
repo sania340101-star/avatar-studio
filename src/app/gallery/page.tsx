@@ -122,9 +122,10 @@ function GalleryContent() {
     { id: 'export', label: 'Exports' },
   ];
 
+  type BatchSource = 'pose-matrix' | 'slots' | 'batch';
   type GalleryEntry =
     | { kind: 'single'; gen: Generation }
-    | { kind: 'batch'; batchId: string; gens: Generation[]; templateName: string };
+    | { kind: 'batch'; batchId: string; gens: Generation[]; templateName: string; sourceType: BatchSource };
 
   const galleryEntries: GalleryEntry[] = [];
   const batchMap = new Map<string, Generation[]>();
@@ -139,11 +140,15 @@ function GalleryContent() {
   }
   for (const [bid, gens] of batchMap) {
     const sorted = gens.sort((a, b) => ((a.params.slotIndex as number) ?? 0) - ((b.params.slotIndex as number) ?? 0));
+    const fp = sorted[0].params;
+    const isPoseMatrix = !!fp.poseMatrixName;
+    const isSlots = !isPoseMatrix && !!fp.templateName;
     galleryEntries.push({
       kind: 'batch',
       batchId: bid,
       gens: sorted,
-      templateName: String(sorted[0].params.templateName || 'Batch'),
+      templateName: String(fp.poseMatrixName || fp.templateName || 'Batch'),
+      sourceType: isPoseMatrix ? 'pose-matrix' : isSlots ? 'slots' : 'batch',
     });
   }
   galleryEntries.sort((a, b) => {
@@ -341,11 +346,24 @@ function GalleryContent() {
                       onClick={() => setExpandedId(isExpanded ? null : entry.batchId)}
                     >
                       <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 mb-1">
-                        <span className="text-xs font-medium px-2 py-0.5 rounded" style={{ background: 'rgba(108,60,224,0.15)', color: 'var(--accent)' }}>
-                          template
+                        <span className="text-xs font-medium px-2 py-0.5 rounded" style={{
+                          background: entry.sourceType === 'pose-matrix' ? 'rgba(6,182,212,0.15)' : 'rgba(108,60,224,0.15)',
+                          color: entry.sourceType === 'pose-matrix' ? '#06b6d4' : 'var(--accent)',
+                        }}>
+                          {entry.sourceType === 'pose-matrix' ? 'Pose Matrix' : entry.sourceType === 'slots' ? 'Slots' : 'batch'}
                         </span>
                         <span className="text-xs font-medium px-1.5 py-0.5 rounded" style={{ background: 'rgba(76,175,80,0.12)', color: 'var(--green)' }}>
-                          {entry.gens.length} slots
+                          {entry.sourceType === 'pose-matrix'
+                            ? (() => {
+                                const loops = entry.gens.filter(g => g.params.clipType === 'loop').length;
+                                const trans = entry.gens.length - loops;
+                                const parts: string[] = [];
+                                if (trans > 0) parts.push(`${trans} transition${trans !== 1 ? 's' : ''}`);
+                                if (loops > 0) parts.push(`${loops} loop${loops !== 1 ? 's' : ''}`);
+                                return parts.join(' · ');
+                              })()
+                            : `${entry.gens.length} slot${entry.gens.length !== 1 ? 's' : ''}`
+                          }
                         </span>
                         {projectMap[entry.gens[0].projectId] && (
                           <span className="text-xs font-medium px-2 py-0.5 rounded flex items-center gap-1" style={{ background: 'rgba(59,130,246,0.12)', color: 'var(--blue, #3b82f6)' }}>
@@ -422,6 +440,19 @@ function GalleryContent() {
                                   <span className="text-xs font-medium px-1.5 py-0.5 rounded" style={{ background: 'var(--accent-subtle)', color: 'var(--accent)' }}>
                                     #{slotIdx + 1}
                                   </span>
+                                  {entry.sourceType === 'pose-matrix' && !!gen.params.startPose && (
+                                    <span className="text-xs font-medium truncate" style={{ color: 'var(--text2)' }}>
+                                      {String(gen.params.startPose)}{gen.params.startPose !== gen.params.endPose ? ` → ${String(gen.params.endPose)}` : ''}
+                                    </span>
+                                  )}
+                                  {entry.sourceType === 'pose-matrix' && !!gen.params.clipType && (
+                                    <span className="text-xs px-1.5 py-0.5 rounded" style={{
+                                      background: String(gen.params.clipType) === 'loop' ? 'rgba(245,158,11,0.12)' : 'rgba(6,182,212,0.12)',
+                                      color: String(gen.params.clipType) === 'loop' ? '#f59e0b' : '#06b6d4',
+                                    }}>
+                                      {String(gen.params.clipType)}
+                                    </span>
+                                  )}
                                   <span className="text-xs truncate" style={{ color: 'var(--text3)' }}>{gen.modelLabel}</span>
                                   {gen.params.duration != null && (
                                     <span className="text-xs" style={{ color: 'var(--text3)' }}>{String(gen.params.duration)}s</span>
