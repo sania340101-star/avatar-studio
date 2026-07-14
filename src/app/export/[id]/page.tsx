@@ -50,6 +50,9 @@ function ExportEditorContent() {
   const [showBrowser, setShowBrowser] = useState(false);
   const [browserVideos, setBrowserVideos] = useState<Generation[]>([]);
   const [browserFilter, setBrowserFilter] = useState('all');
+  const [browserSourceFilter, setBrowserSourceFilter] = useState<'all' | 'pose' | 'template' | 'free'>('all');
+  const [browserGroupFilter, setBrowserGroupFilter] = useState('all');
+  const [browserSort, setBrowserSort] = useState<'newest' | 'oldest'>('newest');
   const [browserLoading, setBrowserLoading] = useState(false);
   const [browserSelected, setBrowserSelected] = useState<Set<string>>(new Set());
 
@@ -227,11 +230,40 @@ function ExportEditorContent() {
   }, [showBrowser, browserFilter]);
 
   function clipLabel(gen: Generation): string {
+    const poseMatrixName = gen.params.poseMatrixName as string | undefined;
+    const startPose = gen.params.startPose as string | undefined;
+    const endPose = gen.params.endPose as string | undefined;
+    const clipType = gen.params.clipType as string | undefined;
     const slotIdx = gen.params.slotIndex as number | undefined;
     const templateName = gen.params.templateName as string | undefined;
-    if (templateName && slotIdx != null) return `${templateName} — Slot ${slotIdx + 1}`;
-    if (slotIdx != null) return `Slot ${slotIdx + 1} · ${gen.modelLabel}`;
+
+    if (poseMatrixName && startPose) {
+      const poses = startPose === endPose ? startPose : `${startPose} → ${endPose}`;
+      const tag = clipType === 'loop' ? 'loop' : 'transition';
+      return `${poseMatrixName} | ${poses} | ${tag}`;
+    }
+    if (templateName && slotIdx != null) return `${templateName} | Slot ${slotIdx + 1} | ${gen.modelLabel}`;
+    if (slotIdx != null) return `Slot ${slotIdx + 1} | ${gen.modelLabel}`;
     return gen.prompt.slice(0, 60) || gen.modelLabel || 'Untitled';
+  }
+
+  function genSourceType(gen: Generation): 'pose' | 'template' | 'free' {
+    if (gen.params.poseMatrixName) return 'pose';
+    if (gen.params.templateName) return 'template';
+    return 'free';
+  }
+
+  function genSourceLabel(gen: Generation): string {
+    const type = genSourceType(gen);
+    if (type === 'pose') return `Pose: ${gen.params.poseMatrixName}`;
+    if (type === 'template') return `Template: ${gen.params.templateName}`;
+    return gen.modelLabel;
+  }
+
+  function formatDate(ts: number): string {
+    const d = new Date(ts);
+    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    return `${d.getDate()} ${months[d.getMonth()]} ${d.getHours().toString().padStart(2,'0')}:${d.getMinutes().toString().padStart(2,'0')}`;
   }
 
   async function addClip(gen: Generation) {
@@ -1216,11 +1248,41 @@ function ExportEditorContent() {
       )}
 
       {/* Video Browser Modal */}
-      {showBrowser && (
+      {showBrowser && (() => {
+        const filtered = browserVideos.filter(gen => {
+          if (browserSourceFilter !== 'all' && genSourceType(gen) !== browserSourceFilter) return false;
+          if (browserGroupFilter !== 'all') {
+            const name = (gen.params.poseMatrixName || gen.params.templateName || '') as string;
+            if (name !== browserGroupFilter) return false;
+          }
+          return true;
+        });
+        const sorted = [...filtered].sort((a, b) => browserSort === 'newest' ? b.createdAt - a.createdAt : a.createdAt - b.createdAt);
+
+        const sourceNames = new Set<string>();
+        for (const g of browserVideos) {
+          const name = (g.params.poseMatrixName || g.params.templateName) as string | undefined;
+          if (name) sourceNames.add(name);
+        }
+
+        type BatchGroup = { key: string; title: string; date: string; gens: Generation[] };
+        const groups: BatchGroup[] = [];
+        const seen = new Set<string>();
+        for (const gen of sorted) {
+          const bk = gen.batchId || gen.id;
+          if (!seen.has(bk)) {
+            seen.add(bk);
+            const batchGens = sorted.filter(g => (g.batchId || g.id) === bk);
+            const label = genSourceLabel(batchGens[0]);
+            groups.push({ key: bk, title: `${label} (${batchGens.length})`, date: formatDate(batchGens[0].createdAt), gens: batchGens });
+          }
+        }
+
+        return (
         <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => setShowBrowser(false)}>
           <div className="absolute inset-0 bg-black/50" />
           <div
-            className="relative rounded-xl shadow-xl w-full max-w-2xl max-h-[80vh] flex flex-col"
+            className="relative rounded-xl shadow-xl w-full max-w-3xl max-h-[85vh] flex flex-col"
             style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}
             onClick={e => e.stopPropagation()}
           >
@@ -1233,11 +1295,11 @@ function ExportEditorContent() {
               </button>
             </div>
 
-            <div className="px-4 pt-3 pb-2">
+            <div className="px-4 pt-3 pb-2 flex flex-wrap gap-2">
               <select
                 value={browserFilter}
                 onChange={e => setBrowserFilter(e.target.value)}
-                className="text-sm px-3 py-2 rounded-lg border w-full"
+                className="text-xs px-2 py-1.5 rounded-lg border flex-1 min-w-[120px]"
                 style={{ borderColor: 'var(--border)', background: 'var(--bg-input)', color: 'var(--text1)' }}
               >
                 <option value="all">All Projects</option>
@@ -1245,12 +1307,43 @@ function ExportEditorContent() {
                   <option key={p.id} value={p.id}>{p.title}</option>
                 ))}
               </select>
+              <select
+                value={browserSourceFilter}
+                onChange={e => { setBrowserSourceFilter(e.target.value as typeof browserSourceFilter); setBrowserGroupFilter('all'); }}
+                className="text-xs px-2 py-1.5 rounded-lg border"
+                style={{ borderColor: 'var(--border)', background: 'var(--bg-input)', color: 'var(--text1)' }}
+              >
+                <option value="all">All Sources</option>
+                <option value="pose">Pose Matrix</option>
+                <option value="template">Template</option>
+                <option value="free">Free Generation</option>
+              </select>
+              {sourceNames.size > 0 && (
+                <select
+                  value={browserGroupFilter}
+                  onChange={e => setBrowserGroupFilter(e.target.value)}
+                  className="text-xs px-2 py-1.5 rounded-lg border"
+                  style={{ borderColor: 'var(--border)', background: 'var(--bg-input)', color: 'var(--text1)' }}
+                >
+                  <option value="all">All Names</option>
+                  {[...sourceNames].sort().map(n => <option key={n} value={n}>{n}</option>)}
+                </select>
+              )}
+              <select
+                value={browserSort}
+                onChange={e => setBrowserSort(e.target.value as typeof browserSort)}
+                className="text-xs px-2 py-1.5 rounded-lg border"
+                style={{ borderColor: 'var(--border)', background: 'var(--bg-input)', color: 'var(--text1)' }}
+              >
+                <option value="newest">Newest first</option>
+                <option value="oldest">Oldest first</option>
+              </select>
             </div>
 
             {/* Upload zone inside modal */}
-            <div className="px-4 pt-2">
+            <div className="px-4 pt-1">
               <div
-                className="rounded-lg border-2 border-dashed p-3 text-center cursor-pointer hover:border-[var(--accent)] transition-colors"
+                className="rounded-lg border-2 border-dashed p-2 text-center cursor-pointer hover:border-[var(--accent)] transition-colors"
                 style={{ borderColor: 'var(--border)' }}
                 onClick={() => fileInputRef.current?.click()}
                 onDragOver={e => { e.preventDefault(); e.currentTarget.style.borderColor = 'var(--accent)'; }}
@@ -1263,7 +1356,7 @@ function ExportEditorContent() {
                 }}
               >
                 <p className="text-xs" style={{ color: 'var(--text3)' }}>
-                  {uploading ? 'Uploading...' : 'Drop video files here or click to upload from device'}
+                  {uploading ? 'Uploading...' : 'Drop video files here or click to upload'}
                 </p>
               </div>
             </div>
@@ -1273,92 +1366,130 @@ function ExportEditorContent() {
                 <div className="flex items-center justify-center py-10">
                   <div className="w-5 h-5 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: 'var(--accent)', borderTopColor: 'transparent' }} />
                 </div>
-              ) : browserVideos.length === 0 ? (
+              ) : sorted.length === 0 ? (
                 <p className="text-sm text-center py-10" style={{ color: 'var(--text3)' }}>No videos found</p>
               ) : (
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                  {browserVideos.map(gen => {
-                    const alreadyAdded = session.clips.some(c => c.generationId === gen.id);
-                    const isSelected = browserSelected.has(gen.id);
-                    return (
-                      <div
-                        key={gen.id}
-                        className={`rounded-lg border-2 overflow-hidden transition-colors ${alreadyAdded ? 'opacity-50' : 'cursor-pointer'}`}
-                        style={{ borderColor: isSelected ? 'var(--accent)' : 'var(--border)' }}
-                        onClick={() => {
-                          if (alreadyAdded) return;
-                          setBrowserSelected(prev => {
-                            const next = new Set(prev);
-                            if (next.has(gen.id)) next.delete(gen.id);
-                            else next.add(gen.id);
-                            return next;
-                          });
-                        }}
-                      >
-                        <div className="aspect-video relative" style={{ background: 'var(--bg-input)' }}>
-                          <video src={gen.resultUrls[0]} className="w-full h-full object-cover" muted />
-                          {(alreadyAdded || isSelected) && (
-                            <div className="absolute inset-0 flex items-center justify-center bg-black/40">
-                              <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" className="w-6 h-6">
-                                <polyline points="20 6 9 17 4 12" />
-                              </svg>
-                            </div>
-                          )}
-                        </div>
-                        <div className="p-2">
-                          <p className="text-xs truncate" style={{ color: 'var(--text2)' }}>{gen.prompt.slice(0, 50) || 'Untitled'}</p>
-                          {projectMap[gen.projectId] && (
-                            <p className="text-xs truncate" style={{ color: 'var(--text3)' }}>{projectMap[gen.projectId]}</p>
-                          )}
-                        </div>
+                <div className="space-y-4">
+                  {groups.map(group => (
+                    <div key={group.key}>
+                      <div className="flex items-center gap-2 mb-2 px-1">
+                        <p className="text-xs font-medium truncate" style={{ color: 'var(--text2)' }}>{group.title}</p>
+                        <span className="text-xs shrink-0" style={{ color: 'var(--text3)' }}>{group.date}</span>
+                        {group.gens.length > 1 && !group.gens.every(g => browserSelected.has(g.id) || session.clips.some(c => c.generationId === g.id)) && (
+                          <button
+                            className="text-xs px-2 py-0.5 rounded shrink-0"
+                            style={{ color: 'var(--accent)', border: '1px solid var(--accent)' }}
+                            onClick={() => {
+                              setBrowserSelected(prev => {
+                                const next = new Set(prev);
+                                for (const g of group.gens) {
+                                  if (!session.clips.some(c => c.generationId === g.id)) next.add(g.id);
+                                }
+                                return next;
+                              });
+                            }}
+                          >
+                            Select all
+                          </button>
+                        )}
                       </div>
-                    );
-                  })}
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                        {group.gens.map(gen => {
+                          const alreadyAdded = session.clips.some(c => c.generationId === gen.id);
+                          const isSelected = browserSelected.has(gen.id);
+                          const srcType = genSourceType(gen);
+                          return (
+                            <div
+                              key={gen.id}
+                              className={`rounded-lg border-2 overflow-hidden transition-colors ${alreadyAdded ? 'opacity-50' : 'cursor-pointer'}`}
+                              style={{ borderColor: isSelected ? 'var(--accent)' : 'var(--border)' }}
+                              onClick={() => {
+                                if (alreadyAdded) return;
+                                setBrowserSelected(prev => {
+                                  const next = new Set(prev);
+                                  if (next.has(gen.id)) next.delete(gen.id);
+                                  else next.add(gen.id);
+                                  return next;
+                                });
+                              }}
+                            >
+                              <div className="aspect-video relative" style={{ background: 'var(--bg-input)' }}>
+                                <video src={gen.resultUrls[0]} className="w-full h-full object-cover" muted />
+                                {(alreadyAdded || isSelected) && (
+                                  <div className="absolute inset-0 flex items-center justify-center bg-black/40">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" className="w-6 h-6">
+                                      <polyline points="20 6 9 17 4 12" />
+                                    </svg>
+                                  </div>
+                                )}
+                                <div className="absolute top-1 right-1 flex gap-1">
+                                  <span className="text-[9px] px-1 py-0.5 rounded" style={{ background: srcType === 'pose' ? 'rgba(139,92,246,0.85)' : srcType === 'template' ? 'rgba(59,130,246,0.85)' : 'rgba(100,100,100,0.85)', color: '#fff' }}>
+                                    {srcType === 'pose' ? 'Pose' : srcType === 'template' ? 'Tmpl' : 'Free'}
+                                  </span>
+                                </div>
+                              </div>
+                              <div className="p-1.5">
+                                <p className="text-[11px] font-medium truncate" style={{ color: 'var(--text1)' }}>{clipLabel(gen)}</p>
+                                <div className="flex items-center gap-1 mt-0.5">
+                                  <span className="text-[10px] truncate" style={{ color: 'var(--text3)' }}>{projectMap[gen.projectId] || ''}</span>
+                                  <span className="text-[10px] shrink-0" style={{ color: 'var(--text3)' }}>{formatDate(gen.createdAt)}</span>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
                 </div>
               )}
             </div>
 
-            <div className="p-4 border-t flex justify-end gap-2" style={{ borderColor: 'var(--border)' }}>
-              <button
-                onClick={() => setShowBrowser(false)}
-                className="px-5 py-2 rounded-lg text-sm font-medium"
-                style={{ border: '1px solid var(--border)', color: 'var(--text2)' }}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={async () => {
-                  if (!session) return;
-                  const toAdd = browserVideos.filter(g => browserSelected.has(g.id));
-                  const newClips: ExportClip[] = [];
-                  for (const gen of toAdd) {
-                    const dur = await probeDuration(gen.resultUrls[0]);
-                    newClips.push({
-                      id: `clip-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-                      generationId: gen.id,
-                      projectId: gen.projectId,
-                      url: gen.resultUrls[0],
-                      label: clipLabel(gen),
-                      duration: dur > 0 ? Math.round(dur * 10) / 10 : undefined,
-                      source: 'generation',
-                      transform: { offsetX: 0, offsetY: 0, scale: 1 },
-                    });
-                  }
-                  const clips = [...session.clips, ...newClips];
-                  setSession({ ...session, clips, updatedAt: Date.now() });
-                  debouncedSave({ clips });
-                  setShowBrowser(false);
-                }}
-                disabled={browserSelected.size === 0}
-                className="px-5 py-2 rounded-lg text-sm font-medium text-white disabled:opacity-50"
-                style={{ background: 'var(--accent)' }}
-              >
-                Add {browserSelected.size > 0 ? `(${browserSelected.size})` : ''}
-              </button>
+            <div className="p-4 border-t flex items-center justify-between" style={{ borderColor: 'var(--border)' }}>
+              <span className="text-xs" style={{ color: 'var(--text3)' }}>{sorted.length} videos{browserSelected.size > 0 ? ` · ${browserSelected.size} selected` : ''}</span>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setShowBrowser(false)}
+                  className="px-5 py-2 rounded-lg text-sm font-medium"
+                  style={{ border: '1px solid var(--border)', color: 'var(--text2)' }}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={async () => {
+                    if (!session) return;
+                    const toAdd = browserVideos.filter(g => browserSelected.has(g.id));
+                    const newClips: ExportClip[] = [];
+                    for (const gen of toAdd) {
+                      const dur = await probeDuration(gen.resultUrls[0]);
+                      newClips.push({
+                        id: `clip-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+                        generationId: gen.id,
+                        projectId: gen.projectId,
+                        url: gen.resultUrls[0],
+                        label: clipLabel(gen),
+                        duration: dur > 0 ? Math.round(dur * 10) / 10 : undefined,
+                        source: 'generation',
+                        transform: { offsetX: 0, offsetY: 0, scale: 1 },
+                      });
+                    }
+                    const clips = [...session.clips, ...newClips];
+                    setSession({ ...session, clips, updatedAt: Date.now() });
+                    debouncedSave({ clips });
+                    setShowBrowser(false);
+                  }}
+                  disabled={browserSelected.size === 0}
+                  className="px-5 py-2 rounded-lg text-sm font-medium text-white disabled:opacity-50"
+                  style={{ background: 'var(--accent)' }}
+                >
+                  Add {browserSelected.size > 0 ? `(${browserSelected.size})` : ''}
+                </button>
+              </div>
             </div>
           </div>
         </div>
-      )}
+        );
+      })()}
 
       {/* Video preview lightbox */}
       {previewUrl && (
