@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { PoseMatrix, PoseMatrixPose, PoseMatrixClip } from '@/lib/types';
+import { PoseMatrix, PoseMatrixPose, PoseMatrixClip, PosePreset } from '@/lib/types';
 import { VIDEO_MODEL_OPTIONS } from '@/lib/models';
 import AppShell from '@/components/AppShell';
 import ShareDialog from '@/components/ShareDialog';
@@ -9,108 +9,6 @@ import ConfirmDialog from '@/components/ConfirmDialog';
 
 const START_END_MODELS = VIDEO_MODEL_OPTIONS.filter(m => m.startEndFrame);
 
-const GLOBAL_PROMPT_PRESETS: { label: string; value: string }[] = [
-  {
-    label: 'Male Full-body Idle',
-    value: `Natural idle full-body animation of a photorealistic man. Solid black background. Static camera. Feet stay grounded throughout.
-The man stands in a relaxed neutral posture with continuous subtle life:
-- Natural irregular breathing visible in chest and upper torso
-- Soft blinking at uneven intervals
-- Slow continuous weight shifting between legs, driven from hips with natural secondary motion in torso and shoulders
-- Subtle side-to-side body sway with smooth balance corrections
-- Small postural micro-adjustments: slight shoulder settling, spine corrections
-- Minimal hand/finger micro-movements: gentle relaxation shifts, tiny spacing adjustments
-- Head remains mostly forward-facing with only minimal natural stabilizing motion
-All movement should feel calm, grounded, and physically realistic with natural timing variations and micro-pauses. No robotic or frozen poses. The body stays alive with continuous organic adjustment.`,
-  },
-  {
-    label: 'Female Full-body Idle',
-    value: `Natural idle full-body animation of a photorealistic woman. Solid black background. Static camera. Feet stay grounded throughout.
-The woman stands in an elegant relaxed posture with continuous subtle life:
-- Soft natural breathing visible as gentle rise and fall of chest and shoulders
-- Delicate blinking at natural uneven intervals
-- Graceful slow weight shifting between legs, creating gentle hip movement with natural follow-through in torso
-- Subtle fluid body sway, smooth and balanced
-- Small feminine postural adjustments: slight head tilt, gentle shoulder roll, soft spine settling
-- Delicate hand micro-movements: subtle finger relaxation, gentle wrist adjustments
-- Head remains mostly forward-facing with soft minimal natural movement
-All movement should feel poised, graceful, and physically realistic with natural timing variations. No stiff or artificial poses. The body stays alive with continuous elegant micro-motion.`,
-  },
-  {
-    label: 'Male Bust Idle (Solo)',
-    value: `Natural idle bust animation (head and shoulders only) of a photorealistic man. Solid black background. Static camera.
-The man is framed from chest up in a relaxed posture with continuous subtle life:
-- Natural irregular breathing visible in upper chest and shoulder area
-- Soft blinking at uneven intervals with natural eye micro-movements
-- Very subtle head micro-movements: tiny stabilizing motions, occasional minimal nod
-- Small shoulder settling and postural micro-adjustments
-- Slight natural facial micro-expressions: subtle jaw relaxation, gentle brow shifts
-No hand, arm, or lower body motion visible. All movement contained in head, face, and upper chest area. Motion should feel calm, human, and present.`,
-  },
-  {
-    label: 'Female Bust Idle (Solo)',
-    value: `Natural idle bust animation (head and shoulders only) of a photorealistic woman. Solid black background. Static camera.
-The woman is framed from chest up in an elegant posture with continuous subtle life:
-- Soft natural breathing visible in upper chest and shoulders
-- Delicate blinking at natural intervals with gentle eye movement
-- Very subtle head micro-movements: tiny graceful adjustments, occasional soft tilt
-- Gentle shoulder settling and small postural shifts
-- Subtle natural facial micro-expressions: soft lip relaxation, gentle brow movement
-No hand, arm, or lower body motion visible. All movement contained in head, face, and upper chest area. Motion should feel poised, feminine, and naturally alive.`,
-  },
-  {
-    label: 'Male Full-body Talk',
-    value: `Natural talking full-body animation of a photorealistic man. Solid black background. Static camera. Feet stay grounded.
-The man appears to be actively engaged in conversation with natural body language:
-- Expressive hand gestures: hands move to emphasize points, open palm gestures, occasional pointing or counting motions. Gestures are varied and natural, not repetitive
-- Arms move freely from shoulders with natural follow-through in elbows and wrists
-- Natural weight shifting between legs as he speaks
-- Subtle torso movement following gesture energy
-- Head makes small natural nods and tilts while speaking
-- IMPORTANT: lips must NOT move. The speaking impression comes entirely from body language and gestures
-- Natural breathing and blinking throughout
-- Occasional pauses in gesturing with hands returning to rest position before next gesture
-All motion should feel energetic but controlled, like a real person explaining something with conviction.`,
-  },
-  {
-    label: 'Female Full-body Talk',
-    value: `Natural talking full-body animation of a photorealistic woman. Solid black background. Static camera. Feet stay grounded.
-The woman appears to be actively engaged in conversation with graceful body language:
-- Elegant hand gestures: expressive but controlled movements to emphasize points, open gestures, gentle illustrative motions. Gestures are fluid and natural
-- Arms move gracefully with smooth follow-through
-- Subtle weight shifting creating gentle hip movement
-- Soft torso movement following gesture energy
-- Head makes natural nods and gentle tilts while speaking
-- IMPORTANT: lips must NOT move. The speaking impression comes entirely from body language and gestures
-- Natural breathing and delicate blinking throughout
-- Graceful pauses between gestures with hands settling naturally
-All motion should feel expressive yet poised, like a real person communicating with warmth and confidence.`,
-  },
-  {
-    label: 'Male Bust Talk (Solo)',
-    value: `Natural talking bust animation (head and shoulders only) of a photorealistic man. Solid black background. Static camera.
-The man is framed from chest up, appearing to be actively speaking:
-- Expressive head movement: natural nods, slight tilts, emphasis movements
-- Animated shoulder shifts that suggest underlying gesture energy
-- Dynamic facial micro-expressions: eyebrow raises, eye contact shifts, engaged expression
-- IMPORTANT: lips must NOT move. The speaking impression comes from head movement, expressions, and shoulder energy
-- Natural breathing and blinking throughout
-- Occasional pauses with settling before next expressive movement
-Motion should feel engaged and communicative, with natural rhythm and variation.`,
-  },
-  {
-    label: 'Female Bust Talk (Solo)',
-    value: `Natural talking bust animation (head and shoulders only) of a photorealistic woman. Solid black background. Static camera.
-The woman is framed from chest up, appearing to be actively speaking:
-- Graceful head movement: gentle nods, soft tilts, natural emphasis
-- Subtle shoulder shifts suggesting expressive body language
-- Animated feminine facial micro-expressions: gentle brow movement, warm eye contact shifts, engaged expression
-- IMPORTANT: lips must NOT move. The speaking impression comes from head movement, expressions, and shoulder energy
-- Soft breathing and delicate blinking throughout
-- Graceful pauses with elegant settling between expressive movements
-Motion should feel warm, communicative, and naturally feminine with smooth rhythm.`,
-  },
-];
 
 function uid() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -123,13 +21,20 @@ export default function PoseMatrixPage() {
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [shareMatrix, setShareMatrix] = useState<{ id: string; name: string } | null>(null);
   const [pricing, setPricing] = useState<{ amount: number; unit: string } | null>(null);
+  const [presets, setPresets] = useState<PosePreset[]>([]);
+  const [showPresetManager, setShowPresetManager] = useState(false);
+
+  const loadPresets = useCallback(async () => {
+    const res = await fetch('/api/pose-presets');
+    if (res.ok) setPresets(await res.json());
+  }, []);
 
   const loadList = useCallback(async () => {
     const res = await fetch('/api/pose-matrix');
     if (res.ok) setMatrices(await res.json());
   }, []);
 
-  useEffect(() => { loadList(); }, [loadList]);
+  useEffect(() => { loadList(); loadPresets(); }, [loadList, loadPresets]);
 
   useEffect(() => {
     if (!active?.modelId) { setPricing(null); return; }
@@ -412,18 +317,27 @@ export default function PoseMatrixPage() {
       <div className="p-4 rounded-xl mb-4" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
         <div className="flex items-center justify-between mb-2">
           <p className="text-sm font-medium">Global Instruction</p>
-          <select
-            value=""
-            onChange={e => {
-              const preset = GLOBAL_PROMPT_PRESETS.find(p => p.label === e.target.value);
-              if (preset) { setActive({ ...active, globalPrompt: preset.value }); save({ globalPrompt: preset.value }); }
-            }}
-            className="text-xs px-2 py-1 rounded"
-            style={{ background: 'var(--bg-input)', border: '1px solid var(--border)', color: 'var(--accent)' }}
-          >
-            <option value="">Load preset...</option>
-            {GLOBAL_PROMPT_PRESETS.map(p => <option key={p.label} value={p.label}>{p.label}</option>)}
-          </select>
+          <div className="flex items-center gap-2">
+            <select
+              value=""
+              onChange={e => {
+                const preset = presets.find(p => p.id === e.target.value);
+                if (preset) { setActive({ ...active, globalPrompt: preset.value }); save({ globalPrompt: preset.value }); }
+              }}
+              className="text-xs px-2 py-1 rounded"
+              style={{ background: 'var(--bg-input)', border: '1px solid var(--border)', color: 'var(--accent)' }}
+            >
+              <option value="">Load preset...</option>
+              {presets.map(p => <option key={p.id} value={p.id}>{p.label}</option>)}
+            </select>
+            <button
+              onClick={() => setShowPresetManager(true)}
+              className="text-xs px-2 py-1 rounded"
+              style={{ background: 'var(--bg-input)', border: '1px solid var(--border)', color: 'var(--text2)' }}
+            >
+              Manage
+            </button>
+          </div>
         </div>
         <textarea
           value={active.globalPrompt || ''}
@@ -541,7 +455,120 @@ export default function PoseMatrixPage() {
       <p className="text-xs text-center py-4" style={{ color: 'var(--text3)' }}>
         To generate videos, go to Generate Video in a project and select this template in Pose Matrix mode.
       </p>
+
+      {showPresetManager && (
+        <PresetManager
+          presets={presets}
+          onClose={() => setShowPresetManager(false)}
+          onUpdate={loadPresets}
+        />
+      )}
     </div>
     </AppShell>
+  );
+}
+
+function PresetManager({ presets, onClose, onUpdate }: { presets: PosePreset[]; onClose: () => void; onUpdate: () => void }) {
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editLabel, setEditLabel] = useState('');
+  const [editValue, setEditValue] = useState('');
+  const [adding, setAdding] = useState(false);
+
+  function startEdit(p: PosePreset) {
+    setEditingId(p.id);
+    setEditLabel(p.label);
+    setEditValue(p.value);
+    setAdding(false);
+  }
+
+  function startAdd() {
+    setEditingId(null);
+    setEditLabel('');
+    setEditValue('');
+    setAdding(true);
+  }
+
+  async function saveEdit() {
+    if (!editLabel.trim() || !editValue.trim()) return;
+    if (adding) {
+      await fetch('/api/pose-presets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ label: editLabel, value: editValue }),
+      });
+    } else if (editingId) {
+      await fetch('/api/pose-presets', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: editingId, label: editLabel, value: editValue }),
+      });
+    }
+    setEditingId(null);
+    setAdding(false);
+    onUpdate();
+  }
+
+  async function deletePreset(id: string) {
+    await fetch(`/api/pose-presets?id=${id}`, { method: 'DELETE' });
+    if (editingId === id) { setEditingId(null); }
+    onUpdate();
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.5)' }}>
+      <div className="w-full max-w-2xl max-h-[80vh] flex flex-col rounded-2xl overflow-hidden" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+        <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: '1px solid var(--border)' }}>
+          <h2 className="text-sm font-semibold">Manage Presets</h2>
+          <div className="flex items-center gap-2">
+            <button onClick={startAdd} className="text-xs px-3 py-1.5 rounded-lg font-medium text-white" style={{ background: 'var(--accent)' }}>+ Add</button>
+            <button onClick={onClose} className="text-xs px-3 py-1.5 rounded-lg" style={{ color: 'var(--text3)' }}>Close</button>
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-4 space-y-2">
+          {(adding || editingId) && (
+            <div className="p-4 rounded-xl mb-3" style={{ background: 'var(--bg-main)', border: '2px solid var(--accent)' }}>
+              <input
+                value={editLabel}
+                onChange={e => setEditLabel(e.target.value)}
+                placeholder="Preset name"
+                className="w-full text-sm px-3 py-2 rounded-lg mb-2"
+                style={{ background: 'var(--bg-input)', border: '1px solid var(--border)', color: 'var(--text1)' }}
+                autoFocus
+              />
+              <textarea
+                value={editValue}
+                onChange={e => setEditValue(e.target.value)}
+                placeholder="Prompt text"
+                className="w-full text-xs px-3 py-2 rounded-lg resize-none"
+                style={{ background: 'var(--bg-input)', border: '1px solid var(--border)', color: 'var(--text1)', minHeight: '120px' }}
+                rows={6}
+              />
+              <div className="flex items-center gap-2 mt-2">
+                <button onClick={saveEdit} className="text-xs px-3 py-1.5 rounded-lg font-medium text-white" style={{ background: 'var(--accent)' }}>Save</button>
+                <button onClick={() => { setEditingId(null); setAdding(false); }} className="text-xs px-3 py-1.5 rounded-lg" style={{ color: 'var(--text3)' }}>Cancel</button>
+              </div>
+            </div>
+          )}
+
+          {presets.length === 0 && !adding && (
+            <p className="text-xs text-center py-8" style={{ color: 'var(--text3)' }}>No presets yet. Click + Add to create one.</p>
+          )}
+
+          {presets.map(p => (
+            <div key={p.id} className="flex items-start gap-3 p-3 rounded-xl" style={{ background: editingId === p.id ? 'transparent' : 'var(--bg-main)', border: '1px solid var(--border)', display: editingId === p.id ? 'none' : undefined }}>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium truncate">{p.label}</p>
+                <p className="text-xs mt-0.5 line-clamp-2" style={{ color: 'var(--text3)' }}>{p.value}</p>
+              </div>
+              <div className="flex items-center gap-1 shrink-0">
+                <button onClick={() => startEdit(p)} className="text-xs px-2 py-1 rounded" style={{ color: 'var(--accent)' }}>Edit</button>
+                <button onClick={() => deletePreset(p.id)} className="text-xs px-2 py-1 rounded" style={{ color: 'var(--red, #e55)' }}>Delete</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
   );
 }

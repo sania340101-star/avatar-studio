@@ -266,6 +266,14 @@ export interface PoseMatrix {
   updatedAt: number;
 }
 
+export interface PosePreset {
+  id: string;
+  label: string;
+  value: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
 export interface ExportSession {
   id: string;
   userId: string;

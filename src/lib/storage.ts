@@ -1,6 +1,6 @@
 import { readFileSync, writeFileSync, mkdirSync, existsSync, renameSync } from 'fs';
 import { join } from 'path';
-import { Project, Generation, Template, ProjectCacheData, ImageFormCache, VideoFormCache, ExportSession, RegisteredUser, PoseMatrix } from './types';
+import { Project, Generation, Template, ProjectCacheData, ImageFormCache, VideoFormCache, ExportSession, RegisteredUser, PoseMatrix, PosePreset } from './types';
 const DATA_DIR = process.env.DATA_DIR || join(/* turbopackIgnore: true */ process.cwd(), 'data');
 const PROJECTS_FILE = join(DATA_DIR, 'projects.json');
 const GENERATIONS_DIR = join(DATA_DIR, 'generations');
@@ -491,4 +491,43 @@ export function sharePoseMatrix(sourceId: string, targetUserId: string): string 
   all.push(copy);
   writeJson(POSE_MATRICES_FILE, all);
   return copy.id;
+}
+
+const POSE_PRESETS_FILE = join(DATA_DIR, 'pose-presets.json');
+export function getPosePresets(): PosePreset[] {
+  ensureDirs();
+  return readJson<PosePreset[]>(POSE_PRESETS_FILE, []).sort((a, b) => a.label.localeCompare(b.label));
+}
+export function createPosePreset(data: { label: string; value: string }): PosePreset {
+  ensureDirs();
+  const all: PosePreset[] = readJson(POSE_PRESETS_FILE, []);
+  const preset: PosePreset = { id: newId('pp'), label: data.label, value: data.value, createdAt: Date.now(), updatedAt: Date.now() };
+  all.push(preset);
+  writeJson(POSE_PRESETS_FILE, all);
+  return preset;
+}
+export function updatePosePreset(id: string, updates: Partial<Pick<PosePreset, 'label' | 'value'>>): PosePreset | null {
+  ensureDirs();
+  const all: PosePreset[] = readJson(POSE_PRESETS_FILE, []);
+  const idx = all.findIndex(p => p.id === id);
+  if (idx === -1) return null;
+  Object.assign(all[idx], updates, { updatedAt: Date.now() });
+  writeJson(POSE_PRESETS_FILE, all);
+  return all[idx];
+}
+export function deletePosePreset(id: string): boolean {
+  ensureDirs();
+  const all: PosePreset[] = readJson(POSE_PRESETS_FILE, []);
+  const idx = all.findIndex(p => p.id === id);
+  if (idx === -1) return false;
+  all.splice(idx, 1);
+  writeJson(POSE_PRESETS_FILE, all);
+  return true;
+}
+export function seedPosePresets(defaults: { label: string; value: string }[]): void {
+  ensureDirs();
+  const all: PosePreset[] = readJson(POSE_PRESETS_FILE, []);
+  if (all.length > 0) return;
+  const seeded = defaults.map(d => ({ id: newId('pp'), label: d.label, value: d.value, createdAt: Date.now(), updatedAt: Date.now() }));
+  writeJson(POSE_PRESETS_FILE, seeded);
 }
