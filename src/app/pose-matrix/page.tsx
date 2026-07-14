@@ -51,13 +51,15 @@ export default function PoseMatrixPage() {
   }, [active?.modelId]);
 
   async function createMatrix() {
+    const defaultModel = START_END_MODELS.find(m => m.id.includes('o3/pro')) || START_END_MODELS[0];
     const res = await fetch('/api/pose-matrix', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         name: 'New Pose Matrix',
-        modelId: START_END_MODELS[0]?.id || '',
-        modelLabel: START_END_MODELS[0]?.label || '',
+        modelId: defaultModel?.id || '',
+        modelLabel: defaultModel?.label || '',
+        fps: 60,
       }),
     });
     if (res.ok) {

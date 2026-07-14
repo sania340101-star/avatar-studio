@@ -37,6 +37,7 @@ export async function GET(request: NextRequest) {
       role: payload.role ?? 'user',
       authMethod: 'otp',
       hasFalKey: !!(session?.falKey || process.env.FAL_KEY),
+      hasAnthropicKey: !!(session?.anthropicKey || process.env.ANTHROPIC_API_KEY),
     },
   });
 }

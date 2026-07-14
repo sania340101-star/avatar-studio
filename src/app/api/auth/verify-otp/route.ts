@@ -71,6 +71,7 @@ export async function POST(req: NextRequest) {
         role,
         authMethod: 'otp',
         hasFalKey: !!falKey,
+        hasAnthropicKey: !!anthropicKey,
       },
     });
     res.cookies.set('session', token, {
@@ -87,6 +88,7 @@ export async function POST(req: NextRequest) {
       role,
       authMethod: 'otp',
       hasFalKey: !!falKey,
+      hasAnthropicKey: !!anthropicKey,
     }), {
       httpOnly: false,
       secure: process.env.COOKIE_SECURE === 'true',

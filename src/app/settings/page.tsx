@@ -10,6 +10,11 @@ export default function SettingsPage() {
   const [systemPrompt, setSystemPrompt] = useState(user?.systemPrompt || DEFAULT_SYSTEM_PROMPT);
   const [saved, setSaved] = useState(false);
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
+  const [falKeyInput, setFalKeyInput] = useState('');
+  const [anthropicKeyInput, setAnthropicKeyInput] = useState('');
+  const [keySaving, setKeySaving] = useState(false);
+  const [keySaved, setKeySaved] = useState(false);
+  const isOtp = user?.authMethod !== 'sso';
 
   useEffect(() => {
     const stored = localStorage.getItem('avatar-studio-theme');
@@ -99,9 +104,9 @@ export default function SettingsPage() {
           <div className="rounded-xl p-5" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
             <h3 className="font-medium mb-1">API Keys</h3>
             <p className="text-xs mb-4" style={{ color: 'var(--text3)' }}>
-              Keys are managed server-side for security. They are provided via Agent Factory SSO or configured by the administrator.
+              {isOtp ? 'Enter your API keys to enable generation.' : 'Keys are provided via Agent Factory SSO.'}
             </p>
-            <div className="space-y-2 text-sm">
+            <div className="space-y-3 text-sm">
               <div className="flex justify-between items-center">
                 <span style={{ color: 'var(--text2)' }}>fal.ai</span>
                 {user?.hasFalKey ? (
@@ -110,6 +115,68 @@ export default function SettingsPage() {
                   <span className="px-2 py-0.5 rounded text-xs font-medium" style={{ background: 'rgba(239,68,68,0.1)', color: 'var(--red)' }}>Not configured</span>
                 )}
               </div>
+              {isOtp && (
+                <input
+                  type="password"
+                  value={falKeyInput}
+                  onChange={e => setFalKeyInput(e.target.value)}
+                  placeholder={user?.hasFalKey ? '••••••••  (enter new key to replace)' : 'Enter fal.ai API key'}
+                  className="w-full text-sm px-3 py-2 rounded-lg"
+                  style={{ background: 'var(--bg-input)', border: '1px solid var(--border)', color: 'var(--text)' }}
+                />
+              )}
+              <div className="flex justify-between items-center">
+                <span style={{ color: 'var(--text2)' }}>Anthropic (Claude)</span>
+                {user?.hasAnthropicKey ? (
+                  <span className="px-2 py-0.5 rounded text-xs font-medium" style={{ background: 'rgba(76,175,80,0.1)', color: 'var(--green)' }}>Configured</span>
+                ) : (
+                  <span className="px-2 py-0.5 rounded text-xs font-medium" style={{ background: 'rgba(239,68,68,0.1)', color: 'var(--red)' }}>Not configured</span>
+                )}
+              </div>
+              {isOtp && (
+                <input
+                  type="password"
+                  value={anthropicKeyInput}
+                  onChange={e => setAnthropicKeyInput(e.target.value)}
+                  placeholder={user?.hasAnthropicKey ? '••••••••  (enter new key to replace)' : 'Enter Anthropic API key'}
+                  className="w-full text-sm px-3 py-2 rounded-lg"
+                  style={{ background: 'var(--bg-input)', border: '1px solid var(--border)', color: 'var(--text)' }}
+                />
+              )}
+              {isOtp && (falKeyInput || anthropicKeyInput) && (
+                <button
+                  onClick={async () => {
+                    setKeySaving(true);
+                    try {
+                      const body: Record<string, string> = {};
+                      if (falKeyInput) body.falKey = falKeyInput;
+                      if (anthropicKeyInput) body.anthropicKey = anthropicKeyInput;
+                      const res = await fetch('/api/auth/keys', {
+                        method: 'PATCH',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(body),
+                      });
+                      if (res.ok) {
+                        const data = await res.json();
+                        const updated = { ...user, hasFalKey: data.hasFalKey, hasAnthropicKey: data.hasAnthropicKey };
+                        setSessionUser(updated);
+                        setFalKeyInput('');
+                        setAnthropicKeyInput('');
+                        setKeySaved(true);
+                        setTimeout(() => setKeySaved(false), 2000);
+                      }
+                    } finally {
+                      setKeySaving(false);
+                    }
+                  }}
+                  disabled={keySaving}
+                  className="px-5 py-2 rounded-lg text-sm font-semibold text-white"
+                  style={{ background: 'var(--accent)' }}
+                >
+                  {keySaving ? 'Saving...' : 'Save Keys'}
+                </button>
+              )}
+              {keySaved && <span className="text-sm" style={{ color: 'var(--green)' }}>Keys saved</span>}
             </div>
           </div>
 

@@ -102,6 +102,7 @@ export async function GET(request: NextRequest) {
     role,
     authMethod: 'sso',
     hasFalKey: !!falKey,
+    hasAnthropicKey: !!anthropicKey,
   }), {
     httpOnly: false,
     secure: process.env.COOKIE_SECURE === 'true',

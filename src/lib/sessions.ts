@@ -85,6 +85,17 @@ export function getSession(sessionId: string): SessionData | null {
   return session;
 }
 
+export function updateSessionKeys(sessionId: string, falKey?: string, anthropicKey?: string): boolean {
+  const sessions = loadSessions();
+  const session = sessions.get(sessionId);
+  if (!session) return false;
+  if (falKey !== undefined) session.falKey = falKey || undefined;
+  if (anthropicKey !== undefined) session.anthropicKey = anthropicKey || undefined;
+  session.lastAccess = Date.now();
+  saveSessions(sessions);
+  return true;
+}
+
 export function deleteSession(sessionId: string): void {
   const sessions = loadSessions();
   if (sessions.has(sessionId)) {
