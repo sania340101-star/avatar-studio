@@ -1165,7 +1165,7 @@ const server = http.createServer(async (req, res) => {
         }
       }
 
-      if (isGenerate && !result.cost) {
+      if (isGenerate && (!result.cost || !result.cost.amount)) {
         const usedModel = result.model || body.model || body.modelPref || '';
         if (usedModel && falKey) {
           try {
