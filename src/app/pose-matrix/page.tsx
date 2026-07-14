@@ -168,7 +168,7 @@ export default function PoseMatrixPage() {
   if (!active) {
     return (
       <AppShell>
-      <div className="max-w-3xl mx-auto">
+      <div className="max-w-4xl mx-auto">
         <TemplateTabs />
         <div className="flex items-center justify-between mb-6">
           <div>
