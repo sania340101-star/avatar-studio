@@ -255,7 +255,7 @@ function SlotCard({ slot, index, total, onChange, onRemove }: {
   onRemove: () => void;
 }) {
   const [collapsed, setCollapsed] = useState(false);
-  const [pricing, setPricing] = useState<{ amount: number; currency: string } | null>(null);
+  const [pricing, setPricing] = useState<{ amount: number; currency: string; unit: string } | null>(null);
   const [pricingLoading, setPricingLoading] = useState(false);
 
   useEffect(() => {
@@ -270,7 +270,7 @@ function SlotCard({ slot, index, total, onChange, onRemove }: {
       signal: ctrl.signal,
     })
       .then(r => r.json())
-      .then(data => { if (data.amount != null) setPricing({ amount: data.amount, currency: data.currency || 'USD' }); })
+      .then(data => { if (data.amount != null) setPricing({ amount: data.amount, currency: data.currency || 'USD', unit: data.details || '' }); })
       .catch(() => {})
       .finally(() => setPricingLoading(false));
     return () => ctrl.abort();
@@ -331,7 +331,7 @@ function SlotCard({ slot, index, total, onChange, onRemove }: {
         </span>
         {pricing && (
           <span className="text-xs font-medium px-1.5 py-0.5 rounded flex-shrink-0" style={{ background: 'rgba(34,197,94,0.1)', color: '#22c55e' }}>
-            ~${pricing.amount.toFixed(2)}
+            ~${(pricing.unit.toLowerCase().includes('second') ? pricing.amount * slot.duration : pricing.amount).toFixed(2)}
           </span>
         )}
         {pricingLoading && !pricing && (
