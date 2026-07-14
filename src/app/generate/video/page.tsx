@@ -48,6 +48,20 @@ function PoseMatrixRunner({ matrix, projectId, poseImages, setPoseImages, batchI
   const completedJobs = batchJobs.filter(j => j.status === 'complete');
   const errorJobs = batchJobs.filter(j => j.status === 'error');
   const runningJobs = batchJobs.filter(j => j.status !== 'complete' && j.status !== 'error');
+  const [matrixPricing, setMatrixPricing] = useState<{ amount: number; unit: string } | null>(null);
+
+  useEffect(() => {
+    if (!matrix.modelId) return;
+    let cancelled = false;
+    fetch('/api/pricing', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ modelId: matrix.modelId }),
+    }).then(r => r.json()).then(data => {
+      if (!cancelled && data.amount != null) setMatrixPricing({ amount: data.amount, unit: data.details || '' });
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [matrix.modelId]);
 
   useEffect(() => {
     if (!batchId) return;
@@ -155,6 +169,16 @@ function PoseMatrixRunner({ matrix, projectId, poseImages, setPoseImages, batchI
         <span className="px-2 py-1 rounded" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>{matrix.duration}s</span>
         <span className="px-2 py-1 rounded" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>{matrix.aspectRatio}</span>
         <span className="px-2 py-1 rounded" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>{matrix.clips.length} clips</span>
+        {matrixPricing && matrix.clips.length > 0 && (() => {
+          const isPerSec = matrixPricing.unit.toLowerCase().includes('second');
+          const perClip = isPerSec ? matrixPricing.amount * matrix.duration : matrixPricing.amount;
+          const total = perClip * matrix.clips.length;
+          return (
+            <span className="px-2 py-1 rounded font-semibold" style={{ background: 'rgba(76,175,80,0.15)', color: 'var(--green)', border: '1px solid rgba(76,175,80,0.2)' }}>
+              ~${total.toFixed(2)}
+            </span>
+          );
+        })()}
       </div>
 
       {error && (

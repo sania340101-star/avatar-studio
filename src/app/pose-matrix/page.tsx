@@ -19,6 +19,7 @@ export default function PoseMatrixPage() {
   const [saving, setSaving] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [shareMatrix, setShareMatrix] = useState<{ id: string; name: string } | null>(null);
+  const [pricing, setPricing] = useState<{ amount: number; unit: string } | null>(null);
 
   const loadList = useCallback(async () => {
     const res = await fetch('/api/pose-matrix');
@@ -26,6 +27,19 @@ export default function PoseMatrixPage() {
   }, []);
 
   useEffect(() => { loadList(); }, [loadList]);
+
+  useEffect(() => {
+    if (!active?.modelId) { setPricing(null); return; }
+    let cancelled = false;
+    fetch('/api/pricing', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ modelId: active.modelId }),
+    }).then(r => r.json()).then(data => {
+      if (!cancelled && data.amount != null) setPricing({ amount: data.amount, unit: data.details || '' });
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [active?.modelId]);
 
   async function createMatrix() {
     const res = await fetch('/api/pose-matrix', {
@@ -230,7 +244,7 @@ export default function PoseMatrixPage() {
       {/* Model & params */}
       <div className="p-4 rounded-xl mb-4" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
         <p className="text-sm font-medium mb-3">Model & Parameters</p>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
           <div>
             <label className="text-xs block mb-1" style={{ color: 'var(--text3)' }}>Model</label>
             <select value={active.modelId} onChange={e => {
@@ -268,7 +282,27 @@ export default function PoseMatrixPage() {
               <option value="standard">Standard</option>
             </select>
           </div>
+          <div>
+            <label className="text-xs block mb-1" style={{ color: 'var(--text3)' }}>FPS</label>
+            <select value={active.fps} onChange={e => { const fps = parseInt(e.target.value); setActive({ ...active, fps }); save({ fps }); }}
+              className="w-full px-2 py-1.5 rounded text-sm" style={{ background: 'var(--bg-input)', border: '1px solid var(--border)', color: 'var(--text1)' }}>
+              <option value={24}>24</option>
+              <option value={30}>30</option>
+              <option value={60}>60</option>
+            </select>
+          </div>
         </div>
+        {pricing && active.clips.length > 0 && (() => {
+          const isPerSec = pricing.unit.toLowerCase().includes('second');
+          const perClip = isPerSec ? pricing.amount * active.duration : pricing.amount;
+          const total = perClip * active.clips.length;
+          return (
+            <div className="flex items-center gap-4 mt-3 pt-3 text-xs" style={{ borderTop: '1px solid var(--border)' }}>
+              <span style={{ color: 'var(--text3)' }}>Per clip: <span className="font-medium" style={{ color: 'var(--text2)' }}>~${perClip.toFixed(2)}</span></span>
+              <span style={{ color: 'var(--text3)' }}>Total ({active.clips.length} clips): <span className="font-semibold" style={{ color: 'var(--green)' }}>~${total.toFixed(2)}</span></span>
+            </div>
+          );
+        })()}
       </div>
 
       {/* Poses */}
