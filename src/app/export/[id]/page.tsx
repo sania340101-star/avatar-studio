@@ -89,6 +89,11 @@ function ExportEditorContent() {
     if (res.ok) {
       const data = await res.json();
       if (!data.transform) data.transform = { offsetX: 0, offsetY: 0, scale: 1 };
+      if (data.crossfadeEnabled) {
+        if (!data.crossfadeBlendFrames) data.crossfadeBlendFrames = 10;
+        if (!data.crossfadeTransition) data.crossfadeTransition = 'smoothleft';
+        if (data.crossfadeCrf == null) data.crossfadeCrf = 0;
+      }
       setSession(data);
       setNameValue(data.name);
     }
@@ -987,8 +992,14 @@ function ExportEditorContent() {
                     checked={session.crossfadeEnabled || false}
                     onChange={e => {
                       const crossfadeEnabled = e.target.checked;
-                      setSession({ ...session, crossfadeEnabled, updatedAt: Date.now() });
-                      debouncedSave({ crossfadeEnabled });
+                      const updates: Record<string, unknown> = { crossfadeEnabled };
+                      if (crossfadeEnabled) {
+                        if (!session.crossfadeBlendFrames) updates.crossfadeBlendFrames = 10;
+                        if (!session.crossfadeTransition) updates.crossfadeTransition = 'smoothleft';
+                        if (session.crossfadeCrf == null) updates.crossfadeCrf = 0;
+                      }
+                      setSession({ ...session, ...updates, updatedAt: Date.now() } as typeof session);
+                      debouncedSave(updates);
                     }}
                     className="w-3.5 h-3.5 rounded"
                   />
@@ -1039,7 +1050,7 @@ function ExportEditorContent() {
               </div>
               <div>
                 <label className="text-xs block mb-1.5" style={{ color: 'var(--text3)' }}>Transition</label>
-                <select value={session.crossfadeTransition || 'fade'}
+                <select value={session.crossfadeTransition || 'smoothleft'}
                   onChange={e => {
                     const crossfadeTransition = e.target.value;
                     setSession({ ...session, crossfadeTransition, updatedAt: Date.now() });
@@ -1058,22 +1069,22 @@ function ExportEditorContent() {
               </div>
               <div>
                 <label className="text-xs block mb-1.5" style={{ color: 'var(--text3)' }}>
-                  Quality (CRF): <strong>{session.crossfadeCrf ?? 18}</strong>
+                  Quality (CRF): <strong>{session.crossfadeCrf ?? 0}</strong>
                   <span className="ml-1" style={{ fontWeight: 'normal' }}>
-                    {(session.crossfadeCrf ?? 18) <= 15 ? '· High' : (session.crossfadeCrf ?? 18) <= 23 ? '· Good' : '· Low'}
+                    {(session.crossfadeCrf ?? 0) <= 15 ? '· High' : (session.crossfadeCrf ?? 0) <= 23 ? '· Good' : '· Low'}
                   </span>
                 </label>
                 <div className="flex items-center gap-2">
-                  <button onClick={() => { const v = Math.max(1, (session.crossfadeCrf ?? 18) - 1); setSession({ ...session, crossfadeCrf: v, updatedAt: Date.now() }); debouncedSave({ crossfadeCrf: v }); }}
+                  <button onClick={() => { const v = Math.max(0, (session.crossfadeCrf ?? 0) - 1); setSession({ ...session, crossfadeCrf: v, updatedAt: Date.now() }); debouncedSave({ crossfadeCrf: v }); }}
                     className="w-7 h-7 rounded flex items-center justify-center text-sm font-bold shrink-0" style={{ background: 'var(--bg-input)', border: '1px solid var(--border)' }}>−</button>
-                  <input type="range" min={1} max={51} value={session.crossfadeCrf ?? 18}
+                  <input type="range" min={0} max={51} value={session.crossfadeCrf ?? 0}
                     onChange={e => {
                       const crossfadeCrf = parseInt(e.target.value);
                       setSession({ ...session, crossfadeCrf, updatedAt: Date.now() });
                       debouncedSave({ crossfadeCrf });
                     }}
                     className="flex-1" style={{ accentColor: 'var(--accent)' }} />
-                  <button onClick={() => { const v = Math.min(51, (session.crossfadeCrf ?? 18) + 1); setSession({ ...session, crossfadeCrf: v, updatedAt: Date.now() }); debouncedSave({ crossfadeCrf: v }); }}
+                  <button onClick={() => { const v = Math.min(51, (session.crossfadeCrf ?? 0) + 1); setSession({ ...session, crossfadeCrf: v, updatedAt: Date.now() }); debouncedSave({ crossfadeCrf: v }); }}
                     className="w-7 h-7 rounded flex items-center justify-center text-sm font-bold shrink-0" style={{ background: 'var(--bg-input)', border: '1px solid var(--border)' }}>+</button>
                 </div>
               </div>
