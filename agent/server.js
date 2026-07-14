@@ -1164,6 +1164,33 @@ const server = http.createServer(async (req, res) => {
           console.error(`[agent] WARNING: no images after normalization (${id}), result:`, JSON.stringify(result).slice(0, 500));
         }
       }
+
+      if (isGenerate && !result.cost) {
+        const usedModel = result.model || body.model || body.modelPref || '';
+        if (usedModel && falKey) {
+          try {
+            let cached = pricingCache.get(usedModel);
+            if (!cached) {
+              const pricingText = await callFalMcpTool(falKey, 'get_pricing', { endpoint_id: usedModel });
+              const pricing = JSON.parse(pricingText);
+              const price = pricing.prices?.[0];
+              if (price) {
+                cached = { ts: Date.now(), data: { amount: price.unit_price, currency: price.currency || 'USD', details: price.unit ? `per ${price.unit}` : '' } };
+                pricingCache.set(usedModel, cached);
+              }
+            }
+            if (cached) {
+              const dur = body.duration || 0;
+              const isPerSec = (cached.data.details || '').includes('second');
+              const amount = isPerSec && dur > 0 ? cached.data.amount * dur : cached.data.amount;
+              result.cost = { amount, currency: cached.data.currency || 'USD', details: isPerSec && dur > 0 ? `${dur}s × $${cached.data.amount}/s` : cached.data.details };
+              console.log(`[agent] cost estimate for ${usedModel}: $${amount.toFixed(4)}`);
+            }
+          } catch (e) {
+            console.warn(`[agent] cost estimation failed for ${usedModel}:`, e.message);
+          }
+        }
+      }
     }
 
     res.end(JSON.stringify({ ok: true, ...result }));
