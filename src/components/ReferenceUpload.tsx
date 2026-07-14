@@ -3,6 +3,7 @@
 import { useRef, useState } from 'react';
 import { TemplateRef } from '@/lib/types';
 import MediaPreview from './MediaPreview';
+import GalleryBrowser, { GalleryItem } from './GalleryBrowser';
 
 interface Props {
   references: TemplateRef[];
@@ -17,11 +18,21 @@ function getRefType(file: File): TemplateRef['type'] {
   return 'image';
 }
 
+function acceptToGalleryType(accept?: string): 'image' | 'video' | 'all' | null {
+  if (accept === 'audio/*') return null;
+  if (accept === 'video/*') return 'video';
+  if (accept === 'image/*') return 'image';
+  return 'all';
+}
+
 export default function ReferenceUpload({ references, onChange, accept, label = 'References' }: Props) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState('');
   const [preview, setPreview] = useState<TemplateRef | null>(null);
+  const [showGallery, setShowGallery] = useState(false);
+
+  const galleryType = acceptToGalleryType(accept);
 
   async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const files = e.target.files;
@@ -47,6 +58,15 @@ export default function ReferenceUpload({ references, onChange, accept, label = 
     onChange([...references, ...newRefs]);
     setUploading(false);
     e.target.value = '';
+  }
+
+  function handleGallerySelect(items: GalleryItem[]) {
+    const newRefs: TemplateRef[] = items.map(item => ({
+      url: item.url,
+      type: item.type,
+      name: item.name,
+    }));
+    onChange([...references, ...newRefs]);
   }
 
   function handleRemove(idx: number) {
@@ -147,14 +167,25 @@ export default function ReferenceUpload({ references, onChange, accept, label = 
         </div>
       )}
 
-      <button
-        onClick={() => fileRef.current?.click()}
-        disabled={uploading}
-        className="w-full py-2.5 rounded-lg border-2 border-dashed text-sm"
-        style={{ borderColor: 'var(--border)', color: 'var(--text3)' }}
-      >
-        {uploading ? 'Uploading...' : accept === 'video/*' ? '+ Add video' : accept === 'audio/*' ? '+ Add audio' : accept === 'image/*' ? '+ Add images' : '+ Add images, videos, or audio'}
-      </button>
+      <div className="flex gap-2">
+        {galleryType && (
+          <button
+            onClick={() => setShowGallery(true)}
+            className="flex-1 py-2.5 rounded-lg border text-sm font-medium"
+            style={{ borderColor: 'var(--accent)', color: 'var(--accent)', background: 'var(--accent-subtle)' }}
+          >
+            Browse Gallery
+          </button>
+        )}
+        <button
+          onClick={() => fileRef.current?.click()}
+          disabled={uploading}
+          className={`${galleryType ? 'flex-1' : 'w-full'} py-2.5 rounded-lg border-2 border-dashed text-sm`}
+          style={{ borderColor: 'var(--border)', color: 'var(--text3)' }}
+        >
+          {uploading ? 'Uploading...' : accept === 'video/*' ? '+ Upload video' : accept === 'audio/*' ? '+ Add audio' : accept === 'image/*' ? '+ Upload images' : '+ Upload file'}
+        </button>
+      </div>
       <input
         ref={fileRef}
         type="file"
@@ -179,6 +210,15 @@ export default function ReferenceUpload({ references, onChange, accept, label = 
 
       {preview && (
         <MediaPreview url={preview.url} type={preview.type} name={preview.name} onClose={() => setPreview(null)} />
+      )}
+
+      {galleryType && (
+        <GalleryBrowser
+          open={showGallery}
+          onClose={() => setShowGallery(false)}
+          onSelect={handleGallerySelect}
+          accept={galleryType}
+        />
       )}
     </div>
   );
