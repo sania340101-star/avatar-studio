@@ -714,36 +714,26 @@ function ExportEditorContent() {
               </span>
             )}
           </p>
-          <div className="flex gap-2">
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="video/mp4,video/webm,video/quicktime,.mp4,.webm,.mov"
-              multiple
-              className="hidden"
-              onChange={async (e) => {
-                const files = e.target.files;
-                if (!files) return;
-                for (const f of Array.from(files)) await addUploadedClip(f);
-                e.target.value = '';
-              }}
-            />
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              disabled={uploading}
-              className="text-xs px-3 py-1.5 rounded-lg font-medium"
-              style={{ border: '1px solid var(--border)', color: 'var(--text2)' }}
-            >
-              {uploading ? 'Uploading...' : '↑ Upload'}
-            </button>
-            <button
-              onClick={() => setShowBrowser(true)}
-              className="text-xs px-3 py-1.5 rounded-lg font-medium text-white"
-              style={{ background: 'var(--accent)' }}
-            >
-              + Add Videos
-            </button>
-          </div>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="video/mp4,video/webm,video/quicktime,.mp4,.webm,.mov"
+            multiple
+            className="hidden"
+            onChange={async (e) => {
+              const files = e.target.files;
+              if (!files) return;
+              for (const f of Array.from(files)) await addUploadedClip(f);
+              e.target.value = '';
+            }}
+          />
+          <button
+            onClick={() => setShowBrowser(true)}
+            className="text-xs px-3 py-1.5 rounded-lg font-medium text-white"
+            style={{ background: 'var(--accent)' }}
+          >
+            + Add
+          </button>
         </div>
 
         {session.clips.length === 0 ? (
