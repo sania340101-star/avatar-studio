@@ -749,7 +749,7 @@ export default function GenerateVideoPage() {
           <div className="flex items-center gap-2 mb-3">
             <span className="text-sm font-medium" style={{ color: 'var(--text2)' }}>Mode:</span>
             <div className="flex gap-1">
-              {(['manual', 'template', 'pose-matrix'] as GenMode[]).map(mode => {
+              {(['manual', 'pose-matrix', 'template'] as GenMode[]).map(mode => {
                 if (mode === 'template' && templates.length === 0) return null;
                 if (mode === 'pose-matrix' && poseMatrices.length === 0) return null;
                 return (
