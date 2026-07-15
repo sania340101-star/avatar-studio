@@ -527,7 +527,25 @@ export function deletePosePreset(id: string): boolean {
 export function seedPosePresets(defaults: { label: string; value: string }[]): void {
   ensureDirs();
   const all: PosePreset[] = readJson(POSE_PRESETS_FILE, []);
-  if (all.length > 0) return;
-  const seeded = defaults.map(d => ({ id: newId('pp'), label: d.label, value: d.value, createdAt: Date.now(), updatedAt: Date.now() }));
-  writeJson(POSE_PRESETS_FILE, seeded);
+  if (all.length === 0) {
+    const seeded = defaults.map(d => ({ id: newId('pp'), label: d.label, value: d.value, createdAt: Date.now(), updatedAt: Date.now() }));
+    writeJson(POSE_PRESETS_FILE, seeded);
+    return;
+  }
+  let changed = false;
+  for (const preset of all) {
+    const match = defaults.find(d => d.label === preset.label);
+    if (match && preset.value !== match.value) {
+      preset.value = match.value;
+      preset.updatedAt = Date.now();
+      changed = true;
+    }
+  }
+  for (const d of defaults) {
+    if (!all.find(p => p.label === d.label)) {
+      all.push({ id: newId('pp'), label: d.label, value: d.value, createdAt: Date.now(), updatedAt: Date.now() });
+      changed = true;
+    }
+  }
+  if (changed) writeJson(POSE_PRESETS_FILE, all);
 }

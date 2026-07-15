@@ -6,6 +6,17 @@ import { checkBudget, recordSpending } from '@/lib/billing';
 import { JobData, TemplateSlot, PoseMatrix, GenerationCost } from '@/lib/types';
 
 const AGENT_URL = process.env.AGENT_URL || 'http://172.18.16.24:3391';
+
+const LOOP_MICRO_MOVEMENTS = [
+  'Subtle weight shift from one leg to the other in slow motion. Torso follows slightly. Shoulders adjust lightly. Arms stay in position. Hands and fingers make small natural relaxation movements.',
+  'Very small side-to-side torso sway, slow and continuous. Shoulders follow the torso lightly. Feet stay planted. Hands shift grip subtly — small finger repositioning.',
+  'One slow inhale visible in upper torso. Slight shoulder rise and settle. Subtle hand micro-movement — fingers adjust position lightly. Otherwise minimal motion.',
+  'Gentle postural adjustment — spine straightens slightly, shoulders settle back smoothly. Small wrist rotation or finger repositioning. Movement is subtle and natural.',
+  'Slow torso rotation left then right within a very small range. Shoulders follow naturally. Hands make a small grip change — fingers re-interlock or shift position.',
+  'Micro weight transfer to opposite leg. Hips shift subtly. Upper body follows with minimal delay. Hands and wrists make small natural adjustments.',
+  'Subtle shoulder roll — one shoulder lifts slightly and settles. Torso follows with minimal sway. Fingers make a small relaxation movement.',
+  'Slow continuous breathing motion visible in chest. Small balance adjustment in legs. Hands shift slightly — one finger extends and returns. Natural and subtle.',
+];
 const SERVICE_KEY = process.env.INTERNAL_SERVICE_KEY || '';
 const DATA_DIR = process.env.DATA_DIR || join(process.cwd(), 'data');
 const JOBS_FILE = join(DATA_DIR, 'jobs.json');
@@ -242,9 +253,19 @@ export function createBatchFromMatrix(
     } else if (clipPrompt) {
       instruction = clipPrompt;
     } else if (globalPrompt) {
-      instruction = `${globalPrompt}\n\nThis is a ${isLoop ? 'loop' : 'transition'} clip: ${startPose.name} → ${endPose.name}. Generate natural movement for this pose ${isLoop ? 'hold' : 'transition'}.`;
+      if (isLoop) {
+        const micro = LOOP_MICRO_MOVEMENTS[Math.floor(Math.random() * LOOP_MICRO_MOVEMENTS.length)];
+        instruction = `${globalPrompt}\n\nThis is a loop clip (same pose hold): ${startPose.name}. The pose does not change, but the person must not be frozen — add subtle life:\n${micro}`;
+      } else {
+        instruction = `${globalPrompt}\n\nThis is a transition clip: ${startPose.name} → ${endPose.name}. Generate natural, contained movement for this pose transition. Keep all body parts within the frame.`;
+      }
     } else {
-      instruction = `Realistic avatar ${isLoop ? 'holding pose' : 'transitioning between poses'}: ${startPose.name} → ${endPose.name}. The person should move naturally — subtle breathing, blinking, slight head movement, micro-movements of hands and body. Smooth and lifelike.`;
+      if (isLoop) {
+        const micro = LOOP_MICRO_MOVEMENTS[Math.floor(Math.random() * LOOP_MICRO_MOVEMENTS.length)];
+        instruction = `Realistic avatar holding pose: ${startPose.name}. Solid black background. Static camera. Eyes maintain camera contact. Head stays mostly forward-facing.\nThe person must not be frozen — add subtle life:\n${micro}\nSmooth, natural, and lifelike. All movement stays within the frame.`;
+      } else {
+        instruction = `Realistic avatar transitioning between poses: ${startPose.name} → ${endPose.name}. The person should move naturally — subtle breathing, blinking, micro-movements of hands and body. Eyes maintain camera contact. All movement stays contained within the frame. Smooth and lifelike.`;
+      }
     }
     const input: Record<string, unknown> = {
       instruction,
