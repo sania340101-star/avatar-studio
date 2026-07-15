@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { PoseMatrix, PoseMatrixPose, PoseMatrixClip, PosePreset } from '@/lib/types';
 import { VIDEO_MODEL_OPTIONS } from '@/lib/models';
 import AppShell from '@/components/AppShell';
@@ -24,6 +24,7 @@ export default function PoseMatrixPage() {
   const [pricing, setPricing] = useState<{ amount: number; unit: string } | null>(null);
   const [presets, setPresets] = useState<PosePreset[]>([]);
   const [showPresetManager, setShowPresetManager] = useState(false);
+  const saveVersion = useRef(0);
 
   const loadPresets = useCallback(async () => {
     const res = await fetch('/api/pose-presets');
@@ -71,18 +72,19 @@ export default function PoseMatrixPage() {
 
   async function save(updates: Partial<PoseMatrix>) {
     if (!active) return;
+    const myVersion = ++saveVersion.current;
     setSaving(true);
     const res = await fetch('/api/pose-matrix', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id: active.id, ...updates }),
     });
-    if (res.ok) {
+    if (res.ok && myVersion === saveVersion.current) {
       const updated = await res.json();
       setActive(updated);
       setMatrices(prev => prev.map(m => m.id === updated.id ? updated : m));
     }
-    setSaving(false);
+    if (myVersion === saveVersion.current) setSaving(false);
   }
 
   async function deleteMatrix(id: string) {
@@ -124,7 +126,13 @@ export default function PoseMatrixPage() {
 
   function addClip(startPoseId: string, endPoseId: string) {
     if (!active) return;
-    const clips = [...active.clips, { id: uid(), startPoseId, endPoseId, prompt: '' }];
+    const startPose = active.poses.find(p => p.id === startPoseId);
+    const endPose = active.poses.find(p => p.id === endPoseId);
+    const isLoop = startPoseId === endPoseId;
+    const prompt = startPose && endPose
+      ? isLoop ? '' : `Smooth transition from ${startPose.name} to ${endPose.name}`
+      : '';
+    const clips = [...active.clips, { id: uid(), startPoseId, endPoseId, prompt }];
     setActive({ ...active, clips });
     save({ clips });
   }
