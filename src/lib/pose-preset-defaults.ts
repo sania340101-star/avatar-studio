@@ -83,16 +83,16 @@ Constraints:
 - Gestures are restrained and controlled — no wide sweeping arm movements that could exit the frame
 - IMPORTANT: lips must NOT move. The speaking impression comes entirely from body language and gestures
 
-The man appears to be actively engaged in conversation with natural body language:
-- Expressive but contained hand gestures: hands move to emphasize points, open palm gestures, occasional pointing. Gestures are varied and natural, not repetitive
-- Arms move from shoulders with natural follow-through in elbows and wrists
+The man starts with hands joined together in front of the body (default rest position). During conversation:
+- Hands separate and make small contained gestures in front of the torso to emphasize points — not wide, staying close to the body
+- Between gestures, hands return to the joined rest position before separating again for the next gesture
+- Arms stay close to the body — elbows near the torso, gestures happen in the space directly in front
 - Natural weight shifting between legs as he speaks
 - Subtle torso movement following gesture energy
 - Head makes small natural nods while speaking — stays mostly forward-facing
 - Natural breathing and blinking throughout
-- Occasional pauses in gesturing with hands returning to rest position before next gesture
 - Hand and finger movements remain natural and alive — no frozen or stiff hands
-All motion should feel energetic but controlled, like a real person explaining something with conviction.`,
+All motion should feel conversational but restrained, like a real person explaining something calmly with small hand movements.`,
   },
   {
     label: 'Female Full-body Talk',
@@ -104,14 +104,14 @@ Constraints:
 - Gestures are graceful and contained — no wide movements that could exit the frame
 - IMPORTANT: lips must NOT move. The speaking impression comes entirely from body language and gestures
 
-The woman appears to be actively engaged in conversation with graceful body language:
-- Elegant but contained hand gestures: expressive movements to emphasize points, open gestures, gentle illustrative motions. Gestures are fluid and natural
-- Arms move gracefully with smooth follow-through
+The woman starts with hands joined together in front of the body (default rest position). During conversation:
+- Hands separate and make small graceful gestures in front of the torso to emphasize points — not wide, staying close to the body
+- Between gestures, hands return to the joined rest position before separating again for the next gesture
+- Arms stay close to the body — elbows near the torso, gestures happen in the space directly in front
 - Subtle weight shifting creating gentle hip movement
 - Soft torso movement following gesture energy
 - Head makes natural nods and gentle tilts while speaking — stays mostly forward-facing
 - Natural breathing and delicate blinking throughout
-- Graceful pauses between gestures with hands settling naturally
 - Hand and finger movements remain natural and alive — no frozen or stiff hands
 All motion should feel expressive yet poised, like a real person communicating with warmth and confidence.`,
   },
