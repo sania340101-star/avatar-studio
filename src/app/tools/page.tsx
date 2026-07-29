@@ -414,9 +414,13 @@ function BrightnessBoostTool() {
     setResultUrl('');
     setStats(null);
     try {
-      const videoFile = file || await fetchAsFile(galleryUrl);
       const fd = new FormData();
-      fd.append('file', videoFile);
+      if (galleryUrl) {
+        const filename = galleryUrl.split('/').pop() || '';
+        fd.append('galleryFile', filename);
+      } else if (file) {
+        fd.append('file', file);
+      }
       fd.append('preset', preset);
       fd.append('crf', String(crf));
       if (preset === 'custom') {

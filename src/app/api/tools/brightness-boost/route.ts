@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { writeFileSync, unlinkSync, existsSync } from 'fs';
-import { join } from 'path';
+import { writeFileSync, unlinkSync, existsSync, copyFileSync } from 'fs';
+import { join, basename } from 'path';
 import { execSync } from 'child_process';
 import { getUploadsDir } from '@/lib/storage';
 import { audit } from '@/lib/audit';
 import { verifyToken } from '@/lib/token';
 
 const MAX_FILE_SIZE = 100 * 1024 * 1024;
+const SAFE_FILENAME = /^[a-zA-Z0-9._-]+$/;
 
 const PRESETS = {
   mild: {
@@ -41,9 +42,13 @@ export async function POST(req: NextRequest) {
 
   const formData = await req.formData();
   const file = formData.get('file') as File | null;
-  if (!file) return NextResponse.json({ error: 'No video file provided' }, { status: 400 });
-  if (file.size > MAX_FILE_SIZE) return NextResponse.json({ error: 'File too large (max 100MB)' }, { status: 413 });
-  if (!file.type.startsWith('video/')) return NextResponse.json({ error: 'Only video files are accepted' }, { status: 415 });
+  const galleryFile = formData.get('galleryFile') as string | null;
+
+  if (!file && !galleryFile) return NextResponse.json({ error: 'No video file provided' }, { status: 400 });
+  if (file) {
+    if (file.size > MAX_FILE_SIZE) return NextResponse.json({ error: 'File too large (max 100MB)' }, { status: 413 });
+    if (!file.type.startsWith('video/')) return NextResponse.json({ error: 'Only video files are accepted' }, { status: 415 });
+  }
 
   const preset = (formData.get('preset') as string) || 'medium';
   if (!['mild', 'medium', 'aggressive', 'custom'].includes(preset)) {
@@ -92,10 +97,20 @@ export async function POST(req: NextRequest) {
   const outputName = `${ts}-bright-output.mp4`;
   const inputPath = join(uploadsDir, inputName);
   const outputPath = join(uploadsDir, outputName);
+  let usedGalleryDirect = false;
 
   try {
-    const buffer = Buffer.from(await file.arrayBuffer());
-    writeFileSync(inputPath, buffer);
+    if (galleryFile) {
+      const safeName = basename(galleryFile);
+      if (!SAFE_FILENAME.test(safeName)) return NextResponse.json({ error: 'Invalid gallery filename' }, { status: 400 });
+      const srcPath = join(uploadsDir, safeName);
+      if (!existsSync(srcPath)) return NextResponse.json({ error: 'Gallery file not found' }, { status: 404 });
+      copyFileSync(srcPath, inputPath);
+      usedGalleryDirect = true;
+    } else {
+      const buffer = Buffer.from(await file!.arrayBuffer());
+      writeFileSync(inputPath, buffer);
+    }
 
     const probeCmd = `ffprobe -v error -select_streams v:0 -show_entries stream=r_frame_rate,duration,width,height -of json "${inputPath}"`;
     const probeRaw = execSync(probeCmd, { timeout: 15000 }).toString();
