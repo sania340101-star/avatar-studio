@@ -12,19 +12,18 @@ const SAFE_FILENAME = /^[a-zA-Z0-9._-]+$/;
 const PRESETS = {
   mild: {
     curves: "curves=master='0/0 0.06/0.06 0.5/0.65 1/1'",
-    saturation: 1.05,
+    saturation: 1.0,
     unsharp: 0.2,
   },
   medium: {
     curves: "curves=master='0/0 0.06/0.06 0.35/0.60 0.70/0.90 1/1'",
-    saturation: 1.1,
+    saturation: 1.0,
     unsharp: 0.3,
   },
   aggressive: {
     curves: "curves=master='0/0 0.06/0.06 0.30/0.60 0.65/0.92 1/1'",
-    saturation: 1.2,
+    saturation: 1.05,
     unsharp: 0.5,
-    vibrance: 0.2,
   },
 } as const;
 
@@ -65,11 +64,13 @@ export async function POST(req: NextRequest) {
   let unsharpStrength: number;
   let vibranceIntensity: number | null = null;
   let gammaValue: number | null = null;
+  let blackThreshold: number | null = null;
 
   if (preset === 'custom') {
     const brightnessVal = parseFloat(formData.get('brightness') as string);
     const saturationVal = parseFloat(formData.get('saturation') as string);
     const gammaRaw = formData.get('gamma') as string;
+    const threshRaw = formData.get('blackThreshold') as string;
     if (isNaN(brightnessVal) || brightnessVal < 0 || brightnessVal > 100) {
       return NextResponse.json({ error: 'brightness must be 0-100' }, { status: 400 });
     }
@@ -82,6 +83,13 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'gamma must be 0.5-5.0' }, { status: 400 });
       }
       if (g !== 1.0) gammaValue = g;
+    }
+    if (threshRaw !== null && threshRaw !== '') {
+      const t = parseFloat(threshRaw);
+      if (isNaN(t) || t < 0 || t > 50) {
+        return NextResponse.json({ error: 'blackThreshold must be 0-50' }, { status: 400 });
+      }
+      blackThreshold = t / 100;
     }
 
     saturation = saturationVal / 100;
@@ -107,7 +115,6 @@ export async function POST(req: NextRequest) {
   const outputName = `${ts}-bright-output.mp4`;
   const inputPath = join(uploadsDir, inputName);
   const outputPath = join(uploadsDir, outputName);
-  let usedGalleryDirect = false;
 
   try {
     if (galleryFile) {
@@ -116,7 +123,6 @@ export async function POST(req: NextRequest) {
       const srcPath = join(uploadsDir, safeName);
       if (!existsSync(srcPath)) return NextResponse.json({ error: 'Gallery file not found' }, { status: 404 });
       copyFileSync(srcPath, inputPath);
-      usedGalleryDirect = true;
     } else {
       const buffer = Buffer.from(await file!.arrayBuffer());
       writeFileSync(inputPath, buffer);
@@ -137,7 +143,8 @@ export async function POST(req: NextRequest) {
     const filterParts = [curvesFilter];
     if (gammaValue !== null) {
       filterParts.push(`eq=gamma=${gammaValue.toFixed(2)}`);
-      filterParts.push(`colorlevels=rimin=0.04:gimin=0.04:bimin=0.04`);
+      const thresh = (blackThreshold ?? Math.pow(0.04, 1 / gammaValue)).toFixed(3);
+      filterParts.push(`colorlevels=rimin=${thresh}:gimin=${thresh}:bimin=${thresh}`);
     }
     filterParts.push(`eq=saturation=${saturation.toFixed(2)}`);
     if (vibranceIntensity !== null) {

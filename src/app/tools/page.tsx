@@ -381,6 +381,7 @@ function BrightnessBoostTool() {
   const [brightness, setBrightness] = useState(70);
   const [saturation, setSaturation] = useState(110);
   const [gamma, setGamma] = useState(1.0);
+  const [blackThreshold, setBlackThreshold] = useState(4);
   const [crf, setCrf] = useState(1);
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState('');
@@ -403,12 +404,6 @@ function BrightnessBoostTool() {
     setPreviewSrc(items[0].url);
   }
 
-  const fetchAsFile = useCallback(async (url: string): Promise<File> => {
-    const res = await fetch(url);
-    const blob = await res.blob();
-    return new File([blob], 'gallery-video.mp4', { type: blob.type || 'video/mp4' });
-  }, []);
-
   async function handleProcess() {
     if (!hasSource) return;
     setProcessing(true);
@@ -428,7 +423,10 @@ function BrightnessBoostTool() {
       if (preset === 'custom') {
         fd.append('brightness', String(brightness));
         fd.append('saturation', String(saturation));
-        if (gamma !== 1.0) fd.append('gamma', String(gamma));
+        if (gamma !== 1.0) {
+          fd.append('gamma', String(gamma));
+          fd.append('blackThreshold', String(blackThreshold));
+        }
       }
       const res = await fetch('/api/tools/brightness-boost', { method: 'POST', body: fd });
       const data = await res.json();
@@ -451,8 +449,6 @@ function BrightnessBoostTool() {
     setError('');
     setPreviewSrc('');
   }
-
-  const crfLabel = crf <= 15 ? 'Very high' : crf <= 20 ? 'High' : crf <= 28 ? 'Medium' : 'Low';
 
   return (
     <>
@@ -580,7 +576,11 @@ function BrightnessBoostTool() {
                       max={5.0}
                       step={0.1}
                       value={gamma}
-                      onChange={e => setGamma(parseFloat(e.target.value))}
+                      onChange={e => {
+                        const g = parseFloat(e.target.value);
+                        setGamma(g);
+                        if (g !== 1.0) setBlackThreshold(Math.round(Math.pow(0.04, 1 / g) * 100));
+                      }}
                       className="w-full"
                       style={{ accentColor: '#f59e0b' }}
                     />
@@ -589,33 +589,35 @@ function BrightnessBoostTool() {
                       <span>1.0 (off)</span>
                       <span>5.0 (brighter)</span>
                     </div>
-                    <p className="text-xs mt-1" style={{ color: 'var(--text3)' }}>
-                      Lifts all midtones uniformly. Black threshold applied automatically.
-                    </p>
                   </div>
+
+                  {gamma !== 1.0 && (
+                    <div>
+                      <label htmlFor="bb-threshold" className="text-sm font-medium block mb-2">
+                        Black Threshold: <span style={{ color: '#f59e0b' }}>{blackThreshold}%</span>
+                      </label>
+                      <input
+                        id="bb-threshold"
+                        type="range"
+                        min={0}
+                        max={50}
+                        value={blackThreshold}
+                        onChange={e => setBlackThreshold(parseInt(e.target.value))}
+                        className="w-full"
+                        style={{ accentColor: '#f59e0b' }}
+                      />
+                      <div className="flex justify-between text-xs mt-1" style={{ color: 'var(--text3)' }}>
+                        <span>0% (keep all)</span>
+                        <span>50% (crush to black)</span>
+                      </div>
+                      <p className="text-xs mt-1" style={{ color: 'var(--text3)' }}>
+                        Pixels below this brightness become pure black. Auto-adjusted with gamma.
+                      </p>
+                    </div>
+                  )}
                 </>
               )}
 
-              <div>
-                <label htmlFor="bb-crf" className="text-sm font-medium block mb-2">
-                  Quality (CRF): <span style={{ color: '#f59e0b' }}>{crf}</span>{' '}
-                  <span className="font-normal text-xs" style={{ color: 'var(--text3)' }}>({crfLabel})</span>
-                </label>
-                <input
-                  id="bb-crf"
-                  type="range"
-                  min={1}
-                  max={40}
-                  value={crf}
-                  onChange={e => setCrf(parseInt(e.target.value))}
-                  className="w-full"
-                  style={{ accentColor: '#f59e0b' }}
-                />
-                <div className="flex justify-between text-xs mt-1" style={{ color: 'var(--text3)' }}>
-                  <span>1 (max quality)</span>
-                  <span>40 (small file)</span>
-                </div>
-              </div>
             </div>
 
             <button
