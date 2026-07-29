@@ -10,7 +10,8 @@ export type AuditEvent =
   | 'upload'
   | 'generate'
   | 'otp_sent'
-  | 'seamless-loop';
+  | 'seamless-loop'
+  | 'brightness-boost';
 
 interface AuditEntry {
   ts: string;
