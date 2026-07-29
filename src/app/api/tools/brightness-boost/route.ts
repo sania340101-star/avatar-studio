@@ -50,8 +50,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'preset must be mild, medium, aggressive, or custom' }, { status: 400 });
   }
 
-  const crf = parseInt(formData.get('crf') as string) || 18;
-  if (crf < 0 || crf > 51) return NextResponse.json({ error: 'crf must be 0-51' }, { status: 400 });
+  const crfRaw = formData.get('crf') as string;
+  const crf = crfRaw !== null && crfRaw !== '' ? parseInt(crfRaw) : 18;
+  if (isNaN(crf) || crf < 0 || crf > 51) return NextResponse.json({ error: 'crf must be 0-51' }, { status: 400 });
 
   let saturation: number;
   let curvesFilter: string;
@@ -70,10 +71,10 @@ export async function POST(req: NextRequest) {
 
     saturation = saturationVal / 100;
     const b = brightnessVal / 100;
-    const mid1x = (0.35 - (0.35 - 0.50) * (1 - b)).toFixed(2);
-    const mid1y = (0.60 + (0.65 - 0.60) * (1 - b)).toFixed(2);
-    const mid2x = (0.65 + (0.70 - 0.65) * (1 - b)).toFixed(2);
-    const mid2y = (0.92 - (0.92 - 0.90) * (1 - b)).toFixed(2);
+    const mid1x = (0.50 - b * 0.20).toFixed(2);
+    const mid1y = (0.50 + b * 0.10).toFixed(2);
+    const mid2x = (0.70 - b * 0.05).toFixed(2);
+    const mid2y = (0.70 + b * 0.22).toFixed(2);
     curvesFilter = `curves=master='0/0 0.06/0.06 ${mid1x}/${mid1y} ${mid2x}/${mid2y} 1/1'`;
     unsharpStrength = 0.3 + b * 0.5;
     if (b > 0.7) vibranceIntensity = (b - 0.7) * 1.33;
@@ -122,7 +123,7 @@ export async function POST(req: NextRequest) {
     if (!existsSync(outputPath)) throw new Error('ffmpeg produced no output');
 
     audit({
-      event: 'brightness-boost' as any,
+      event: 'brightness-boost',
       ip,
       userId,
       path: '/api/tools/brightness-boost',
