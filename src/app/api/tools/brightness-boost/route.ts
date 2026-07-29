@@ -56,8 +56,9 @@ export async function POST(req: NextRequest) {
   }
 
   const crfRaw = formData.get('crf') as string;
-  const crf = crfRaw !== null && crfRaw !== '' ? parseInt(crfRaw) : 18;
+  let crf = crfRaw !== null && crfRaw !== '' ? parseInt(crfRaw) : 1;
   if (isNaN(crf) || crf < 0 || crf > 51) return NextResponse.json({ error: 'crf must be 0-51' }, { status: 400 });
+  if (crf === 0) crf = 1;
 
   let saturation: number;
   let curvesFilter: string;

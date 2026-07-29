@@ -379,7 +379,7 @@ function BrightnessBoostTool() {
   const [preset, setPreset] = useState('medium');
   const [brightness, setBrightness] = useState(70);
   const [saturation, setSaturation] = useState(140);
-  const [crf, setCrf] = useState(18);
+  const [crf, setCrf] = useState(1);
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState('');
   const [resultUrl, setResultUrl] = useState('');
@@ -575,7 +575,7 @@ function BrightnessBoostTool() {
                 <input
                   id="bb-crf"
                   type="range"
-                  min={0}
+                  min={1}
                   max={40}
                   value={crf}
                   onChange={e => setCrf(parseInt(e.target.value))}
@@ -583,7 +583,7 @@ function BrightnessBoostTool() {
                   style={{ accentColor: '#f59e0b' }}
                 />
                 <div className="flex justify-between text-xs mt-1" style={{ color: 'var(--text3)' }}>
-                  <span>0 (lossless)</span>
+                  <span>1 (max quality)</span>
                   <span>40 (small file)</span>
                 </div>
               </div>
