@@ -106,7 +106,7 @@ export async function POST(req: NextRequest) {
     curvesFilter = p.curves;
     saturation = p.saturation;
     unsharpStrength = p.unsharp;
-    vibranceIntensity = 'vibrance' in p ? p.vibrance : null;
+    vibranceIntensity = null;
   }
 
   const uploadsDir = getUploadsDir();
