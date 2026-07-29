@@ -132,7 +132,7 @@ export async function POST(req: NextRequest) {
     filterParts.push(`unsharp=lx=5:ly=5:la=${unsharpStrength.toFixed(1)}:cx=5:cy=5:ca=0.0`);
     const filterChain = filterParts.join(',');
 
-    const ffmpegCmd = `ffmpeg -y -i "${inputPath}" -vf "${filterChain}" -c:v libx264 -preset fast -crf ${crf} -pix_fmt yuv420p -c:a copy "${outputPath}"`;
+    const ffmpegCmd = `ffmpeg -y -i "${inputPath}" -vf "${filterChain}" -c:v libx264 -profile:v high -level 4.1 -preset fast -crf ${crf} -pix_fmt yuv420p -movflags +faststart -c:a copy "${outputPath}"`;
     execSync(ffmpegCmd, { timeout: 300000 });
 
     if (!existsSync(outputPath)) throw new Error('ffmpeg produced no output');
