@@ -12,19 +12,19 @@ const SAFE_FILENAME = /^[a-zA-Z0-9._-]+$/;
 const PRESETS = {
   mild: {
     curves: "curves=master='0/0 0.06/0.06 0.5/0.65 1/1'",
-    saturation: 1.2,
-    unsharp: 0.3,
+    saturation: 1.05,
+    unsharp: 0.2,
   },
   medium: {
     curves: "curves=master='0/0 0.06/0.06 0.35/0.60 0.70/0.90 1/1'",
-    saturation: 1.4,
-    unsharp: 0.5,
+    saturation: 1.1,
+    unsharp: 0.3,
   },
   aggressive: {
     curves: "curves=master='0/0 0.06/0.06 0.30/0.60 0.65/0.92 1/1'",
-    saturation: 1.6,
-    unsharp: 0.8,
-    vibrance: 0.4,
+    saturation: 1.2,
+    unsharp: 0.5,
+    vibrance: 0.2,
   },
 } as const;
 
@@ -64,15 +64,24 @@ export async function POST(req: NextRequest) {
   let curvesFilter: string;
   let unsharpStrength: number;
   let vibranceIntensity: number | null = null;
+  let gammaValue: number | null = null;
 
   if (preset === 'custom') {
     const brightnessVal = parseFloat(formData.get('brightness') as string);
     const saturationVal = parseFloat(formData.get('saturation') as string);
+    const gammaRaw = formData.get('gamma') as string;
     if (isNaN(brightnessVal) || brightnessVal < 0 || brightnessVal > 100) {
       return NextResponse.json({ error: 'brightness must be 0-100' }, { status: 400 });
     }
     if (isNaN(saturationVal) || saturationVal < 0 || saturationVal > 200) {
       return NextResponse.json({ error: 'saturation must be 0-200' }, { status: 400 });
+    }
+    if (gammaRaw !== null && gammaRaw !== '') {
+      const g = parseFloat(gammaRaw);
+      if (isNaN(g) || g < 0.5 || g > 5.0) {
+        return NextResponse.json({ error: 'gamma must be 0.5-5.0' }, { status: 400 });
+      }
+      if (g !== 1.0) gammaValue = g;
     }
 
     saturation = saturationVal / 100;
@@ -126,6 +135,10 @@ export async function POST(req: NextRequest) {
     const height = parseInt(stream.height || '0');
 
     const filterParts = [curvesFilter];
+    if (gammaValue !== null) {
+      filterParts.push(`eq=gamma=${gammaValue.toFixed(2)}`);
+      filterParts.push(`colorlevels=rimin=0.04:gimin=0.04:bimin=0.04`);
+    }
     filterParts.push(`eq=saturation=${saturation.toFixed(2)}`);
     if (vibranceIntensity !== null) {
       filterParts.push(`vibrance=intensity=${vibranceIntensity.toFixed(2)}`);
@@ -143,7 +156,7 @@ export async function POST(req: NextRequest) {
       ip,
       userId,
       path: '/api/tools/brightness-boost',
-      detail: `preset=${preset} sat=${saturation.toFixed(2)} crf=${crf} fps=${fps.toFixed(1)} dur=${duration.toFixed(1)}s ${width}x${height}`,
+      detail: `preset=${preset} sat=${saturation.toFixed(2)}${gammaValue ? ` gamma=${gammaValue.toFixed(2)}` : ''} crf=${crf} fps=${fps.toFixed(1)} dur=${duration.toFixed(1)}s ${width}x${height}`,
     });
 
     return NextResponse.json({
@@ -156,6 +169,7 @@ export async function POST(req: NextRequest) {
         height,
         preset,
         saturation: +saturation.toFixed(2),
+        ...(gammaValue ? { gamma: +gammaValue.toFixed(2) } : {}),
         crf,
       },
     });

@@ -31,6 +31,7 @@ interface BrightnessStats {
   height: number;
   preset: string;
   saturation: number;
+  gamma?: number;
   crf: number;
 }
 
@@ -378,7 +379,8 @@ function BrightnessBoostTool() {
   const [galleryName, setGalleryName] = useState('');
   const [preset, setPreset] = useState('medium');
   const [brightness, setBrightness] = useState(70);
-  const [saturation, setSaturation] = useState(140);
+  const [saturation, setSaturation] = useState(110);
+  const [gamma, setGamma] = useState(1.0);
   const [crf, setCrf] = useState(1);
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState('');
@@ -426,6 +428,7 @@ function BrightnessBoostTool() {
       if (preset === 'custom') {
         fd.append('brightness', String(brightness));
         fd.append('saturation', String(saturation));
+        if (gamma !== 1.0) fd.append('gamma', String(gamma));
       }
       const res = await fetch('/api/tools/brightness-boost', { method: 'POST', body: fd });
       const data = await res.json();
@@ -563,6 +566,32 @@ function BrightnessBoostTool() {
                       <span>50% (desaturated)</span>
                       <span>200% (vivid)</span>
                     </div>
+                  </div>
+
+                  <div>
+                    <label htmlFor="bb-gamma" className="text-sm font-medium block mb-2">
+                      Gamma: <span style={{ color: '#f59e0b' }}>{gamma.toFixed(1)}</span>
+                      {gamma === 1.0 && <span className="font-normal text-xs ml-1" style={{ color: 'var(--text3)' }}>(off)</span>}
+                    </label>
+                    <input
+                      id="bb-gamma"
+                      type="range"
+                      min={0.5}
+                      max={5.0}
+                      step={0.1}
+                      value={gamma}
+                      onChange={e => setGamma(parseFloat(e.target.value))}
+                      className="w-full"
+                      style={{ accentColor: '#f59e0b' }}
+                    />
+                    <div className="flex justify-between text-xs mt-1" style={{ color: 'var(--text3)' }}>
+                      <span>0.5 (darker)</span>
+                      <span>1.0 (off)</span>
+                      <span>5.0 (brighter)</span>
+                    </div>
+                    <p className="text-xs mt-1" style={{ color: 'var(--text3)' }}>
+                      Lifts all midtones uniformly. Black threshold applied automatically.
+                    </p>
                   </div>
                 </>
               )}
