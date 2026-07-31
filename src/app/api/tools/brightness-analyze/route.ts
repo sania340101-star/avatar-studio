@@ -179,7 +179,7 @@ export async function POST(req: NextRequest) {
     const binSize = 256 / histogramBins;
     function downsample(hist: number[]): number[] {
       const out = new Array(histogramBins).fill(0);
-      for (let i = 0; i < 256; i++) out[Math.min(histogramBins - 1, Math.floor(i / binSize))] += hist[i];
+      for (let i = BG_LOW; i <= BG_HIGH; i++) out[Math.min(histogramBins - 1, Math.floor(i / binSize))] += hist[i];
       return out;
     }
 
