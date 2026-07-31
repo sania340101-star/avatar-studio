@@ -184,14 +184,19 @@ export async function POST(req: NextRequest) {
       return out;
     }
 
+    const rDown = downsample(rHist);
+    const gDown = downsample(gHist);
+    const bDown = downsample(bHist);
+    console.log(`[analyze] pixels=${totalPixels} frames=${Math.min(SAMPLE_FRAMES, Math.ceil(totalFrames / step))} rawBuf=${rawBuffer.length} rSum=${rDown.reduce((a,b)=>a+b,0)} gSum=${gDown.reduce((a,b)=>a+b,0)} bSum=${bDown.reduce((a,b)=>a+b,0)} rMedian=${rStats.median} gMedian=${gStats.median} bMedian=${bStats.median}`);
+
     return NextResponse.json({
       ok: true,
       totalPixels,
       sampledFrames: Math.min(SAMPLE_FRAMES, Math.ceil(totalFrames / step)),
       channels: {
-        r: { ...rStats, histogram: downsample(rHist) },
-        g: { ...gStats, histogram: downsample(gHist) },
-        b: { ...bStats, histogram: downsample(bHist) },
+        r: { ...rStats, histogram: rDown },
+        g: { ...gStats, histogram: gDown },
+        b: { ...bStats, histogram: bDown },
       },
       auto: auto.combined,
       autoPerChannel: auto.perChannel,
