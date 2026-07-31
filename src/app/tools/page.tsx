@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import AppShell from '@/components/AppShell';
 import GalleryBrowser, { GalleryItem } from '@/components/GalleryBrowser';
 
@@ -473,6 +473,14 @@ function BrightnessBoostTool() {
     }
   }
 
+  const analyzeRef = useRef(handleAnalyze);
+  analyzeRef.current = handleAnalyze;
+  useEffect(() => {
+    if (preset === 'auto' && (file || galleryUrl) && !analysis && !analyzing) {
+      analyzeRef.current();
+    }
+  }, [preset, file, galleryUrl, analysis, analyzing]);
+
   async function handleProcess() {
     if (!hasSource) return;
     setProcessing(true);
@@ -584,12 +592,7 @@ function BrightnessBoostTool() {
                   {PRESETS.map(p => (
                     <button
                       key={p.value}
-                      onClick={() => {
-                        setPreset(p.value);
-                        if (p.value === 'auto' && !analysis && !analyzing && hasSource) {
-                          handleAnalyze();
-                        }
-                      }}
+                      onClick={() => setPreset(p.value)}
                       className="text-left rounded-lg px-3 py-2 text-sm transition-all"
                       style={{
                         background: preset === p.value ? 'rgba(245,158,11,0.15)' : 'var(--bg-card)',
