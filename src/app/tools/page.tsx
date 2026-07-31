@@ -432,7 +432,7 @@ function BrightnessBoostTool() {
   const [analyzing, setAnalyzing] = useState(false);
   const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
   const [intensity, setIntensity] = useState(100);
-  const [usePerChannel, setUsePerChannel] = useState(true);
+  const [usePerChannel, setUsePerChannel] = useState(false);
   const hasSource = file || galleryUrl;
   const sourceName = file ? file.name : galleryName;
   const sourceSize = file ? `${(file.size / 1024 / 1024).toFixed(1)} MB` : '';

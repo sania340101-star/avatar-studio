@@ -74,7 +74,7 @@ function computeAutoCoefficients(r: ChannelStats, g: ChannelStats, b: ChannelSta
   function forChannel(ch: ChannelStats): AutoCoefficients {
     const gamma = Math.min(2.5, 1.0 + Math.max(0, ch.darkRatio - 0.3) * 2.0);
     const brightness = Math.max(0, Math.min(1, (140 - ch.median) / 140));
-    const saturation = Math.min(1.15, 1.0 + brightness * 0.15);
+    const saturation = Math.min(1.08, 1.0 + brightness * 0.08);
 
     const x1 = +(0.50 - brightness * 0.20).toFixed(3);
     const y1 = +(0.50 + brightness * 0.10).toFixed(3);
@@ -92,7 +92,7 @@ function computeAutoCoefficients(r: ChannelStats, g: ChannelStats, b: ChannelSta
   const avgDarkRatio = (r.darkRatio + g.darkRatio + b.darkRatio) / 3;
   const combinedBrightness = Math.max(0, Math.min(1, (140 - avgMedian) / 140));
   const combinedGamma = Math.min(2.5, 1.0 + Math.max(0, avgDarkRatio - 0.3) * 2.0);
-  const combinedSaturation = Math.min(1.15, 1.0 + combinedBrightness * 0.15);
+  const combinedSaturation = Math.min(1.08, 1.0 + combinedBrightness * 0.08);
 
   return {
     perChannel: { r: rc, g: gc, b: bc },

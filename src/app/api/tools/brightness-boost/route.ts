@@ -109,7 +109,7 @@ export async function POST(req: NextRequest) {
 
     const scaledGamma = 1.0 + (auto.gamma - 1.0) * intensity;
     if (scaledGamma > 1.05) gammaValue = scaledGamma;
-    saturation = 1.0 + (auto.saturation - 1.0) * intensity;
+    saturation = usePerChannel ? 1.0 : 1.0 + (auto.saturation - 1.0) * intensity;
     const b = auto.brightness * intensity;
     unsharpStrength = 0.3 + b * 0.5;
     if (b > 0.7) vibranceIntensity = (b - 0.7) * 1.33;
