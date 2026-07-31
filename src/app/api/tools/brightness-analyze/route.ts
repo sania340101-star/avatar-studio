@@ -72,14 +72,14 @@ function computeAutoCoefficients(r: ChannelStats, g: ChannelStats, b: ChannelSta
   combined: AutoCoefficients;
 } {
   function forChannel(ch: ChannelStats): AutoCoefficients {
-    const gamma = Math.min(2.5, 1.0 + Math.max(0, ch.darkRatio - 0.3) * 2.0);
-    const brightness = Math.max(0, Math.min(1, (140 - ch.median) / 140));
-    const saturation = Math.min(1.08, 1.0 + brightness * 0.08);
+    const gamma = Math.min(2.0, 1.0 + Math.max(0, ch.darkRatio - 0.45) * 1.5);
+    const brightness = Math.max(0, Math.min(1, (120 - ch.median) / 160));
+    const saturation = Math.min(1.05, 1.0 + brightness * 0.05);
 
-    const x1 = +(0.50 - brightness * 0.20).toFixed(3);
-    const y1 = +(0.50 + brightness * 0.10).toFixed(3);
-    const x2 = +(0.70 - brightness * 0.05).toFixed(3);
-    const y2 = +(0.70 + brightness * 0.22).toFixed(3);
+    const x1 = +(0.50 - brightness * 0.15).toFixed(3);
+    const y1 = +(0.50 + brightness * 0.08).toFixed(3);
+    const x2 = +(0.70 - brightness * 0.04).toFixed(3);
+    const y2 = +(0.70 + brightness * 0.15).toFixed(3);
 
     return { gamma, brightness, saturation, curves: { x1, y1, x2, y2 } };
   }
@@ -90,9 +90,9 @@ function computeAutoCoefficients(r: ChannelStats, g: ChannelStats, b: ChannelSta
 
   const avgMedian = (r.median + g.median + b.median) / 3;
   const avgDarkRatio = (r.darkRatio + g.darkRatio + b.darkRatio) / 3;
-  const combinedBrightness = Math.max(0, Math.min(1, (140 - avgMedian) / 140));
-  const combinedGamma = Math.min(2.5, 1.0 + Math.max(0, avgDarkRatio - 0.3) * 2.0);
-  const combinedSaturation = Math.min(1.08, 1.0 + combinedBrightness * 0.08);
+  const combinedBrightness = Math.max(0, Math.min(1, (120 - avgMedian) / 160));
+  const combinedGamma = Math.min(2.0, 1.0 + Math.max(0, avgDarkRatio - 0.45) * 1.5);
+  const combinedSaturation = Math.min(1.05, 1.0 + combinedBrightness * 0.05);
 
   return {
     perChannel: { r: rc, g: gc, b: bc },
@@ -101,10 +101,10 @@ function computeAutoCoefficients(r: ChannelStats, g: ChannelStats, b: ChannelSta
       brightness: +combinedBrightness.toFixed(3),
       saturation: +combinedSaturation.toFixed(3),
       curves: {
-        x1: +(0.50 - combinedBrightness * 0.20).toFixed(3),
-        y1: +(0.50 + combinedBrightness * 0.10).toFixed(3),
-        x2: +(0.70 - combinedBrightness * 0.05).toFixed(3),
-        y2: +(0.70 + combinedBrightness * 0.22).toFixed(3),
+        x1: +(0.50 - combinedBrightness * 0.15).toFixed(3),
+        y1: +(0.50 + combinedBrightness * 0.08).toFixed(3),
+        x2: +(0.70 - combinedBrightness * 0.04).toFixed(3),
+        y2: +(0.70 + combinedBrightness * 0.15).toFixed(3),
       },
     },
   };
@@ -150,8 +150,9 @@ export async function POST(req: NextRequest) {
 
     const [num, den] = (stream.r_frame_rate || '30/1').split('/');
     const fps = parseInt(num) / (parseInt(den) || 1);
-    const duration = parseFloat(stream.duration || '0');
-    const totalFrames = stream.nb_frames ? parseInt(stream.nb_frames) : Math.round(fps * duration);
+    const duration = parseFloat(stream.duration) || 0;
+    const parsedFrames = parseInt(stream.nb_frames);
+    const totalFrames = (!isNaN(parsedFrames) && parsedFrames > 0) ? parsedFrames : Math.max(1, Math.round(fps * duration));
     const step = Math.max(1, Math.floor(totalFrames / SAMPLE_FRAMES));
 
     const ffmpegCmd = `ffmpeg -v error -i "${inputPath}" -vf "select='not(mod(n\\,${step}))',scale=${THUMB_WIDTH}:-1" -frames:v ${SAMPLE_FRAMES} -f rawvideo -pix_fmt rgb24 pipe:1`;
