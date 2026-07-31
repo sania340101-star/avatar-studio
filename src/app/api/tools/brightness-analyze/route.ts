@@ -148,7 +148,7 @@ export async function POST(req: NextRequest) {
       writeFileSync(inputPath, buffer);
     }
 
-    const probeCmd = `ffprobe -v error -select_streams v:0 -show_entries stream=nb_frames,r_frame_rate,duration -of json "${inputPath}"`;
+    const probeCmd = `ffprobe -v error -select_streams v:0 -show_entries stream=nb_frames,r_frame_rate,duration -show_entries format=duration -of json "${inputPath}"`;
     const probeRaw = execSync(probeCmd, { timeout: 15000 }).toString();
     const probeData = JSON.parse(probeRaw);
     const stream = probeData.streams?.[0];
@@ -156,10 +156,11 @@ export async function POST(req: NextRequest) {
 
     const [num, den] = (stream.r_frame_rate || '30/1').split('/');
     const fps = parseInt(num) / (parseInt(den) || 1);
-    const duration = parseFloat(stream.duration) || 0;
+    const duration = parseFloat(stream.duration) || parseFloat(probeData.format?.duration) || 0;
     const parsedFrames = parseInt(stream.nb_frames);
     const totalFrames = (!isNaN(parsedFrames) && parsedFrames > 0) ? parsedFrames : Math.max(1, Math.round(fps * duration));
     const step = Math.max(1, Math.floor(totalFrames / SAMPLE_FRAMES));
+    console.log(`[analyze] probe: fps=${fps} duration=${duration} nb_frames=${stream.nb_frames} totalFrames=${totalFrames} step=${step}`);
 
     const ffmpegCmd = `ffmpeg -v error -i "${inputPath}" -vf "select='not(mod(n\\,${step}))',scale=${THUMB_WIDTH}:-1" -frames:v ${SAMPLE_FRAMES} -f rawvideo -pix_fmt rgb24 pipe:1`;
     const rawBuffer = execSync(ffmpegCmd, { timeout: 60000, maxBuffer: 50 * 1024 * 1024 });
