@@ -59,8 +59,48 @@ const PRESETS = [
   { value: 'mild', label: 'Mild', desc: 'Indoor, slight boost (+30%)' },
   { value: 'medium', label: 'Medium', desc: 'Bright indoor / mixed outdoor (+57%)' },
   { value: 'aggressive', label: 'Aggressive', desc: 'Direct sunlight / outdoor (+71%)' },
+  { value: 'auto', label: 'Auto', desc: 'Content-aware (analyze first)' },
   { value: 'custom', label: 'Custom', desc: 'Manual brightness & saturation' },
 ];
+
+interface AnalysisResult {
+  totalPixels: number;
+  sampledFrames: number;
+  channels: {
+    r: { histogram: number[]; median: number; darkRatio: number; midRatio: number; brightRatio: number };
+    g: { histogram: number[]; median: number; darkRatio: number; midRatio: number; brightRatio: number };
+    b: { histogram: number[]; median: number; darkRatio: number; midRatio: number; brightRatio: number };
+  };
+  auto: { gamma: number; brightness: number; saturation: number };
+  autoPerChannel: Record<string, { gamma: number; brightness: number; saturation: number; curves: { x1: number; y1: number; x2: number; y2: number } }>;
+}
+
+function MiniHistogram({ data, color, label, median }: { data: number[]; color: string; label: string; median: number }) {
+  const max = Math.max(...data);
+  if (max === 0) return null;
+  return (
+    <div className="flex-1">
+      <div className="flex items-center justify-between mb-1">
+        <span className="text-xs font-medium" style={{ color }}>{label}</span>
+        <span className="text-xs" style={{ color: 'var(--text3)' }}>median: {median}</span>
+      </div>
+      <div className="flex items-end gap-px" style={{ height: 48 }}>
+        {data.map((v, i) => (
+          <div
+            key={i}
+            style={{
+              flex: 1,
+              height: `${(v / max) * 100}%`,
+              background: color,
+              opacity: 0.7,
+              borderRadius: '1px 1px 0 0',
+            }}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
 
 function SeamlessLoopTool() {
   const [file, setFile] = useState<File | null>(null);
@@ -389,6 +429,10 @@ function BrightnessBoostTool() {
   const [stats, setStats] = useState<BrightnessStats | null>(null);
   const [previewSrc, setPreviewSrc] = useState('');
   const [showGallery, setShowGallery] = useState(false);
+  const [analyzing, setAnalyzing] = useState(false);
+  const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
+  const [intensity, setIntensity] = useState(100);
+  const [usePerChannel, setUsePerChannel] = useState(true);
   const hasSource = file || galleryUrl;
   const sourceName = file ? file.name : galleryName;
   const sourceSize = file ? `${(file.size / 1024 / 1024).toFixed(1)} MB` : '';
@@ -401,7 +445,32 @@ function BrightnessBoostTool() {
     setError('');
     setResultUrl('');
     setStats(null);
+    setAnalysis(null);
     setPreviewSrc(items[0].url);
+  }
+
+  async function handleAnalyze() {
+    if (!hasSource) return;
+    setAnalyzing(true);
+    setError('');
+    try {
+      const fd = new FormData();
+      if (galleryUrl) {
+        fd.append('galleryFile', galleryUrl.split('/').pop() || '');
+      } else if (file) {
+        fd.append('file', file);
+      }
+      const res = await fetch('/api/tools/brightness-analyze', { method: 'POST', body: fd });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Analysis failed');
+      setAnalysis(data);
+      setPreset('auto');
+      setIntensity(100);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Analysis failed');
+    } finally {
+      setAnalyzing(false);
+    }
   }
 
   async function handleProcess() {
@@ -420,7 +489,14 @@ function BrightnessBoostTool() {
       }
       fd.append('preset', preset);
       fd.append('crf', String(crf));
-      if (preset === 'custom') {
+      if (preset === 'auto' && analysis) {
+        fd.append('autoCoefficients', JSON.stringify({
+          combined: analysis.auto,
+          perChannel: analysis.autoPerChannel,
+        }));
+        fd.append('intensity', String(intensity));
+        if (usePerChannel) fd.append('perChannel', 'true');
+      } else if (preset === 'custom') {
         fd.append('brightness', String(brightness));
         fd.append('saturation', String(saturation));
         if (gamma !== 1.0) {
@@ -448,6 +524,7 @@ function BrightnessBoostTool() {
     setStats(null);
     setError('');
     setPreviewSrc('');
+    setAnalysis(null);
   }
 
   return (
@@ -521,6 +598,89 @@ function BrightnessBoostTool() {
                   ))}
                 </div>
               </div>
+
+              {preset === 'auto' && (
+                <div className="space-y-3">
+                  {!analysis ? (
+                    <button
+                      onClick={handleAnalyze}
+                      disabled={analyzing}
+                      className="w-full py-2.5 rounded-lg text-sm font-medium transition-opacity"
+                      style={{ background: 'rgba(245,158,11,0.15)', color: '#f59e0b', border: '1px solid #f59e0b', opacity: analyzing ? 0.6 : 1 }}
+                    >
+                      {analyzing ? 'Analyzing...' : 'Analyze Content'}
+                    </button>
+                  ) : (
+                    <>
+                      <div className="rounded-lg p-3" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+                        <p className="text-xs font-semibold uppercase tracking-wide mb-2" style={{ color: 'var(--text3)' }}>
+                          RGB Histograms <span className="font-normal">({analysis.sampledFrames} frames sampled)</span>
+                        </p>
+                        <div className="flex gap-3">
+                          <MiniHistogram data={analysis.channels.r.histogram} color="#ef4444" label="R" median={analysis.channels.r.median} />
+                          <MiniHistogram data={analysis.channels.g.histogram} color="#22c55e" label="G" median={analysis.channels.g.median} />
+                          <MiniHistogram data={analysis.channels.b.histogram} color="#3b82f6" label="B" median={analysis.channels.b.median} />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-3 gap-2 text-xs" style={{ color: 'var(--text2)' }}>
+                        <div className="rounded-lg p-2 text-center" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+                          <div style={{ color: 'var(--text3)' }}>Gamma</div>
+                          <div className="font-semibold" style={{ color: '#f59e0b' }}>{analysis.auto.gamma.toFixed(2)}</div>
+                        </div>
+                        <div className="rounded-lg p-2 text-center" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+                          <div style={{ color: 'var(--text3)' }}>Brightness</div>
+                          <div className="font-semibold" style={{ color: '#f59e0b' }}>{(analysis.auto.brightness * 100).toFixed(0)}%</div>
+                        </div>
+                        <div className="rounded-lg p-2 text-center" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+                          <div style={{ color: 'var(--text3)' }}>Saturation</div>
+                          <div className="font-semibold" style={{ color: '#f59e0b' }}>{(analysis.auto.saturation * 100).toFixed(0)}%</div>
+                        </div>
+                      </div>
+
+                      <div>
+                        <label htmlFor="bb-intensity" className="text-sm font-medium block mb-2">
+                          Intensity: <span style={{ color: '#f59e0b' }}>{intensity}%</span>
+                        </label>
+                        <input
+                          id="bb-intensity"
+                          type="range"
+                          min={0}
+                          max={200}
+                          value={intensity}
+                          onChange={e => setIntensity(parseInt(e.target.value))}
+                          className="w-full"
+                          style={{ accentColor: '#f59e0b' }}
+                        />
+                        <div className="flex justify-between text-xs mt-1" style={{ color: 'var(--text3)' }}>
+                          <span>0% (no change)</span>
+                          <span>100% (recommended)</span>
+                          <span>200% (max)</span>
+                        </div>
+                      </div>
+
+                      <label className="flex items-center gap-2 text-sm cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={usePerChannel}
+                          onChange={e => setUsePerChannel(e.target.checked)}
+                          style={{ accentColor: '#f59e0b' }}
+                        />
+                        <span style={{ color: 'var(--text2)' }}>Per-channel RGB correction</span>
+                      </label>
+
+                      <button
+                        onClick={handleAnalyze}
+                        disabled={analyzing}
+                        className="text-xs px-3 py-1 rounded-lg"
+                        style={{ color: 'var(--text3)', border: '1px solid var(--border)' }}
+                      >
+                        {analyzing ? 'Re-analyzing...' : 'Re-analyze'}
+                      </button>
+                    </>
+                  )}
+                </div>
+              )}
 
               {preset === 'custom' && (
                 <>
@@ -622,11 +782,11 @@ function BrightnessBoostTool() {
 
             <button
               onClick={handleProcess}
-              disabled={processing}
+              disabled={processing || (preset === 'auto' && !analysis)}
               className="w-full py-3 rounded-xl text-sm font-semibold text-white transition-opacity"
-              style={{ background: '#f59e0b', opacity: processing ? 0.6 : 1 }}
+              style={{ background: '#f59e0b', opacity: (processing || (preset === 'auto' && !analysis)) ? 0.6 : 1 }}
             >
-              {processing ? 'Processing...' : 'Boost Brightness'}
+              {processing ? 'Processing...' : preset === 'auto' && !analysis ? 'Analyze first' : 'Boost Brightness'}
             </button>
 
             {error && (

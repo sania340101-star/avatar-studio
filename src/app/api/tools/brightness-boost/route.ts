@@ -50,8 +50,8 @@ export async function POST(req: NextRequest) {
   }
 
   const preset = (formData.get('preset') as string) || 'medium';
-  if (!['mild', 'medium', 'aggressive', 'custom'].includes(preset)) {
-    return NextResponse.json({ error: 'preset must be mild, medium, aggressive, or custom' }, { status: 400 });
+  if (!['mild', 'medium', 'aggressive', 'custom', 'auto'].includes(preset)) {
+    return NextResponse.json({ error: 'preset must be mild, medium, aggressive, custom, or auto' }, { status: 400 });
   }
 
   const crfRaw = formData.get('crf') as string;
@@ -66,7 +66,54 @@ export async function POST(req: NextRequest) {
   let gammaValue: number | null = null;
   let blackThreshold: number | null = null;
 
-  if (preset === 'custom') {
+  if (preset === 'auto') {
+    const autoJson = formData.get('autoCoefficients') as string;
+    if (!autoJson) return NextResponse.json({ error: 'autoCoefficients required for auto preset' }, { status: 400 });
+    let auto: { gamma: number; brightness: number; saturation: number; curves: { x1: number; y1: number; x2: number; y2: number } };
+    let perChannel: { r: typeof auto; g: typeof auto; b: typeof auto } | null = null;
+    try {
+      const parsed = JSON.parse(autoJson);
+      auto = parsed.combined || parsed;
+      perChannel = parsed.perChannel || null;
+    } catch { return NextResponse.json({ error: 'Invalid autoCoefficients JSON' }, { status: 400 }); }
+
+    const intensityRaw = formData.get('intensity') as string;
+    const intensity = intensityRaw ? parseFloat(intensityRaw) / 100 : 1.0;
+    if (isNaN(intensity) || intensity < 0 || intensity > 2.0) {
+      return NextResponse.json({ error: 'intensity must be 0-200' }, { status: 400 });
+    }
+
+    const usePerChannel = formData.get('perChannel') === 'true' && perChannel;
+
+    if (usePerChannel) {
+      function scaleCurve(ch: typeof auto, int: number): string {
+        const b = ch.brightness * int;
+        const x1 = (0.50 - b * 0.20).toFixed(3);
+        const y1 = (0.50 + b * 0.10).toFixed(3);
+        const x2 = (0.70 - b * 0.05).toFixed(3);
+        const y2 = (0.70 + b * 0.22).toFixed(3);
+        return `0/0 0.06/0.06 ${x1}/${y1} ${x2}/${y2} 1/1`;
+      }
+      const rc = scaleCurve(perChannel!.r, intensity);
+      const gc = scaleCurve(perChannel!.g, intensity);
+      const bc = scaleCurve(perChannel!.b, intensity);
+      curvesFilter = `curves=r='${rc}':g='${gc}':b='${bc}'`;
+    } else {
+      const b = auto.brightness * intensity;
+      const mid1x = (0.50 - b * 0.20).toFixed(2);
+      const mid1y = (0.50 + b * 0.10).toFixed(2);
+      const mid2x = (0.70 - b * 0.05).toFixed(2);
+      const mid2y = (0.70 + b * 0.22).toFixed(2);
+      curvesFilter = `curves=master='0/0 0.06/0.06 ${mid1x}/${mid1y} ${mid2x}/${mid2y} 1/1'`;
+    }
+
+    const scaledGamma = 1.0 + (auto.gamma - 1.0) * intensity;
+    if (scaledGamma > 1.05) gammaValue = scaledGamma;
+    saturation = 1.0 + (auto.saturation - 1.0) * intensity;
+    const b = auto.brightness * intensity;
+    unsharpStrength = 0.3 + b * 0.5;
+    if (b > 0.7) vibranceIntensity = (b - 0.7) * 1.33;
+  } else if (preset === 'custom') {
     const brightnessVal = parseFloat(formData.get('brightness') as string);
     const saturationVal = parseFloat(formData.get('saturation') as string);
     const gammaRaw = formData.get('gamma') as string;
