@@ -11,21 +11,24 @@ const SAFE_FILENAME = /^[a-zA-Z0-9._-]+$/;
 
 const PRESETS = {
   mild: {
-    curves: "curves=master='0/0 0.06/0.06 0.5/0.65 1/1'",
+    curves: "curves=master='0/0 0.06/0.06 0.45/0.53 0.69/0.75 1/1'",
+    gamma: null as number | null,
     saturation: 1.0,
     unsharp: 0.2,
   },
   medium: {
-    curves: "curves=master='0/0 0.06/0.06 0.35/0.60 0.70/0.90 1/1'",
-    saturation: 1.0,
-    unsharp: 0.3,
+    curves: "curves=master='0/0 0.06/0.06 0.42/0.54 0.68/0.78 1/1'",
+    gamma: 1.15,
+    saturation: 1.02,
+    unsharp: 0.35,
   },
   aggressive: {
-    curves: "curves=master='0/0 0.06/0.06 0.30/0.60 0.65/0.92 1/1'",
-    saturation: 1.05,
+    curves: "curves=master='0/0 0.06/0.06 0.37/0.57 0.67/0.83 1/1'",
+    gamma: 1.40,
+    saturation: 1.04,
     unsharp: 0.5,
   },
-} as const;
+};
 
 export async function GET() {
   return NextResponse.json({ presets: Object.keys(PRESETS) });
@@ -88,10 +91,10 @@ export async function POST(req: NextRequest) {
     if (usePerChannel) {
       function scaleCurve(ch: typeof auto, int: number): string {
         const b = ch.brightness * int;
-        const x1 = (0.50 - b * 0.20).toFixed(3);
-        const y1 = (0.50 + b * 0.10).toFixed(3);
-        const x2 = (0.70 - b * 0.05).toFixed(3);
-        const y2 = (0.70 + b * 0.22).toFixed(3);
+        const x1 = (0.50 - b * 0.15).toFixed(3);
+        const y1 = (0.50 + b * 0.08).toFixed(3);
+        const x2 = (0.70 - b * 0.04).toFixed(3);
+        const y2 = (0.70 + b * 0.15).toFixed(3);
         return `0/0 0.06/0.06 ${x1}/${y1} ${x2}/${y2} 1/1`;
       }
       const rc = scaleCurve(perChannel!.r, intensity);
@@ -100,10 +103,10 @@ export async function POST(req: NextRequest) {
       curvesFilter = `curves=r='${rc}':g='${gc}':b='${bc}'`;
     } else {
       const b = auto.brightness * intensity;
-      const mid1x = (0.50 - b * 0.20).toFixed(2);
-      const mid1y = (0.50 + b * 0.10).toFixed(2);
-      const mid2x = (0.70 - b * 0.05).toFixed(2);
-      const mid2y = (0.70 + b * 0.22).toFixed(2);
+      const mid1x = (0.50 - b * 0.15).toFixed(2);
+      const mid1y = (0.50 + b * 0.08).toFixed(2);
+      const mid2x = (0.70 - b * 0.04).toFixed(2);
+      const mid2y = (0.70 + b * 0.15).toFixed(2);
       curvesFilter = `curves=master='0/0 0.06/0.06 ${mid1x}/${mid1y} ${mid2x}/${mid2y} 1/1'`;
     }
 
@@ -153,6 +156,7 @@ export async function POST(req: NextRequest) {
     curvesFilter = p.curves;
     saturation = p.saturation;
     unsharpStrength = p.unsharp;
+    if (p.gamma) gammaValue = p.gamma;
     vibranceIntensity = null;
   }
 
