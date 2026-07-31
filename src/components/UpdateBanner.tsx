@@ -38,7 +38,7 @@ export default function UpdateBanner() {
     <div
       style={{
         position: 'fixed',
-        bottom: 24,
+        top: 24,
         left: '50%',
         transform: 'translateX(-50%)',
         display: 'flex',

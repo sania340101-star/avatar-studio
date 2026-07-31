@@ -59,7 +59,7 @@ const PRESETS = [
   { value: 'mild', label: 'Mild', desc: 'Indoor, slight boost (+30%)' },
   { value: 'medium', label: 'Medium', desc: 'Bright indoor / mixed outdoor (+57%)' },
   { value: 'aggressive', label: 'Aggressive', desc: 'Direct sunlight / outdoor (+71%)' },
-  { value: 'auto', label: 'Auto', desc: 'Content-aware (analyze first)' },
+  { value: 'auto', label: 'Auto', desc: 'Content-aware (auto-analyze)' },
   { value: 'custom', label: 'Custom', desc: 'Manual brightness & saturation' },
 ];
 
@@ -584,7 +584,12 @@ function BrightnessBoostTool() {
                   {PRESETS.map(p => (
                     <button
                       key={p.value}
-                      onClick={() => setPreset(p.value)}
+                      onClick={() => {
+                        setPreset(p.value);
+                        if (p.value === 'auto' && !analysis && !analyzing && hasSource) {
+                          handleAnalyze();
+                        }
+                      }}
                       className="text-left rounded-lg px-3 py-2 text-sm transition-all"
                       style={{
                         background: preset === p.value ? 'rgba(245,158,11,0.15)' : 'var(--bg-card)',
@@ -602,14 +607,13 @@ function BrightnessBoostTool() {
               {preset === 'auto' && (
                 <div className="space-y-3">
                   {!analysis ? (
-                    <button
-                      onClick={handleAnalyze}
-                      disabled={analyzing}
-                      className="w-full py-2.5 rounded-lg text-sm font-medium transition-opacity"
-                      style={{ background: 'rgba(245,158,11,0.15)', color: '#f59e0b', border: '1px solid #f59e0b', opacity: analyzing ? 0.6 : 1 }}
-                    >
-                      {analyzing ? 'Analyzing...' : 'Analyze Content'}
-                    </button>
+                    <div className="flex items-center justify-center gap-2 py-3 text-sm" style={{ color: '#f59e0b' }}>
+                      <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <circle cx="12" cy="12" r="10" strokeOpacity="0.25" />
+                        <path d="M12 2a10 10 0 0 1 10 10" strokeLinecap="round" />
+                      </svg>
+                      <span>Analyzing content...</span>
+                    </div>
                   ) : (
                     <>
                       <div className="rounded-lg p-3" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
@@ -786,7 +790,7 @@ function BrightnessBoostTool() {
               className="w-full py-3 rounded-xl text-sm font-semibold text-white transition-opacity"
               style={{ background: '#f59e0b', opacity: (processing || (preset === 'auto' && !analysis)) ? 0.6 : 1 }}
             >
-              {processing ? 'Processing...' : preset === 'auto' && !analysis ? 'Analyze first' : 'Boost Brightness'}
+              {processing ? 'Processing...' : 'Boost Brightness'}
             </button>
 
             {error && (
