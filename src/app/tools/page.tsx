@@ -433,6 +433,7 @@ function BrightnessBoostTool() {
   const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
   const [intensity, setIntensity] = useState(100);
   const [usePerChannel, setUsePerChannel] = useState(false);
+  const analyzeAttempted = useRef(false);
   const hasSource = file || galleryUrl;
   const sourceName = file ? file.name : galleryName;
   const sourceSize = file ? `${(file.size / 1024 / 1024).toFixed(1)} MB` : '';
@@ -446,11 +447,13 @@ function BrightnessBoostTool() {
     setResultUrl('');
     setStats(null);
     setAnalysis(null);
+    analyzeAttempted.current = false;
     setPreviewSrc(items[0].url);
   }
 
   async function handleAnalyze() {
     if (!hasSource) return;
+    analyzeAttempted.current = true;
     setAnalyzing(true);
     setError('');
     try {
@@ -476,7 +479,7 @@ function BrightnessBoostTool() {
   const analyzeRef = useRef(handleAnalyze);
   analyzeRef.current = handleAnalyze;
   useEffect(() => {
-    if (preset === 'auto' && (file || galleryUrl) && !analysis && !analyzing) {
+    if (preset === 'auto' && (file || galleryUrl) && !analysis && !analyzing && !analyzeAttempted.current) {
       analyzeRef.current();
     }
   }, [preset, file, galleryUrl, analysis, analyzing]);
@@ -533,6 +536,7 @@ function BrightnessBoostTool() {
     setError('');
     setPreviewSrc('');
     setAnalysis(null);
+    analyzeAttempted.current = false;
   }
 
   return (
@@ -610,13 +614,23 @@ function BrightnessBoostTool() {
               {preset === 'auto' && (
                 <div className="space-y-3">
                   {!analysis ? (
-                    <div className="flex items-center justify-center gap-2 py-3 text-sm" style={{ color: '#f59e0b' }}>
-                      <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <circle cx="12" cy="12" r="10" strokeOpacity="0.25" />
-                        <path d="M12 2a10 10 0 0 1 10 10" strokeLinecap="round" />
-                      </svg>
-                      <span>Analyzing content...</span>
-                    </div>
+                    analyzing ? (
+                      <div className="flex items-center justify-center gap-2 py-3 text-sm" style={{ color: '#f59e0b' }}>
+                        <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <circle cx="12" cy="12" r="10" strokeOpacity="0.25" />
+                          <path d="M12 2a10 10 0 0 1 10 10" strokeLinecap="round" />
+                        </svg>
+                        <span>Analyzing content...</span>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => { analyzeAttempted.current = false; handleAnalyze(); }}
+                        className="w-full py-2.5 rounded-lg text-sm font-medium"
+                        style={{ background: 'rgba(245,158,11,0.15)', color: '#f59e0b', border: '1px solid #f59e0b' }}
+                      >
+                        Retry Analysis
+                      </button>
+                    )
                   ) : (
                     <>
                       <div className="rounded-lg p-3" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
