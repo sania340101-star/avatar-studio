@@ -650,16 +650,16 @@ function BrightnessBoostTool() {
                           id="bb-intensity"
                           type="range"
                           min={0}
-                          max={200}
+                          max={1000}
                           value={intensity}
                           onChange={e => setIntensity(parseInt(e.target.value))}
                           className="w-full"
                           style={{ accentColor: '#f59e0b' }}
                         />
                         <div className="flex justify-between text-xs mt-1" style={{ color: 'var(--text3)' }}>
-                          <span>0% (no change)</span>
-                          <span>100% (recommended)</span>
-                          <span>200% (max)</span>
+                          <span>0%</span>
+                          <span>100%</span>
+                          <span>1000%</span>
                         </div>
                       </div>
 

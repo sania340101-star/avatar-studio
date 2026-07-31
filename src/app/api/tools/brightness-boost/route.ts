@@ -82,8 +82,8 @@ export async function POST(req: NextRequest) {
 
     const intensityRaw = formData.get('intensity') as string;
     const intensity = intensityRaw ? parseFloat(intensityRaw) / 100 : 1.0;
-    if (isNaN(intensity) || intensity < 0 || intensity > 2.0) {
-      return NextResponse.json({ error: 'intensity must be 0-200' }, { status: 400 });
+    if (isNaN(intensity) || intensity < 0 || intensity > 10.0) {
+      return NextResponse.json({ error: 'intensity must be 0-1000' }, { status: 400 });
     }
 
     const usePerChannel = formData.get('perChannel') === 'true' && perChannel;
