@@ -30,12 +30,18 @@ interface AutoCoefficients {
 }
 
 function analyzeChannel(histogram: number[]): ChannelStats {
+  let lo = BG_LOW;
+  let hi = BG_HIGH;
+
   let total = 0;
-  const filtered = new Array(256).fill(0);
-  for (let i = BG_LOW; i <= BG_HIGH; i++) {
-    filtered[i] = histogram[i];
-    total += histogram[i];
+  for (let i = lo; i <= hi; i++) total += histogram[i];
+
+  if (total === 0) {
+    lo = 0;
+    hi = 255;
+    for (let i = lo; i <= hi; i++) total += histogram[i];
   }
+
   if (total === 0) {
     return { histogram, median: 128, p25: 64, p75: 192, darkRatio: 0, midRatio: 1, brightRatio: 0 };
   }
@@ -44,16 +50,16 @@ function analyzeChannel(histogram: number[]): ChannelStats {
   let median = 128, p25 = 64, p75 = 192;
   let darkCount = 0, midCount = 0, brightCount = 0;
 
-  for (let i = BG_LOW; i <= BG_HIGH; i++) {
-    cumulative += filtered[i];
+  for (let i = lo; i <= hi; i++) {
+    cumulative += histogram[i];
     const ratio = cumulative / total;
     if (ratio >= 0.25 && p25 === 64) p25 = i;
     if (ratio >= 0.50 && median === 128) median = i;
     if (ratio >= 0.75 && p75 === 192) p75 = i;
 
-    if (i < 80) darkCount += filtered[i];
-    else if (i <= 180) midCount += filtered[i];
-    else brightCount += filtered[i];
+    if (i < 80) darkCount += histogram[i];
+    else if (i <= 180) midCount += histogram[i];
+    else brightCount += histogram[i];
   }
 
   return {
@@ -180,7 +186,14 @@ export async function POST(req: NextRequest) {
     const binSize = 256 / histogramBins;
     function downsample(hist: number[]): number[] {
       const out = new Array(histogramBins).fill(0);
-      for (let i = BG_LOW; i <= BG_HIGH; i++) out[Math.min(histogramBins - 1, Math.floor(i / binSize))] += hist[i];
+      let sum = 0;
+      for (let i = BG_LOW; i <= BG_HIGH; i++) {
+        out[Math.min(histogramBins - 1, Math.floor(i / binSize))] += hist[i];
+        sum += hist[i];
+      }
+      if (sum === 0) {
+        for (let i = 0; i <= 255; i++) out[Math.min(histogramBins - 1, Math.floor(i / binSize))] += hist[i];
+      }
       return out;
     }
 
