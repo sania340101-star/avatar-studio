@@ -77,7 +77,7 @@ function computeAutoCoefficients(r: ChannelStats, g: ChannelStats, b: ChannelSta
   perChannel: { r: AutoCoefficients; g: AutoCoefficients; b: AutoCoefficients };
   combined: AutoCoefficients;
 } {
-  const TARGET = 140;
+  const TARGET = 128;
   const NORM_TARGET = TARGET / 255;
   const LN_TARGET = Math.log(NORM_TARGET);
 
