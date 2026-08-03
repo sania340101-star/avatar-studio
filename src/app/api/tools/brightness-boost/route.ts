@@ -91,10 +91,10 @@ export async function POST(req: NextRequest) {
     if (usePerChannel) {
       function scaleCurve(ch: typeof auto, int: number): string {
         const b = ch.brightness * int;
-        const x1 = (0.50 - b * 0.15).toFixed(3);
-        const y1 = (0.50 + b * 0.08).toFixed(3);
-        const x2 = (0.70 - b * 0.04).toFixed(3);
-        const y2 = (0.70 + b * 0.15).toFixed(3);
+        const x1 = (0.50 - b * 0.18).toFixed(3);
+        const y1 = (0.50 + b * 0.12).toFixed(3);
+        const x2 = (0.70 - b * 0.05).toFixed(3);
+        const y2 = (0.70 + b * 0.18).toFixed(3);
         return `0/0 0.06/0.06 ${x1}/${y1} ${x2}/${y2} 1/1`;
       }
       const rc = scaleCurve(perChannel!.r, intensity);
@@ -103,10 +103,10 @@ export async function POST(req: NextRequest) {
       curvesFilter = `curves=r='${rc}':g='${gc}':b='${bc}'`;
     } else {
       const b = auto.brightness * intensity;
-      const mid1x = (0.50 - b * 0.15).toFixed(2);
-      const mid1y = (0.50 + b * 0.08).toFixed(2);
-      const mid2x = (0.70 - b * 0.04).toFixed(2);
-      const mid2y = (0.70 + b * 0.15).toFixed(2);
+      const mid1x = (0.50 - b * 0.18).toFixed(2);
+      const mid1y = (0.50 + b * 0.12).toFixed(2);
+      const mid2x = (0.70 - b * 0.05).toFixed(2);
+      const mid2y = (0.70 + b * 0.18).toFixed(2);
       curvesFilter = `curves=master='0/0 0.06/0.06 ${mid1x}/${mid1y} ${mid2x}/${mid2y} 1/1'`;
     }
 

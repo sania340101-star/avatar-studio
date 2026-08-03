@@ -77,17 +77,27 @@ function computeAutoCoefficients(r: ChannelStats, g: ChannelStats, b: ChannelSta
   perChannel: { r: AutoCoefficients; g: AutoCoefficients; b: AutoCoefficients };
   combined: AutoCoefficients;
 } {
+  const TARGET = 140;
+  const NORM_TARGET = TARGET / 255;
+  const LN_TARGET = Math.log(NORM_TARGET);
+
+  function gammaForMedian(median: number): number {
+    const norm = Math.max(median, 1) / 255;
+    if (norm >= NORM_TARGET) return 1.0;
+    return Math.min(5.0, Math.log(norm) / LN_TARGET);
+  }
+
   function forChannel(ch: ChannelStats): AutoCoefficients {
-    const gamma = Math.min(2.0, 1.0 + Math.max(0, ch.darkRatio - 0.45) * 1.5);
-    const brightness = Math.max(0, Math.min(1, (120 - ch.median) / 160));
-    const saturation = Math.min(1.05, 1.0 + brightness * 0.05);
+    const gamma = gammaForMedian(ch.median);
+    const brightness = Math.max(0, Math.min(1, (TARGET - ch.median) / TARGET));
+    const saturation = Math.min(1.08, 1.0 + brightness * 0.08);
 
-    const x1 = +(0.50 - brightness * 0.15).toFixed(3);
-    const y1 = +(0.50 + brightness * 0.08).toFixed(3);
-    const x2 = +(0.70 - brightness * 0.04).toFixed(3);
-    const y2 = +(0.70 + brightness * 0.15).toFixed(3);
+    const x1 = +(0.50 - brightness * 0.18).toFixed(3);
+    const y1 = +(0.50 + brightness * 0.12).toFixed(3);
+    const x2 = +(0.70 - brightness * 0.05).toFixed(3);
+    const y2 = +(0.70 + brightness * 0.18).toFixed(3);
 
-    return { gamma, brightness, saturation, curves: { x1, y1, x2, y2 } };
+    return { gamma: +gamma.toFixed(3), brightness: +brightness.toFixed(3), saturation: +saturation.toFixed(3), curves: { x1, y1, x2, y2 } };
   }
 
   const rc = forChannel(r);
@@ -95,10 +105,9 @@ function computeAutoCoefficients(r: ChannelStats, g: ChannelStats, b: ChannelSta
   const bc = forChannel(b);
 
   const avgMedian = (r.median + g.median + b.median) / 3;
-  const avgDarkRatio = (r.darkRatio + g.darkRatio + b.darkRatio) / 3;
-  const combinedBrightness = Math.max(0, Math.min(1, (120 - avgMedian) / 160));
-  const combinedGamma = Math.min(2.0, 1.0 + Math.max(0, avgDarkRatio - 0.45) * 1.5);
-  const combinedSaturation = Math.min(1.05, 1.0 + combinedBrightness * 0.05);
+  const combinedGamma = gammaForMedian(avgMedian);
+  const combinedBrightness = Math.max(0, Math.min(1, (TARGET - avgMedian) / TARGET));
+  const combinedSaturation = Math.min(1.08, 1.0 + combinedBrightness * 0.08);
 
   return {
     perChannel: { r: rc, g: gc, b: bc },
@@ -107,10 +116,10 @@ function computeAutoCoefficients(r: ChannelStats, g: ChannelStats, b: ChannelSta
       brightness: +combinedBrightness.toFixed(3),
       saturation: +combinedSaturation.toFixed(3),
       curves: {
-        x1: +(0.50 - combinedBrightness * 0.15).toFixed(3),
-        y1: +(0.50 + combinedBrightness * 0.08).toFixed(3),
-        x2: +(0.70 - combinedBrightness * 0.04).toFixed(3),
-        y2: +(0.70 + combinedBrightness * 0.15).toFixed(3),
+        x1: +(0.50 - combinedBrightness * 0.18).toFixed(3),
+        y1: +(0.50 + combinedBrightness * 0.12).toFixed(3),
+        x2: +(0.70 - combinedBrightness * 0.05).toFixed(3),
+        y2: +(0.70 + combinedBrightness * 0.18).toFixed(3),
       },
     },
   };
