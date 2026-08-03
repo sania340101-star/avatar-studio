@@ -148,7 +148,7 @@ export async function POST(req: NextRequest) {
       writeFileSync(inputPath, buffer);
     }
 
-    const probeCmd = `ffprobe -v error -select_streams v:0 -show_entries stream=nb_frames,r_frame_rate,duration -show_entries format=duration -of json "${inputPath}"`;
+    const probeCmd = `ffprobe -v error -select_streams v:0 -show_entries stream=nb_frames,r_frame_rate,duration,width,height -show_entries format=duration -of json "${inputPath}"`;
     const probeRaw = execSync(probeCmd, { timeout: 15000 }).toString();
     const probeData = JSON.parse(probeRaw);
     const stream = probeData.streams?.[0];
@@ -157,22 +157,51 @@ export async function POST(req: NextRequest) {
     const [num, den] = (stream.r_frame_rate || '30/1').split('/');
     const fps = parseInt(num) / (parseInt(den) || 1);
     const duration = parseFloat(stream.duration) || parseFloat(probeData.format?.duration) || 0;
+    const srcWidth = parseInt(stream.width || '0');
+    const srcHeight = parseInt(stream.height || '0');
+    const thumbHeight = srcWidth > 0 ? Math.round(srcHeight * THUMB_WIDTH / srcWidth) : 180;
     const parsedFrames = parseInt(stream.nb_frames);
     const totalFrames = (!isNaN(parsedFrames) && parsedFrames > 0) ? parsedFrames : Math.max(1, Math.round(fps * duration));
-    const step = Math.max(1, Math.floor(totalFrames / SAMPLE_FRAMES));
-    console.log(`[analyze] probe: fps=${fps} duration=${duration} nb_frames=${stream.nb_frames} totalFrames=${totalFrames} step=${step}`);
+    const offset = Math.max(1, Math.floor(totalFrames * 0.1));
+    const usableFrames = totalFrames - offset;
+    const step = Math.max(1, Math.floor(usableFrames / SAMPLE_FRAMES));
+    console.log(`[analyze] probe: fps=${fps} duration=${duration} nb_frames=${stream.nb_frames} totalFrames=${totalFrames} offset=${offset} step=${step} thumb=${THUMB_WIDTH}x${thumbHeight}`);
 
-    const ffmpegCmd = `ffmpeg -v error -i "${inputPath}" -vf "select='not(mod(n\\,${step}))',scale=${THUMB_WIDTH}:-1" -frames:v ${SAMPLE_FRAMES} -f rawvideo -pix_fmt rgb24 pipe:1`;
+    const ffmpegCmd = `ffmpeg -v error -i "${inputPath}" -vf "select='gte(n\\,${offset})*not(mod(n-${offset}\\,${step}))',scale=${THUMB_WIDTH}:-1" -frames:v ${SAMPLE_FRAMES} -f rawvideo -pix_fmt rgb24 pipe:1`;
     const rawBuffer = execSync(ffmpegCmd, { timeout: 60000, maxBuffer: 50 * 1024 * 1024 });
 
     const rHist = new Array(256).fill(0);
     const gHist = new Array(256).fill(0);
     const bHist = new Array(256).fill(0);
 
-    for (let i = 0; i < rawBuffer.length; i += 3) {
-      rHist[rawBuffer[i]]++;
-      gHist[rawBuffer[i + 1]]++;
-      bHist[rawBuffer[i + 2]]++;
+    const frameSize = THUMB_WIDTH * thumbHeight * 3;
+    const actualFrames = frameSize > 0 ? Math.floor(rawBuffer.length / frameSize) : 0;
+    let validFrames = 0;
+
+    for (let f = 0; f < actualFrames; f++) {
+      const start = f * frameSize;
+      const end = Math.min(start + frameSize, rawBuffer.length);
+      let pixSum = 0;
+      const pixCount = (end - start) / 3;
+      for (let i = start; i < end; i += 3) {
+        pixSum += rawBuffer[i] + rawBuffer[i + 1] + rawBuffer[i + 2];
+      }
+      if (pixSum / (pixCount * 3) < 10) continue;
+      validFrames++;
+      for (let i = start; i < end; i += 3) {
+        rHist[rawBuffer[i]]++;
+        gHist[rawBuffer[i + 1]]++;
+        bHist[rawBuffer[i + 2]]++;
+      }
+    }
+
+    if (validFrames === 0) {
+      for (let i = 0; i < rawBuffer.length; i += 3) {
+        rHist[rawBuffer[i]]++;
+        gHist[rawBuffer[i + 1]]++;
+        bHist[rawBuffer[i + 2]]++;
+      }
+      validFrames = actualFrames || 1;
     }
 
     const totalPixels = rawBuffer.length / 3;
@@ -201,12 +230,12 @@ export async function POST(req: NextRequest) {
     const rDown = downsample(rHist);
     const gDown = downsample(gHist);
     const bDown = downsample(bHist);
-    console.log(`[analyze] pixels=${totalPixels} frames=${Math.min(SAMPLE_FRAMES, Math.ceil(totalFrames / step))} rawBuf=${rawBuffer.length} rSum=${rDown.reduce((a,b)=>a+b,0)} gSum=${gDown.reduce((a,b)=>a+b,0)} bSum=${bDown.reduce((a,b)=>a+b,0)} rMedian=${rStats.median} gMedian=${gStats.median} bMedian=${bStats.median}`);
+    console.log(`[analyze] pixels=${totalPixels} frames=${actualFrames} valid=${validFrames} rawBuf=${rawBuffer.length} rSum=${rDown.reduce((a,b)=>a+b,0)} gSum=${gDown.reduce((a,b)=>a+b,0)} bSum=${bDown.reduce((a,b)=>a+b,0)} rMedian=${rStats.median} gMedian=${gStats.median} bMedian=${bStats.median}`);
 
     return NextResponse.json({
       ok: true,
       totalPixels,
-      sampledFrames: Math.min(SAMPLE_FRAMES, Math.ceil(totalFrames / step)),
+      sampledFrames: validFrames,
       channels: {
         r: { ...rStats, histogram: rDown },
         g: { ...gStats, histogram: gDown },

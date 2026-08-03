@@ -194,7 +194,9 @@ export async function POST(req: NextRequest) {
     const filterParts = [curvesFilter];
     if (gammaValue !== null) {
       filterParts.push(`eq=gamma=${gammaValue.toFixed(2)}`);
-      const thresh = (blackThreshold ?? Math.pow(0.04, 1 / gammaValue)).toFixed(3);
+      const baseThresh = Math.pow(0.04, 1 / gammaValue);
+      const gammaBoost = gammaValue > 2 ? 1 + 0.15 * (gammaValue - 2) : 1;
+      const thresh = (blackThreshold ?? baseThresh * gammaBoost).toFixed(3);
       filterParts.push(`colorlevels=rimin=${thresh}:gimin=${thresh}:bimin=${thresh}`);
     }
     filterParts.push(`eq=saturation=${saturation.toFixed(2)}`);
