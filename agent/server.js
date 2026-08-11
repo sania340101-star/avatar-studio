@@ -1162,8 +1162,19 @@ const server = http.createServer(async (req, res) => {
       console.log(`[agent] ${type} ${action} started (${id}), model: ${body.model || 'auto'}, refs: ${imageFiles.length}, media: ${JSON.stringify(Object.keys(falMediaUrls))}, claude: ${claudeModel}`);
 
       const maxTurns = 15;
-      result = await callClaude(claudeToken, mcpConfig, systemPrompt, userPrompt, tools, maxTurns, claudeModel);
-      console.log(`[agent] ${type} ${action} complete (${id}), raw keys: ${Object.keys(result).join(',')}`);
+      const maxRetries = isPrepare ? 3 : 1;
+      for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        result = await callClaude(claudeToken, mcpConfig, systemPrompt, userPrompt, tools, maxTurns, claudeModel);
+        console.log(`[agent] ${type} ${action} complete (${id}), raw keys: ${Object.keys(result).join(',')}, attempt: ${attempt}/${maxRetries}`);
+        if (!result.raw) break;
+        console.warn(`[agent] ${action} returned raw text (attempt ${attempt}/${maxRetries}), text: ${(result.text || '').slice(0, 300)}`);
+        if (attempt < maxRetries) {
+          console.log(`[agent] retrying ${action} (${id})...`);
+        }
+      }
+      if (result.raw) {
+        throw new Error(`Agent returned text instead of JSON after ${maxRetries} attempt(s). Raw: ${(result.text || '').slice(0, 200)}`);
+      }
 
       if (isGenerate && type === 'image') {
         result = normalizeGenerateResult(result);
