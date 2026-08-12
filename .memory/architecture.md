@@ -1,3 +1,11 @@
+## 2026-07-15: PoseMatrix preset & prompt improvements
+
+- `src/lib/pose-preset-defaults.ts` — all 8 presets restructured with explicit Constraints section: eye contact, head stability, frame containment, hand/finger micro-movements
+- `src/lib/jobs.ts` — `LOOP_MICRO_MOVEMENTS[]` array (8 entries): random micro-movement descriptions picked for loop clips (same pose→same pose). Each loop clip gets a different random instruction for variety.
+- `src/lib/jobs.ts` — `createBatchFromMatrix()` prompt assembly: loop clips get random micro-movement suffix, transition clips get frame containment reminder
+- `src/lib/storage.ts` — `seedPosePresets()` now updates existing presets by label match (was seed-only-when-empty). Also inserts new defaults if missing.
+- Talk presets: hands start joined, separate for small contained gestures in front of torso, return to rest between gestures
+
 ## 2026-07-15: Unified Gallery Browser for all reference pickers
 
 - `src/components/GalleryBrowser.tsx` (NEW) — reusable modal: fetches from /api/generations, project filter, sort, grid with image/video thumbnails, multi-select with checkmarks, single-select (click-to-pick), upload from computer inside modal

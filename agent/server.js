@@ -54,6 +54,7 @@ const PREPARE_TOOLS = [
 ].join(',');
 
 const GENERATE_TOOLS = [
+  'Read',
   'mcp__fal-ai__run_model',
   'mcp__fal-ai__submit_job',
   'mcp__fal-ai__check_job',
@@ -163,6 +164,9 @@ Strategy does NOT override explicit model selection by the user. Always ensure t
 
 # Reference images
 The user may upload reference images. These will be sent to the fal.ai model as ordered inputs.
+- CRITICAL: If reference image FILE PATHS are provided, you MUST use the Read tool to VIEW each image BEFORE making any decisions. This lets you see the actual content of each image.
+- The numbering (image 1, image 2, etc.) matches exactly what the user sees in the UI. When the user says "first image" or "image 1", they mean reference image 1. NEVER mix up the order.
+- After viewing images, describe what you see in each one to confirm you understand which is which.
 - In your prompt, refer to them as "the first reference image", "the second reference image", etc.
 - Your prompt MUST describe what to do with each reference
 - If the user says "like the reference" or "similar to image", your prompt must explicitly reference that image
@@ -187,8 +191,9 @@ const IMAGE_GENERATE_SYSTEM = `You are an image generation agent for Avatar Stud
 Your job: generate an image using the given prompt and model via fal-ai MCP tools. The user has already reviewed and approved the prompt.
 
 Steps:
-1. Use get_model_schema to check the exact parameter names for image inputs (common names: image_url, image, input_image, reference_image, ip_adapter_image). Match the schema exactly.
-2. Call run_model with the model, prompt, and parameters. If reference image URLs are provided in the user message (fal.ai CDN URLs starting with https://), pass them as the correct image parameter from the schema. These URLs are ALREADY uploaded — use them directly.
+1. If reference image FILE PATHS are provided in the user message, use the Read tool to VIEW each image first. This helps you understand which image is which and match the user's intent correctly. Image numbering matches the UI order.
+2. Use get_model_schema to check the exact parameter names for image inputs (common names: image_url, image, input_image, reference_image, ip_adapter_image). Match the schema exactly.
+3. Call run_model with the model, prompt, and parameters. If reference image URLs are provided in the user message (fal.ai CDN URLs starting with https://), pass them as the correct image parameter from the schema. These URLs are ALREADY uploaded — use them directly.
 4. Extract ALL image URLs from the fal.ai response. Models return results in different formats:
    - { images: [{ url: "..." }] } — most common (FLUX, SDXL)
    - { image: { url: "..." } } — single image models (Kolors, some edit models)
@@ -835,8 +840,8 @@ function buildPrompt(body, imageFiles, falUploadedUrls, falMediaUrls) {
     const refList = references.map((url, i) => `  ${i + 1}. ${url}`).join('\n');
     parts.push(`Reference images (${references.length} total, ordered):\n${refList}\nThe model will receive these images as inputs.`);
   }
-  if (imageFiles?.length && !falUploadedUrls?.length) {
-    parts.push(`\nIMPORTANT: Use the Read tool to view each reference image file below. Analyze what you see and use it to craft an accurate prompt.`);
+  if (imageFiles?.length) {
+    parts.push(`\nIMPORTANT: Use the Read tool to VIEW each reference image file below BEFORE making any decisions. You MUST visually inspect every image to understand its content. The numbering (1, 2, 3...) matches exactly what the user sees in the UI — when the user says "first image" or "image 1", they mean reference image 1 below.`);
     imageFiles.forEach((f, i) => {
       parts.push(`Reference image ${i + 1} file: ${f}`);
     });

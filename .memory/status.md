@@ -1,3 +1,51 @@
+## 2026-08-03: Brightness Boost — histogram + auto algorithm rewrite (v1.23.0-v1.24.1)
+
+Histogram fixes:
+- Frame sampling skips first 10% of video (avoids black intro/fade-in)
+- Per-frame black detection: frames with avg brightness < 10 excluded from histogram
+- ffmpeg select filter: `gte(n,offset)*not(mod(n-offset,step))` instead of `not(mod(n,step))`
+
+Auto algorithm rewrite:
+- Gamma: was capped at 2.0 via darkRatio heuristic. Now computed mathematically: `gamma = ln(median/255) / ln(target/255)` with target=128
+- For median=40 → gamma=2.7, median=80 → gamma=1.7, median=128 → gamma=1.0
+- Brightness: target raised from 120 to 128, formula `(128 - median) / 128`
+- Curve coefficients increased: x1 0.15→0.18, y1 0.08→0.12, y2 0.15→0.18
+- Saturation cap raised 1.05→1.08
+
+Black threshold scaling (brightness-boost):
+- When gamma > 2.0, threshold scales +15% per gamma unit above 2 
+- Formula: `baseThresh * (1 + 0.15 * (gamma - 2))` — gamma=3.4 gives ~44% vs old ~36%
+
+Files: brightness-analyze/route.ts, brightness-boost/route.ts
+
+## 2026-07-31: Content-Aware Brightness Analysis (v1.21.0)
+- New endpoint: POST /api/tools/brightness-analyze — extracts 12 sample frames, builds RGB histograms, auto-selects coefficients
+- New preset: "auto" in brightness-boost — accepts pre-computed coefficients + intensity slider (0-200%)
+- Per-channel RGB curves: separate R/G/B correction via FFmpeg curves=r='...':g='...':b='...'
+- Algorithm: darkRatio → gamma (1.0-2.5), median → curves brightness, brightness → saturation compensation
+- UI: Analyze button → histograms + auto values → intensity slider → Apply
+- Old presets (mild/medium/aggressive/custom) unchanged
+- Files: brightness-analyze/route.ts (new), brightness-boost/route.ts (modified), tools/page.tsx (modified)
+
+## 2026-07-15: Pose Matrix manual clip instruction fix (v1.19.1)
+
+- Bug: addClip() had prompt hardcoded to '' — manual clip addition never generated "Smooth transition from X to Y"
+- addAllTransitions() worked correctly (had prompt generation), only manual path was broken
+- Fix: addClip() now looks up pose names and generates transition instruction
+- Also fixed save() race condition — added version counter to prevent stale PATCH responses from overwriting local state
+- Deployed to D30
+
+## 2026-07-15: PoseMatrix preset improvements
+
+- All 8 presets updated: eye contact with camera, head stability, frame containment, hand/finger micro-movements
+- Full-body Idle (M/F): added explicit constraints section, wrists/fingers must not freeze, restrained movements
+- Full-body Talk (M/F): hands start joined in front, separate for small contained gestures, return to rest between gestures
+- Bust Idle/Talk (M/F): eye contact constraint, head forward-facing with small natural movements
+- Loop clips (same pose→same pose): pool of 8 random micro-movement descriptions for variety
+- Transitions: frame containment in auto-generated instruction
+- seedPosePresets(): now auto-updates existing default presets by label match (not just first seed)
+- Deployed to D30
+
 ## 2026-07-15: Unified Gallery Browser for references (v1.19.0)
 
 - GalleryBrowser component: reusable modal — project filter, sort, multi/single select, upload from computer
