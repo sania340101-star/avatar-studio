@@ -43,6 +43,7 @@ function PoseMatrixRunner({ matrix, projectId, poseImages, setPoseImages, batchI
   savedRef: React.MutableRefObject<string | null>;
   onComplete?: () => void;
 }) {
+  const { user } = useProject();
   const allPosesHaveImages = matrix.poses.every(p => poseImages[p.id]);
   const poseMap = new Map(matrix.poses.map(p => [p.id, p]));
   const completedJobs = batchJobs.filter(j => j.status === 'complete');
