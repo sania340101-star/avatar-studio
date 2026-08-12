@@ -11,7 +11,7 @@ Constraints:
 - Movements are restrained and subtle — no wide or exaggerated motions
 
 Continuous micro-movements for natural life:
-- Slow weight shifting between legs, driven from hips with subtle secondary motion in torso and shoulders
+- Natural weight shifting between legs at normal human pace, driven from hips with subtle secondary motion in torso and shoulders
 - Natural irregular breathing visible in chest and upper torso
 - Soft blinking at uneven intervals
 - Subtle side-to-side body sway with smooth balance corrections
