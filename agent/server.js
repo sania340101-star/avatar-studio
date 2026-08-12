@@ -838,8 +838,11 @@ function buildPrompt(body, imageFiles, falUploadedUrls, falMediaUrls) {
   const references = [...(body.references || []), ...(body.referenceImages || [])];
   const parts = [];
   if (falUploadedUrls?.length) {
-    const refList = falUploadedUrls.map((url, i) => `  ${i + 1}. ${url}`).join('\n');
-    parts.push(`Reference images already uploaded to fal.ai CDN (${falUploadedUrls.length} total, ordered):\n${refList}\nThese URLs are ready to use — pass them directly to the model as image parameters.`);
+    const refList = falUploadedUrls.map((url, i) => {
+      if (i === 0) return `  ${i + 1}. [PRIMARY — use as image_url] ${url}`;
+      return `  ${i + 1}. [SUPPLEMENTARY — describe in prompt only] ${url}`;
+    }).join('\n');
+    parts.push(`Reference images already uploaded to fal.ai CDN (${falUploadedUrls.length} total, ordered):\n${refList}\nCRITICAL: Reference 1 marked [PRIMARY] MUST be passed as image_url parameter. Other references are supplementary — do NOT pass them as image_url, only describe their relevant aspects in the text prompt.`);
   } else if (references?.length) {
     const refList = references.map((url, i) => `  ${i + 1}. ${url}`).join('\n');
     parts.push(`Reference images (${references.length} total, ordered):\n${refList}\nThe model will receive these images as inputs.`);
