@@ -132,7 +132,7 @@ function PoseMatrixRunner({ matrix, projectId, poseImages, setPoseImages, batchI
       const res = await fetch(`/api/pose-matrix/${matrix.id}/generate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ projectId, poseImages }),
+        body: JSON.stringify({ projectId, poseImages, systemPrompt: user?.systemPrompt || DEFAULT_SYSTEM_PROMPT }),
       });
       const data = await res.json();
       if (data.error) throw new Error(data.error);

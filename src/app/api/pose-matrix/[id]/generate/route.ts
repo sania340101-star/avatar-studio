@@ -30,7 +30,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   }
 
   try {
-    const { batchId, jobs } = createBatchFromMatrix(matrix, userId, projectId, falKey, poseImages);
+    const { batchId, jobs } = createBatchFromMatrix(matrix, userId, projectId, falKey, poseImages, body.systemPrompt);
     updatePoseMatrix(id, { lastBatchId: batchId });
     return NextResponse.json({ batchId, jobs });
   } catch (e: unknown) {

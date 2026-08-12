@@ -224,6 +224,7 @@ export function createBatchFromMatrix(
   projectId: string,
   falKey: string,
   poseImages: Record<string, string>,
+  systemPrompt?: string,
 ): { batchId: string; jobs: JobData[] } {
   const budget = checkBudget(userId);
   if (!budget.allowed) {
@@ -282,6 +283,7 @@ export function createBatchFromMatrix(
       _startPose: startPose.name,
       _endPose: endPose.name,
     };
+    if (systemPrompt) input.systemPrompt = systemPrompt;
 
     const job: JobData = {
       id: `job-${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${i}`,
