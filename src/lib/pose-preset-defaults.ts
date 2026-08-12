@@ -33,7 +33,7 @@ Constraints:
 - Movements are restrained and graceful — no wide or exaggerated motions
 
 Continuous micro-movements for natural life:
-- Graceful slow weight shifting between legs, creating gentle hip movement with natural follow-through in torso
+- Graceful weight shifting between legs at normal human pace, creating gentle hip movement with natural follow-through in torso
 - Soft natural breathing visible as gentle rise and fall of chest and shoulders
 - Delicate blinking at natural uneven intervals
 - Subtle fluid body sway, smooth and balanced

@@ -1,3 +1,15 @@
+## 2026-08-12: Reference ordering + background enforcement fixes
+
+Two bugs fixed in agent/server.js prompt engineering:
+
+1. **White background**: Claude read reference images via Read tool and inherited their background color into the fal.ai prompt, ignoring the system prompt's "Background: pure black (#000000)" requirement. Fix: Added CRITICAL rule in both IMAGE_PREPARE_SYSTEM and IMAGE_GENERATE_SYSTEM: background from User Style Instructions is mandatory, never inherit from references.
+
+2. **Wrong reference as base**: Claude chose which reference to use as image_url based on content analysis, often picking ref 2 instead of ref 1. Fix: CDN URLs now explicitly tagged `[PRIMARY — use as image_url]` for ref 1 and `[SUPPLEMENTARY — describe in prompt only]` for others. Also added CRITICAL ordering rules in system prompts and buildPrompt instruction.
+
+3. **Read tool always active**: Previous commit (73fc738) changed buildPrompt to always include Read tool instruction even when fal CDN URLs available. This is intentional (Claude needs to see image content) but required the above guardrails.
+
+Commits: 7e692d6, eadafe1. Deployed to D30, agent restarted.
+
 ## 2026-08-03: Brightness Boost — histogram + auto algorithm rewrite (v1.23.0-v1.24.1)
 
 Histogram fixes:

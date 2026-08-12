@@ -363,6 +363,8 @@ Steps:
 CRITICAL RULES:
 - Reference files are PRE-UPLOADED to fal.ai CDN. The URLs in the user message are ready to use. Do NOT attempt to upload, download, or re-process them.
 - Do NOT use Bash, shell commands, curl, or any file operations. You only have MCP tools.
+- If the model schema supports negative_prompt, ALWAYS include: "slow motion, frozen, static, robotic, sluggish, unnatural speed, time lapse, stop motion, mannequin, wax figure, puppet"
+- If the model schema supports cfg_scale (or guidance_scale), use a value between 0.3-0.5 for natural human motion (lower = more dynamic movement).
 
 Return ONLY a JSON object:
 {

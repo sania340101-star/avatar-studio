@@ -8,14 +8,14 @@ import { JobData, TemplateSlot, PoseMatrix, GenerationCost } from '@/lib/types';
 const AGENT_URL = process.env.AGENT_URL || 'http://172.18.16.24:3391';
 
 const LOOP_MICRO_MOVEMENTS = [
-  'Subtle weight shift from one leg to the other in slow motion. Torso follows slightly. Shoulders adjust lightly. Arms stay in position. Hands and fingers make small natural relaxation movements.',
-  'Very small side-to-side torso sway, slow and continuous. Shoulders follow the torso lightly. Feet stay planted. Hands shift grip subtly — small finger repositioning.',
-  'One slow inhale visible in upper torso. Slight shoulder rise and settle. Subtle hand micro-movement — fingers adjust position lightly. Otherwise minimal motion.',
-  'Gentle postural adjustment — spine straightens slightly, shoulders settle back smoothly. Small wrist rotation or finger repositioning. Movement is subtle and natural.',
-  'Slow torso rotation left then right within a very small range. Shoulders follow naturally. Hands make a small grip change — fingers re-interlock or shift position.',
-  'Micro weight transfer to opposite leg. Hips shift subtly. Upper body follows with minimal delay. Hands and wrists make small natural adjustments.',
-  'Subtle shoulder roll — one shoulder lifts slightly and settles. Torso follows with minimal sway. Fingers make a small relaxation movement.',
-  'Slow continuous breathing motion visible in chest. Small balance adjustment in legs. Hands shift slightly — one finger extends and returns. Natural and subtle.',
+  'Natural weight shift from one leg to the other at normal human speed. Torso follows naturally. Shoulders adjust. Arms stay in position. Hands and fingers make small relaxation movements. Normal-speed blinking every 3-5 seconds.',
+  'Small side-to-side torso sway at realistic pace. Shoulders follow the torso naturally. Feet stay planted. Hands shift grip — small finger repositioning. Regular blinking and natural facial micro-expressions.',
+  'Visible breathing at normal human rhythm — chest rises and falls naturally. Slight shoulder movement with each breath. Subtle hand micro-movement — fingers adjust position. Normal blinking pace.',
+  'Gentle postural adjustment at natural speed — spine straightens, shoulders settle back. Small wrist rotation or finger repositioning. Regular blinking. Lifelike and dynamic, not robotic.',
+  'Small torso rotation left then right at natural human pace. Shoulders follow naturally. Hands make a small grip change — fingers re-interlock or shift. Eyes blink normally every few seconds.',
+  'Weight transfer to opposite leg at realistic speed. Hips shift. Upper body follows with natural timing. Hands and wrists make small adjustments. Normal breathing visible in chest.',
+  'Natural shoulder roll — one shoulder lifts and settles at normal speed. Torso follows with subtle sway. Fingers make a relaxation movement. Regular blinking and breathing.',
+  'Continuous breathing motion visible in chest at natural rhythm. Small balance adjustment in legs. Hands shift slightly — one finger extends and returns. Lifelike and dynamic.',
 ];
 const SERVICE_KEY = process.env.INTERNAL_SERVICE_KEY || '';
 const DATA_DIR = process.env.DATA_DIR || join(process.cwd(), 'data');
@@ -256,16 +256,16 @@ export function createBatchFromMatrix(
     } else if (globalPrompt) {
       if (isLoop) {
         const micro = LOOP_MICRO_MOVEMENTS[Math.floor(Math.random() * LOOP_MICRO_MOVEMENTS.length)];
-        instruction = `${globalPrompt}\n\nThis is a loop clip (same pose hold): ${startPose.name}. The pose does not change, but the person must not be frozen — add subtle life:\n${micro}`;
+        instruction = `${globalPrompt}\n\nThis is a loop clip (same pose hold): ${startPose.name}. The pose does not change, but the person must not be frozen — add realistic human life at normal speed:\n${micro}\n\nCRITICAL: Movement speed must match real human pace — normal breathing rate, natural blinking every 3-5 seconds, realistic weight shifts. NOT slow motion. NOT frozen. The person should look alive and present, as if filmed on a real camera.`;
       } else {
-        instruction = `${globalPrompt}\n\nThis is a transition clip: ${startPose.name} → ${endPose.name}. Generate natural, contained movement for this pose transition. Keep all body parts within the frame.`;
+        instruction = `${globalPrompt}\n\nThis is a transition clip: ${startPose.name} → ${endPose.name}. Generate natural, contained movement for this pose transition at realistic human speed. Keep all body parts within the frame.\n\nCRITICAL: Movement speed must match real human pace — normal breathing, natural blinking every 3-5 seconds. NOT slow motion. The person should look alive and present, as if filmed on a real camera.`;
       }
     } else {
       if (isLoop) {
         const micro = LOOP_MICRO_MOVEMENTS[Math.floor(Math.random() * LOOP_MICRO_MOVEMENTS.length)];
-        instruction = `Realistic avatar holding pose: ${startPose.name}. Solid black background. Static camera. Eyes maintain camera contact. Head stays mostly forward-facing.\nThe person must not be frozen — add subtle life:\n${micro}\nSmooth, natural, and lifelike. All movement stays within the frame.`;
+        instruction = `Realistic avatar holding pose: ${startPose.name}. Solid black background. Static camera. Eyes maintain camera contact. Head stays mostly forward-facing.\nThe person must not be frozen — add realistic human life at normal speed:\n${micro}\nSmooth, natural, and lifelike. All movement stays within the frame.\n\nCRITICAL: Movement speed must match real human pace — normal breathing rate, natural blinking every 3-5 seconds, realistic weight shifts. NOT slow motion. NOT frozen. The person should look alive and present, as if filmed on a real camera.`;
       } else {
-        instruction = `Realistic avatar transitioning between poses: ${startPose.name} → ${endPose.name}. The person should move naturally — subtle breathing, blinking, micro-movements of hands and body. Eyes maintain camera contact. All movement stays contained within the frame. Smooth and lifelike.`;
+        instruction = `Realistic avatar transitioning between poses: ${startPose.name} → ${endPose.name}. The person should move naturally at normal human speed — visible breathing, blinking every 3-5 seconds, micro-movements of hands and body. Eyes maintain camera contact. All movement stays contained within the frame. Smooth and lifelike.\n\nCRITICAL: Movement speed must match real human pace. NOT slow motion. NOT frozen. The person should look alive and present, as if filmed on a real camera.`;
       }
     }
     const input: Record<string, unknown> = {
