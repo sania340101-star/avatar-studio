@@ -171,6 +171,8 @@ The user may upload reference images. These will be sent to the fal.ai model as 
 - Your prompt MUST describe what to do with each reference
 - If the user says "like the reference" or "similar to image", your prompt must explicitly reference that image
 - Apply the User Style Instructions (HYPERVSN requirements) to every prompt — BUT the user's intent overrides style defaults. If the user asks for "realistic", "photorealistic", or "real human", do NOT apply 3D/rendered style even if the style instructions say "full 3D". Realistic humans must look like real photographs, not 3D renders.
+- CRITICAL: The BACKGROUND setting from User Style Instructions is MANDATORY. If references have a different background (white, gray, colored), your prompt must explicitly override it to match style instructions (e.g., "on a pure black background"). Never inherit background color from reference images — always follow the style instructions.
+- CRITICAL: When multiple reference images are provided, the FIRST reference (image 1) is ALWAYS the primary subject/base. Use it as the main image_url parameter for image-to-image models. Subsequent references are supplementary (style, clothing, pose examples). NEVER swap this order unless the user explicitly says otherwise.
 
 # Framing rules
 - When the user asks for "full body", "head to toe", or similar — you MUST include these exact framing instructions in the prompt: "CRITICAL: frame the entire body from crown of head to soles of feet. Leave 10% empty padding above the head and below the feet. Do NOT crop any limbs. The feet must be fully visible standing on a surface."
@@ -324,6 +326,8 @@ The user specifies video aspect ratio (1:1, 3:4, 9:16, 4:3, 16:9). Pass this as 
 - For image-to-video: describe only MOTION, not the static scene
 - For talking avatars with audio: prompt is optional (style/lighting hint only)
 - Apply the User Style Instructions (HYPERVSN requirements) to every prompt — BUT the user's intent overrides style defaults. If the user asks for "realistic", "photorealistic", or "real human", do NOT apply 3D/rendered style even if the style instructions say "full 3D". Realistic humans must look like real photographs, not 3D renders.
+- CRITICAL: The BACKGROUND setting from User Style Instructions is MANDATORY. If references have a different background (white, gray, colored), your prompt must explicitly override it to match style instructions (e.g., "on a pure black background"). Never inherit background color from reference images — always follow the style instructions.
+- CRITICAL: When multiple reference images are provided, the FIRST reference (image 1) is ALWAYS the primary subject/base. Use it as the main image_url parameter for image-to-image models. Subsequent references are supplementary (style, clothing, pose examples). NEVER swap this order unless the user explicitly says otherwise.
 
 # Framing rules
 - When the user asks for "full body", "head to toe", or similar — you MUST include these exact framing instructions in the prompt: "CRITICAL: frame the entire body from crown of head to soles of feet. Leave 10% empty padding above the head and below the feet. Do NOT crop any limbs. The feet must be fully visible standing on a surface."
@@ -841,7 +845,7 @@ function buildPrompt(body, imageFiles, falUploadedUrls, falMediaUrls) {
     parts.push(`Reference images (${references.length} total, ordered):\n${refList}\nThe model will receive these images as inputs.`);
   }
   if (imageFiles?.length) {
-    parts.push(`\nIMPORTANT: Use the Read tool to VIEW each reference image file below BEFORE making any decisions. You MUST visually inspect every image to understand its content. The numbering (1, 2, 3...) matches exactly what the user sees in the UI — when the user says "first image" or "image 1", they mean reference image 1 below.`);
+    parts.push(`\nIMPORTANT: Use the Read tool to VIEW each reference image file below BEFORE making any decisions. You MUST visually inspect every image to understand its content. The numbering (1, 2, 3...) matches exactly what the user sees in the UI — when the user says "first image" or "image 1", they mean reference image 1 below.\nReference image 1 is ALWAYS the primary subject/base image for image-to-image models. Pass it as the image_url parameter. Additional references are supplementary — describe their relevant aspects in the prompt text only.`);
     imageFiles.forEach((f, i) => {
       parts.push(`Reference image ${i + 1} file: ${f}`);
     });
