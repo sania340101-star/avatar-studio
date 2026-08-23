@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getExportSession, getUploadsDir } from '@/lib/storage';
-import * as archiver from 'archiver';
 import { join } from 'path';
 import { existsSync } from 'fs';
-import { Readable } from 'stream';
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const archiver = require('archiver');
 
 export async function GET(req: NextRequest) {
   const userId = req.headers.get('x-user-id');
@@ -31,7 +31,7 @@ export async function GET(req: NextRequest) {
   const manifestPath = manifestFilename ? join(uploadsDir, manifestFilename) : null;
 
   const archive = archiver('zip', { zlib: { level: 1 } });
-  const chunks: Uint8Array[] = [];
+  const chunks: Buffer[] = [];
 
   archive.on('data', (chunk: Buffer) => chunks.push(chunk));
 
