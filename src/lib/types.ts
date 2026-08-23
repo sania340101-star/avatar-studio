@@ -234,6 +234,7 @@ export interface ExportClip {
 export interface ExportVersion {
   id: string;
   url: string;
+  manifestUrl?: string;
   createdAt: number;
 }
 

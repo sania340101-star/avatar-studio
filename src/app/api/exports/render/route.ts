@@ -1,12 +1,104 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getExportSession, updateExportSession, addGeneration, getUploadsDir } from '@/lib/storage';
 import { DEVICE_PRESETS } from '@/lib/models';
-import { Generation, ExportSession } from '@/lib/types';
+import { Generation, ExportSession, ExportVersion } from '@/lib/types';
 import { spawn, execSync } from 'child_process';
 import { writeFileSync, unlinkSync, existsSync } from 'fs';
 import { join } from 'path';
 
 const OUTPUT_FPS = 60;
+
+function slugify(name: string): string {
+  return name.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '') || 'unknown';
+}
+
+function parseClipLabel(label: string): { startPose: string; endPose: string; type: string } | null {
+  const transMatch = label.match(/\|\s*(.+?)\s*→\s*(.+?)\s*\|\s*(transition|loop)/);
+  if (transMatch) return { startPose: transMatch[1].trim(), endPose: transMatch[2].trim(), type: transMatch[3] };
+  const loopMatch = label.match(/\|\s*(.+?)\s*\|\s*(loop|transition)/);
+  if (loopMatch) return { startPose: loopMatch[1].trim(), endPose: loopMatch[1].trim(), type: loopMatch[2] };
+  return null;
+}
+
+function buildManifest(
+  session: ExportSession,
+  clipDurations: number[],
+  blendFrames: number,
+  crossfadeEnabled: boolean,
+): string {
+  const B = crossfadeEnabled ? blendFrames / OUTPUT_FPS : 0;
+  const n = clipDurations.length;
+  const offsets: { offset_ms: number; duration_ms: number }[] = [];
+
+  if (!crossfadeEnabled || n <= 1) {
+    let pos = 0;
+    for (let i = 0; i < n; i++) {
+      const dur = (n === 1 && crossfadeEnabled) ? clipDurations[i] - B : clipDurations[i];
+      offsets.push({ offset_ms: Math.round(pos * 1000), duration_ms: Math.round(dur * 1000) });
+      pos += dur;
+    }
+  } else {
+    for (let i = 0; i < n; i++) {
+      const offset = i === 0 ? 0 :
+        clipDurations.slice(0, i).reduce((a, b) => a + b, 0) - i * B;
+      const nextOffset = i < n - 1
+        ? clipDurations.slice(0, i + 1).reduce((a, b) => a + b, 0) - (i + 1) * B
+        : clipDurations.reduce((a, b) => a + b, 0) - n * B;
+      offsets.push({
+        offset_ms: Math.round(offset * 1000),
+        duration_ms: Math.round((nextOffset - offset) * 1000),
+      });
+    }
+  }
+
+  const poseMap = new Map<string, { id: string; name: string }>();
+  const clips: Record<string, unknown>[] = [];
+
+  for (let i = 0; i < n; i++) {
+    const clip = session.clips[i];
+    const parsed = parseClipLabel(clip.label);
+    const startPose = parsed ? slugify(parsed.startPose) : `clip_${i}`;
+    const endPose = parsed ? slugify(parsed.endPose) : `clip_${i}`;
+    const clipType = parsed?.type || 'loop';
+    if (!poseMap.has(startPose)) poseMap.set(startPose, { id: startPose, name: parsed?.startPose || `Clip ${i}` });
+    if (!poseMap.has(endPose)) poseMap.set(endPose, { id: endPose, name: parsed?.endPose || `Clip ${i}` });
+
+    clips.push({
+      id: `${clipType}_${startPose}${endPose !== startPose ? '_to_' + endPose : ''}_${i}`,
+      file: 'master.mp4',
+      start_pose: startPose,
+      end_pose: endPose,
+      type: clipType,
+      offset_ms: offsets[i].offset_ms,
+      duration_ms: offsets[i].duration_ms,
+    });
+  }
+
+  const poses = Array.from(poseMap.values()).map(p => ({
+    id: p.id, name: p.name, description: '', emotion: 'neutral', energy: 0.5,
+  }));
+  const hubPose = poses[0]?.id || 'idle';
+
+  return JSON.stringify({
+    poses,
+    clips,
+    emotions: [
+      { id: 'neutral', name: 'Neutral', css_filter: '', overlay_color: '' },
+      { id: 'happy', name: 'Happy', css_filter: 'brightness(1.08) saturate(1.2)', overlay_color: 'rgba(250, 204, 21, 0.08)' },
+      { id: 'sad', name: 'Sad', css_filter: 'brightness(0.92) saturate(0.8)', overlay_color: 'rgba(96, 165, 250, 0.1)' },
+      { id: 'excited', name: 'Excited', css_filter: 'brightness(1.12) saturate(1.3) contrast(1.05)', overlay_color: 'rgba(251, 146, 60, 0.1)' },
+      { id: 'thoughtful', name: 'Thoughtful', css_filter: 'brightness(0.95) hue-rotate(10deg)', overlay_color: 'rgba(139, 92, 246, 0.08)' },
+    ],
+    settings: {
+      hub_pose: hubPose,
+      default_emotion: 'neutral',
+      master_video: 'master.mp4',
+      transition_crossfade_ms: Math.round(B * 1000),
+      idle_timeout_ms: 10000,
+      clips_dir: 'web/clips',
+    },
+  }, null, 2);
+}
 
 function resolveLocalPath(clipUrl: string): string | null {
   const match = clipUrl.match(/\/api\/files\/(.+)$/);
@@ -163,6 +255,7 @@ function finishExport(
   session: ExportSession, sessionId: string, userId: string,
   exportUrl: string, preset: { name: string }, W: number, H: number,
   transform: { offsetX: number; offsetY: number; scale: number },
+  manifestUrl?: string,
 ) {
   const gen: Generation = {
     id: `gen-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
@@ -189,7 +282,8 @@ function finishExport(
 
   const currentSession = getExportSession(sessionId);
   const prevExports = currentSession?.exports || [];
-  const newVersion = { id: gen.id, url: exportUrl, createdAt: gen.createdAt };
+  const newVersion: ExportVersion = { id: gen.id, url: exportUrl, createdAt: gen.createdAt };
+  if (manifestUrl) newVersion.manifestUrl = manifestUrl;
   updateExportSession(sessionId, {
     status: 'done',
     exportUrl,
@@ -256,7 +350,10 @@ async function processExport(sessionId: string, userId: string) {
       ]);
 
       const exportUrl = `/api/files/${outputFilename}`;
-      finishExport(session, sessionId, userId, exportUrl, preset, W, H, transform);
+      const manifestJson = buildManifest(session, [totalDuration], blendFrames, true);
+      const manifestFilename = `manifest-${sessionId}-${Date.now()}.json`;
+      writeFileSync(join(uploadsDir, manifestFilename), manifestJson);
+      finishExport(session, sessionId, userId, exportUrl, preset, W, H, transform, `/api/files/${manifestFilename}`);
       return;
     }
 
@@ -291,6 +388,12 @@ async function processExport(sessionId: string, userId: string) {
       await runFfmpeg(ffArgs);
     }
 
+    const clipDurations: number[] = [];
+    for (let i = 0; i < clipCount; i++) {
+      clipDurations.push(probeDuration(tempFiles[i]));
+    }
+    console.log(`[EXPORT] clip durations: [${clipDurations.map(d => d.toFixed(3)).join(', ')}]`);
+
     const outputFilename = `export-${sessionId}-${Date.now()}.mp4`;
     const outputPath = join(uploadsDir, outputFilename);
 
@@ -316,7 +419,12 @@ async function processExport(sessionId: string, userId: string) {
     }
 
     const exportUrl = `/api/files/${outputFilename}`;
-    finishExport(session, sessionId, userId, exportUrl, preset, W, H, transform);
+    const manifestJson = buildManifest(session, clipDurations, blendFrames, useSeamless);
+    const manifestFilename = `manifest-${sessionId}-${Date.now()}.json`;
+    writeFileSync(join(uploadsDir, manifestFilename), manifestJson);
+    const manifestUrl = `/api/files/${manifestFilename}`;
+    console.log(`[EXPORT] manifest saved: ${manifestFilename}`);
+    finishExport(session, sessionId, userId, exportUrl, preset, W, H, transform, manifestUrl);
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : 'Export failed';
     console.error(`[EXPORT] FAILED session=${sessionId}: ${msg}`);
