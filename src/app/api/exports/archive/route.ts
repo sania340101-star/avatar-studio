@@ -30,8 +30,8 @@ export async function GET(req: NextRequest) {
   const manifestPath = manifestFilename ? join(uploadsDir, manifestFilename) : null;
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { Archiver } = await import('archiver') as any;
-  const archive = new Archiver('zip', { zlib: { level: 1 } });
+  const { ZipArchive } = await import('archiver') as any;
+  const archive = new ZipArchive({ zlib: { level: 1 } });
   const passthrough = new PassThrough();
   const chunks: Buffer[] = [];
 
