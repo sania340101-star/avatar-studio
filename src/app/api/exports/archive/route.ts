@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getExportSession, getUploadsDir } from '@/lib/storage';
 import { join } from 'path';
 import { existsSync, readFileSync } from 'fs';
-import archiver from 'archiver';
+import * as archiver from 'archiver';
 import { PassThrough } from 'stream';
 
 export async function GET(req: NextRequest) {
