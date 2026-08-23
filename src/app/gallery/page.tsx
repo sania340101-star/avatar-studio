@@ -10,18 +10,14 @@ import ConfirmDialog from '@/components/ConfirmDialog';
 
 type TabFilter = 'all' | 'image' | 'video' | 'export';
 
-async function downloadUrl(url: string, filename: string) {
-  try {
-    const res = await fetch(url);
-    const blob = await res.blob();
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = filename;
-    a.click();
-    URL.revokeObjectURL(a.href);
-  } catch {
-    window.open(url, '_blank');
-  }
+function downloadUrl(url: string, filename: string) {
+  const a = document.createElement('a');
+  const sep = url.includes('?') ? '&' : '?';
+  a.href = `${url}${sep}download=1`;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
 }
 
 function GalleryContent() {

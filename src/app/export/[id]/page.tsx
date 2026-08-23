@@ -573,15 +573,15 @@ function ExportEditorContent() {
     return () => { if (pollTimer.current) clearTimeout(pollTimer.current); };
   }, []);
 
-  async function downloadExport() {
+  function downloadExport() {
     if (!session?.exportUrl) return;
-    const res = await fetch(session.exportUrl);
-    const blob = await res.blob();
     const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
+    const sep = session.exportUrl.includes('?') ? '&' : '?';
+    a.href = `${session.exportUrl}${sep}download=1`;
     a.download = `${session.name.replace(/[^a-zA-Z0-9-_ ]/g, '')}.mp4`;
+    document.body.appendChild(a);
     a.click();
-    URL.revokeObjectURL(a.href);
+    document.body.removeChild(a);
   }
 
   const projectMap = Object.fromEntries(projects.map(p => [p.id, p.title]));
@@ -1167,14 +1167,14 @@ function ExportEditorContent() {
                           </div>
                           <div className="flex items-center gap-1.5 flex-shrink-0 flex-wrap justify-end">
                             <button
-                              onClick={async () => {
-                                const res = await fetch(exp.url);
-                                const blob = await res.blob();
+                              onClick={() => {
                                 const a = document.createElement('a');
-                                a.href = URL.createObjectURL(blob);
+                                const sep = exp.url.includes('?') ? '&' : '?';
+                                a.href = `${exp.url}${sep}download=1`;
                                 a.download = `${session.name}-v${vNum}.mp4`;
+                                document.body.appendChild(a);
                                 a.click();
-                                URL.revokeObjectURL(a.href);
+                                document.body.removeChild(a);
                               }}
                               className="text-xs px-3 py-1.5 rounded-lg font-medium flex items-center gap-1"
                               style={{ background: 'var(--accent)', color: 'white' }}
@@ -1515,13 +1515,13 @@ function ExportEditorContent() {
             <button
               onClick={async (e) => {
                 e.stopPropagation();
-                const res = await fetch(previewUrl);
-                const blob = await res.blob();
                 const a = document.createElement('a');
-                a.href = URL.createObjectURL(blob);
+                const sep = previewUrl.includes('?') ? '&' : '?';
+                a.href = `${previewUrl}${sep}download=1`;
                 a.download = `export-${Date.now()}.mp4`;
+                document.body.appendChild(a);
                 a.click();
-                URL.revokeObjectURL(a.href);
+                document.body.removeChild(a);
               }}
               className="w-11 h-11 flex items-center justify-center rounded-full text-white/70 hover:text-white hover:bg-white/10 transition-colors"
               aria-label="Download"
