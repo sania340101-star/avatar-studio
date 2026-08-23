@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getExportSession, getUploadsDir } from '@/lib/storage';
-import archiver from 'archiver';
+import * as archiver from 'archiver';
 import { join } from 'path';
 import { existsSync } from 'fs';
 import { Readable } from 'stream';
