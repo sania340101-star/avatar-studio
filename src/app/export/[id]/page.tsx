@@ -1205,7 +1205,7 @@ function ExportEditorContent() {
                                 <button
                                   onClick={async () => {
                                     const res = await fetch(`/api/exports/archive?id=${session.id}&versionId=${exp.id}`, {
-                                      headers: { 'x-user-id': userId },
+                                      headers: { 'x-user-id': session.userId },
                                     });
                                     const blob = await res.blob();
                                     const a = document.createElement('a');
