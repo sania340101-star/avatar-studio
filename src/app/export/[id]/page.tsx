@@ -1165,7 +1165,7 @@ function ExportEditorContent() {
                               {new Date(exp.createdAt).toLocaleString()}
                             </p>
                           </div>
-                          <div className="flex items-center gap-1 flex-shrink-0">
+                          <div className="flex items-center gap-1.5 flex-shrink-0 flex-wrap justify-end">
                             <button
                               onClick={async () => {
                                 const res = await fetch(exp.url);
@@ -1182,45 +1182,30 @@ function ExportEditorContent() {
                               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3 h-3">
                                 <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" />
                               </svg>
-                              Download
+                              MP4
                             </button>
                             {exp.manifestUrl && (
-                              <>
-                                <button
-                                  onClick={async () => {
-                                    const res = await fetch(exp.manifestUrl!);
-                                    const blob = await res.blob();
-                                    const a = document.createElement('a');
-                                    a.href = URL.createObjectURL(blob);
-                                    a.download = `${session.name}-v${vNum}-manifest.json`;
-                                    a.click();
-                                    URL.revokeObjectURL(a.href);
-                                  }}
-                                  className="text-xs px-2 py-1.5 rounded-lg font-medium"
-                                  style={{ background: 'var(--bg3)', color: 'var(--text2)' }}
-                                  title="Download pose manifest"
-                                >
-                                  JSON
-                                </button>
-                                <button
-                                  onClick={async () => {
-                                    const res = await fetch(`/api/exports/archive?id=${session.id}&versionId=${exp.id}`, {
-                                      headers: { 'x-user-id': session.userId },
-                                    });
-                                    const blob = await res.blob();
-                                    const a = document.createElement('a');
-                                    a.href = URL.createObjectURL(blob);
-                                    a.download = `${session.name}-v${vNum}.zip`;
-                                    a.click();
-                                    URL.revokeObjectURL(a.href);
-                                  }}
-                                  className="text-xs px-2 py-1.5 rounded-lg font-medium"
-                                  style={{ background: 'var(--accent)', color: '#fff' }}
-                                  title="Download ZIP archive (video + manifest)"
-                                >
-                                  ZIP
-                                </button>
-                              </>
+                              <button
+                                onClick={async () => {
+                                  const res = await fetch(`/api/exports/archive?id=${session.id}&versionId=${exp.id}`, {
+                                    headers: { 'x-user-id': session.userId },
+                                  });
+                                  const blob = await res.blob();
+                                  const a = document.createElement('a');
+                                  a.href = URL.createObjectURL(blob);
+                                  a.download = `${session.name}-v${vNum}.zip`;
+                                  a.click();
+                                  URL.revokeObjectURL(a.href);
+                                }}
+                                className="text-xs px-3 py-1.5 rounded-lg font-medium flex items-center gap-1"
+                                style={{ background: 'var(--bg3)', color: 'var(--text2)' }}
+                                title="Download ZIP (video + manifest)"
+                              >
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3 h-3">
+                                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" />
+                                </svg>
+                                ZIP
+                              </button>
                             )}
                             <button
                               onClick={() => setConfirmDeleteVersion({ id: exp.id, num: vNum })}
