@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getExportSession, getUploadsDir } from '@/lib/storage';
 import { join } from 'path';
 import { existsSync, readFileSync } from 'fs';
-import * as archiver from 'archiver';
 import { PassThrough } from 'stream';
 
 export async function GET(req: NextRequest) {
@@ -30,7 +29,9 @@ export async function GET(req: NextRequest) {
   const manifestFilename = version.manifestUrl?.replace('/api/files/', '');
   const manifestPath = manifestFilename ? join(uploadsDir, manifestFilename) : null;
 
-  const archive = archiver('zip', { zlib: { level: 1 } });
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const archiverFn = (await import('archiver')).default as any;
+  const archive = archiverFn('zip', { zlib: { level: 1 } });
   const passthrough = new PassThrough();
   const chunks: Buffer[] = [];
 
