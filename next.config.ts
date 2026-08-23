@@ -5,7 +5,7 @@ const { version } = JSON.parse(readFileSync('./package.json', 'utf8'));
 
 const nextConfig: NextConfig = {
   output: 'standalone',
-  serverExternalPackages: ['better-sqlite3'],
+  serverExternalPackages: ['better-sqlite3', 'archiver'],
   experimental: {
     proxyClientMaxBodySize: '100mb',
   },
