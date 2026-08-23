@@ -419,7 +419,7 @@ async function processExport(sessionId: string, userId: string) {
     }
 
     const exportUrl = `/api/files/${outputFilename}`;
-    const manifestJson = buildManifest(session, clipDurations, blendFrames, useSeamless);
+    const manifestJson = buildManifest(session, clipDurations, blendFrames, !!useSeamless);
     const manifestFilename = `manifest-${sessionId}-${Date.now()}.json`;
     writeFileSync(join(uploadsDir, manifestFilename), manifestJson);
     const manifestUrl = `/api/files/${manifestFilename}`;
