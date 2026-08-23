@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createReadStream, existsSync, statSync } from 'fs';
+import { existsSync, statSync, readFileSync, openSync, readSync, closeSync } from 'fs';
 import { join, extname, resolve } from 'path';
-import { Readable } from 'stream';
 import { getUploadsDir } from '@/lib/storage';
 const MIME_MAP: Record<string, string> = {
   '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png',
@@ -24,14 +23,44 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ path
   const ext = extname(filePath).toLowerCase();
   const contentType = MIME_MAP[ext] || 'application/octet-stream';
   const stat = statSync(filePath);
-  const stream = createReadStream(filePath);
-  const webStream = Readable.toWeb(stream) as ReadableStream;
-  return new NextResponse(webStream, {
-    headers: {
-      'Content-Type': contentType,
-      'Content-Length': String(stat.size),
-      'X-Content-Type-Options': 'nosniff',
-      'Cache-Control': 'public, max-age=31536000, immutable',
-    },
-  });
+  const fileSize = stat.size;
+  const isDownload = req.nextUrl.searchParams.get('download') === '1';
+
+  const rangeHeader = req.headers.get('range');
+  if (rangeHeader) {
+    const match = rangeHeader.match(/bytes=(\d+)-(\d*)/);
+    if (match) {
+      const start = parseInt(match[1], 10);
+      const end = match[2] ? parseInt(match[2], 10) : Math.min(start + 4 * 1024 * 1024, fileSize) - 1;
+      const chunkSize = end - start + 1;
+      const buffer = Buffer.alloc(chunkSize);
+      const fd = openSync(filePath, 'r');
+      readSync(fd, buffer, 0, chunkSize, start);
+      closeSync(fd);
+      return new NextResponse(buffer, {
+        status: 206,
+        headers: {
+          'Content-Type': contentType,
+          'Content-Range': `bytes ${start}-${end}/${fileSize}`,
+          'Content-Length': String(chunkSize),
+          'Accept-Ranges': 'bytes',
+          'Cache-Control': 'public, max-age=31536000, immutable',
+        },
+      });
+    }
+  }
+
+  const buffer = readFileSync(filePath);
+  const headers: Record<string, string> = {
+    'Content-Type': contentType,
+    'Content-Length': String(fileSize),
+    'Accept-Ranges': 'bytes',
+    'X-Content-Type-Options': 'nosniff',
+    'Cache-Control': 'public, max-age=31536000, immutable',
+  };
+  if (isDownload) {
+    const basename = filePath.split(/[\\/]/).pop() || 'download';
+    headers['Content-Disposition'] = `attachment; filename="${basename}"`;
+  }
+  return new NextResponse(buffer, { headers });
 }
