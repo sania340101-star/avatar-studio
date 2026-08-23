@@ -31,15 +31,19 @@ export async function GET(req: NextRequest) {
   const manifestPath = manifestFilename ? join(uploadsDir, manifestFilename) : null;
 
   const archive = archiver('zip', { zlib: { level: 1 } });
+  const { PassThrough } = require('stream');
+  const passthrough = new PassThrough();
   const chunks: Buffer[] = [];
 
-  archive.on('data', (chunk: Buffer) => chunks.push(chunk));
+  passthrough.on('data', (chunk: Buffer) => chunks.push(chunk));
 
   const done = new Promise<void>((resolve, reject) => {
-    archive.on('end', resolve);
+    passthrough.on('end', resolve);
+    passthrough.on('error', reject);
     archive.on('error', reject);
   });
 
+  archive.pipe(passthrough);
   archive.file(videoPath, { name: 'master.mp4' });
   if (manifestPath && existsSync(manifestPath)) {
     archive.file(manifestPath, { name: 'manifest.json' });
