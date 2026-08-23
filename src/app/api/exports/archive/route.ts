@@ -2,8 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getExportSession, getUploadsDir } from '@/lib/storage';
 import { join } from 'path';
 import { existsSync, readFileSync } from 'fs';
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const archiver = require('archiver');
+import archiver from 'archiver';
 import { PassThrough } from 'stream';
 
 export async function GET(req: NextRequest) {
