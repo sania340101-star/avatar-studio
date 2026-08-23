@@ -29,9 +29,8 @@ export async function GET(req: NextRequest) {
   const manifestFilename = version.manifestUrl?.replace('/api/files/', '');
   const manifestPath = manifestFilename ? join(uploadsDir, manifestFilename) : null;
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const archiverFn = ((await import('archiver')) as any).default;
-  const archive = archiverFn('zip', { zlib: { level: 1 } });
+  const { Archiver } = await import('archiver');
+  const archive = new Archiver('zip', { zlib: { level: 1 } });
   const passthrough = new PassThrough();
   const chunks: Buffer[] = [];
 
