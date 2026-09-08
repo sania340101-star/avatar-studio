@@ -110,7 +110,7 @@ function resolveLocalPath(clipUrl: string): string | null {
 
 async function runFfmpeg(args: string[]): Promise<void> {
   return new Promise((resolve, reject) => {
-    const proc = spawn('ffmpeg', args, { stdio: ['pipe', 'pipe', 'pipe'] });
+    const proc = spawn('nice', ['-n', '19', 'ffmpeg', ...args], { stdio: ['pipe', 'pipe', 'pipe'] });
     let stderr = '';
     proc.stderr?.on('data', (d: Buffer) => { stderr += d.toString(); });
     proc.on('close', (code) => {
@@ -204,7 +204,7 @@ async function xfadeConcat(
     '-r', String(OUTPUT_FPS),
     '-c:v', 'libx264',
     '-preset', 'ultrafast',
-    '-threads', '4',
+    '-threads', '2',
     '-crf', String(crf),
     '-pix_fmt', 'yuv420p',
     '-an',
@@ -244,7 +244,7 @@ async function seamlessLoop(
     '-map', '[out]',
     '-r', String(OUTPUT_FPS),
     '-c:v', 'libx264',
-    '-preset', 'ultrafast', '-threads', '4',
+    '-preset', 'ultrafast', '-threads', '2',
     '-crf', String(crf),
     '-pix_fmt', 'yuv420p',
     '-an',
@@ -345,7 +345,7 @@ async function processExport(sessionId: string, userId: string) {
         '-filter_complex', filter,
         '-map', '[out]',
         '-r', '60',
-        '-c:v', 'libx264', '-preset', 'ultrafast', '-threads', '4', '-crf', String(crossCrf), '-pix_fmt', 'yuv420p',
+        '-c:v', 'libx264', '-preset', 'ultrafast', '-threads', '2', '-crf', String(crossCrf), '-pix_fmt', 'yuv420p',
         '-an',
         '-y', outputPath,
       ]);
@@ -376,7 +376,7 @@ async function processExport(sessionId: string, userId: string) {
         '-map', '[out]',
         '-r', '60',
         '-c:v', 'libx264',
-        '-preset', 'ultrafast', '-threads', '4',
+        '-preset', 'ultrafast', '-threads', '2',
         '-crf', useSeamless ? String(crossCrf) : '18',
         '-pix_fmt', 'yuv420p',
       ];
