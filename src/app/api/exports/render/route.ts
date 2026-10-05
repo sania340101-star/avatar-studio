@@ -53,8 +53,10 @@ function buildManifest(
     const parsed = parseClipLabel(clip.label);
     const startPose = parsed ? slugify(parsed.startPose) : `clip_${i}`;
     const endPose = parsed ? slugify(parsed.endPose) : `clip_${i}`;
-    const clipType = parsed?.type || 'loop';
     const role = clipRole(clip);
+    // a special plays once when the AI calls it: as a one-shot it never repeats as an idle loop
+    // or becomes a step of a path between poses
+    const clipType = role === 'special' ? 'oneshot' : (parsed?.type || 'loop');
     if (!poseMap.has(startPose)) poseMap.set(startPose, { id: startPose, name: parsed?.startPose || `Clip ${i}` });
     if (!poseMap.has(endPose)) poseMap.set(endPose, { id: endPose, name: parsed?.endPose || `Clip ${i}` });
 

@@ -10,8 +10,10 @@ export function parseClipLabel(label: string): { startPose: string; endPose: str
 }
 
 // The Avatar Voice Body Animation role of a clip: the one picked in the export, else "talk" when the
-// label says so. Transitions have none: they only move between poses.
+// label says so. Any clip can be special (a gesture is often a transition, e.g. idle → idle); other
+// transitions have no role: they only move between poses.
 export function clipRole(clip: ExportClip): 'idle' | 'talk' | 'special' | undefined {
+  if (clip.body?.role === 'special') return 'special';
   if (parseClipLabel(clip.label)?.type === 'transition') return undefined;
   if (clip.body?.role) return clip.body.role;
   return /\btalk/i.test(clip.label) ? 'talk' : undefined;

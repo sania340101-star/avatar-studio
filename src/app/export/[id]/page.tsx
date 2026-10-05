@@ -842,24 +842,28 @@ function ExportEditorContent() {
                         {projectMap[clip.projectId]}
                       </span>
                     )}
-                    {parseClipLabel(clip.label)?.type !== 'transition' && (
-                      <select
-                        value={clip.body?.role || ''}
-                        onChange={e => {
-                          const role = e.target.value as NonNullable<ExportClip['body']>['role'] | '';
-                          updateClipBody(idx, role ? { ...clip.body, role } : undefined);
-                        }}
-                        className="text-xs px-1 py-0.5 rounded flex-shrink-0"
-                        style={{ background: 'var(--bg-input)', color: 'var(--text2)', border: '1px solid var(--border)' }}
-                        title="Avatar Voice body animation role"
-                        aria-label="Body animation role"
-                      >
-                        <option value="">{clipRole(clip) === 'talk' ? 'talk (auto)' : 'idle (auto)'}</option>
-                        <option value="idle">idle</option>
-                        <option value="talk">talk</option>
-                        <option value="special">special</option>
-                      </select>
-                    )}
+                    <select
+                      value={clip.body?.role || ''}
+                      onChange={e => {
+                        const role = e.target.value as NonNullable<ExportClip['body']>['role'] | '';
+                        updateClipBody(idx, role ? { ...clip.body, role } : undefined);
+                      }}
+                      className="text-xs px-1 py-0.5 rounded flex-shrink-0"
+                      style={{ background: 'var(--bg-input)', color: 'var(--text2)', border: '1px solid var(--border)' }}
+                      title="Avatar Voice body animation role"
+                      aria-label="Body animation role"
+                    >
+                      {parseClipLabel(clip.label)?.type === 'transition' ? (
+                        <option value="">transition</option>
+                      ) : (
+                        <>
+                          <option value="">{clipRole({ ...clip, body: undefined }) === 'talk' ? 'talk (auto)' : 'idle (auto)'}</option>
+                          <option value="idle">idle</option>
+                          <option value="talk">talk</option>
+                        </>
+                      )}
+                      <option value="special">special</option>
+                    </select>
                   </div>
                   {clip.body?.role === 'special' && (
                     <div className="flex gap-1.5 mt-1">
