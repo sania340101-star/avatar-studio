@@ -237,6 +237,8 @@ export interface ExportVersion {
   id: string;
   url: string;
   manifestUrl?: string;
+  // each clip as its own file (ZIP v2): name is the path inside the ZIP
+  clipFiles?: { url: string; name: string }[];
   createdAt: number;
 }
 

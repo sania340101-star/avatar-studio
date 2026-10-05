@@ -48,6 +48,11 @@ export async function GET(req: NextRequest) {
   if (manifestPath && existsSync(manifestPath)) {
     archive.file(manifestPath, { name: 'manifest.json' });
   }
+  // ZIP v2: each clip as its own file next to the master, which older importers still use
+  for (const clip of version.clipFiles || []) {
+    const clipPath = join(uploadsDir, clip.url.replace('/api/files/', ''));
+    if (existsSync(clipPath)) archive.file(clipPath, { name: clip.name });
+  }
   archive.finalize();
 
   await done;

@@ -3,7 +3,7 @@ import { getExportSession, updateExportSession, addGeneration, getUploadsDir } f
 import { DEVICE_PRESETS } from '@/lib/models';
 import { Generation, ExportSession, ExportVersion } from '@/lib/types';
 import { spawn, execSync } from 'child_process';
-import { writeFileSync, unlinkSync, existsSync } from 'fs';
+import { writeFileSync, unlinkSync, existsSync, renameSync } from 'fs';
 import { join } from 'path';
 import { parseClipLabel, clipRole } from '@/lib/clip-role';
 
@@ -13,11 +13,26 @@ function slugify(name: string): string {
   return name.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '') || 'unknown';
 }
 
+// a clip that repeats on its own: idle/talk loops, not one-shot specials or transitions
+function isLoopClip(clip: ExportSession['clips'][number]): boolean {
+  return clipRole(clip) !== 'special' && (parseClipLabel(clip.label)?.type || 'loop') === 'loop';
+}
+
+function clipName(clip: ExportSession['clips'][number]): string {
+  return clip.body?.displayName || clip.label;
+}
+
+// path of the clip inside the ZIP, e.g. clips/01-idle.mp4
+function clipZipName(session: ExportSession, i: number): string {
+  return `clips/${String(i + 1).padStart(2, '0')}-${slugify(clipName(session.clips[i]))}.mp4`;
+}
+
 function buildManifest(
   session: ExportSession,
   clipDurations: number[],
   blendFrames: number,
   crossfadeEnabled: boolean,
+  withClipFiles = false,
 ): string {
   const B = crossfadeEnabled ? blendFrames / OUTPUT_FPS : 0;
   const n = clipDurations.length;
@@ -74,6 +89,12 @@ function buildManifest(
       type: clipType,
       offset_ms: offsets[i].offset_ms,
       duration_ms: offsets[i].duration_ms,
+      // ZIP v2: the clip's own file; offset_ms/duration_ms still point into master.mp4 for older importers
+      ...(withClipFiles ? {
+        source: clipZipName(session, i),
+        name: clipName(clip),
+        ...(clip.body?.description ? { description: clip.body.description } : {}),
+      } : {}),
     });
   }
 
@@ -83,6 +104,7 @@ function buildManifest(
   const hubPose = poses[0]?.id || 'idle';
 
   return JSON.stringify({
+    ...(withClipFiles ? { format_version: 2 } : {}),
     poses,
     clips,
     // only when some clip has a role: without it Avatar Voice plays every loop as idle, as before
@@ -265,6 +287,7 @@ function finishExport(
   exportUrl: string, preset: { name: string }, W: number, H: number,
   transform: { offsetX: number; offsetY: number; scale: number },
   manifestUrl?: string,
+  clipFiles?: ExportVersion['clipFiles'],
 ) {
   const gen: Generation = {
     id: `gen-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
@@ -293,6 +316,7 @@ function finishExport(
   const prevExports = currentSession?.exports || [];
   const newVersion: ExportVersion = { id: gen.id, url: exportUrl, createdAt: gen.createdAt };
   if (manifestUrl) newVersion.manifestUrl = manifestUrl;
+  if (clipFiles) newVersion.clipFiles = clipFiles;
   updateExportSession(sessionId, {
     status: 'done',
     exportUrl,
@@ -359,10 +383,12 @@ async function processExport(sessionId: string, userId: string) {
       ]);
 
       const exportUrl = `/api/files/${outputFilename}`;
-      const manifestJson = buildManifest(session, [totalDuration], blendFrames, true);
+      const manifestJson = buildManifest(session, [totalDuration], blendFrames, true, true);
       const manifestFilename = `manifest-${sessionId}-${Date.now()}.json`;
       writeFileSync(join(uploadsDir, manifestFilename), manifestJson);
-      finishExport(session, sessionId, userId, exportUrl, preset, W, H, transform, `/api/files/${manifestFilename}`);
+      // the seamless master is the clip itself
+      finishExport(session, sessionId, userId, exportUrl, preset, W, H, transform, `/api/files/${manifestFilename}`,
+        [{ url: exportUrl, name: clipZipName(session, 0) }]);
       return;
     }
 
@@ -431,13 +457,27 @@ async function processExport(sessionId: string, userId: string) {
       ]);
     }
 
+    // keep every clip as its own file; a loop gets its seamless seam inside the clip
+    const clipFiles: NonNullable<ExportVersion['clipFiles']> = [];
+    const blendSec = blendFrames / OUTPUT_FPS;
+    for (let i = 0; i < clipCount; i++) {
+      const clipFilename = `export-${sessionId}-${Date.now()}-clip${i + 1}.mp4`;
+      const clipPath = join(uploadsDir, clipFilename);
+      if (useSeamless && isLoopClip(session.clips[i]) && blendSec < clipDurations[i] * 0.5) {
+        await seamlessLoop(tempFiles[i], clipPath, blendFrames, crossTransition, crossCrf, []);
+      } else {
+        renameSync(tempFiles[i], clipPath);
+      }
+      clipFiles.push({ url: `/api/files/${clipFilename}`, name: clipZipName(session, i) });
+    }
+
     const exportUrl = `/api/files/${outputFilename}`;
-    const manifestJson = buildManifest(session, clipDurations, blendFrames, !!useSeamless);
+    const manifestJson = buildManifest(session, clipDurations, blendFrames, !!useSeamless, true);
     const manifestFilename = `manifest-${sessionId}-${Date.now()}.json`;
     writeFileSync(join(uploadsDir, manifestFilename), manifestJson);
     const manifestUrl = `/api/files/${manifestFilename}`;
     console.log(`[EXPORT] manifest saved: ${manifestFilename}`);
-    finishExport(session, sessionId, userId, exportUrl, preset, W, H, transform, manifestUrl);
+    finishExport(session, sessionId, userId, exportUrl, preset, W, H, transform, manifestUrl, clipFiles);
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : 'Export failed';
     console.error(`[EXPORT] FAILED session=${sessionId}: ${msg}`);
