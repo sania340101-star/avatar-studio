@@ -61,6 +61,7 @@ function buildManifest(
 
   const poseMap = new Map<string, { id: string; name: string }>();
   const clips: Record<string, unknown>[] = [];
+  const clipFiles: Record<string, string>[] = [];
   const bodyAnimations: Record<string, Record<string, string>> = {};
 
   for (let i = 0; i < n; i++) {
@@ -89,12 +90,13 @@ function buildManifest(
       type: clipType,
       offset_ms: offsets[i].offset_ms,
       duration_ms: offsets[i].duration_ms,
-      // ZIP v2: the clip's own file; offset_ms/duration_ms still point into master.mp4 for older importers
-      ...(withClipFiles ? {
-        source: clipZipName(session, i),
-        name: clipName(clip),
-        ...(clip.body?.description ? { description: clip.body.description } : {}),
-      } : {}),
+    });
+    // ZIP v2: the clip's own file. Kept out of `clips`: Avatar Voice before v2 rejects unknown clip fields
+    clipFiles.push({
+      clip_id: id,
+      file: clipZipName(session, i),
+      name: clipName(clip),
+      ...(clip.body?.description ? { description: clip.body.description } : {}),
     });
   }
 
@@ -109,6 +111,7 @@ function buildManifest(
     clips,
     // only when some clip has a role: without it Avatar Voice plays every loop as idle, as before
     ...(Object.keys(bodyAnimations).length ? { body_animations: bodyAnimations } : {}),
+    ...(withClipFiles ? { clip_files: clipFiles } : {}),
     emotions: [
       { id: 'neutral', name: 'Neutral', css_filter: '', overlay_color: '' },
       { id: 'happy', name: 'Happy', css_filter: 'brightness(1.08) saturate(1.2)', overlay_color: 'rgba(250, 204, 21, 0.08)' },
