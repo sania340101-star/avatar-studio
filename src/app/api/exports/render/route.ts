@@ -5,19 +5,12 @@ import { Generation, ExportSession, ExportVersion } from '@/lib/types';
 import { spawn, execSync } from 'child_process';
 import { writeFileSync, unlinkSync, existsSync } from 'fs';
 import { join } from 'path';
+import { parseClipLabel, clipRole } from '@/lib/clip-role';
 
 const OUTPUT_FPS = 60;
 
 function slugify(name: string): string {
   return name.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '') || 'unknown';
-}
-
-function parseClipLabel(label: string): { startPose: string; endPose: string; type: string } | null {
-  const transMatch = label.match(/\|\s*(.+?)\s*→\s*(.+?)\s*\|\s*(transition|loop)/);
-  if (transMatch) return { startPose: transMatch[1].trim(), endPose: transMatch[2].trim(), type: transMatch[3] };
-  const loopMatch = label.match(/\|\s*(.+?)\s*\|\s*(loop|transition)/);
-  if (loopMatch) return { startPose: loopMatch[1].trim(), endPose: loopMatch[1].trim(), type: loopMatch[2] };
-  return null;
 }
 
 function buildManifest(
@@ -53,6 +46,7 @@ function buildManifest(
 
   const poseMap = new Map<string, { id: string; name: string }>();
   const clips: Record<string, unknown>[] = [];
+  const bodyAnimations: Record<string, Record<string, string>> = {};
 
   for (let i = 0; i < n; i++) {
     const clip = session.clips[i];
@@ -60,11 +54,18 @@ function buildManifest(
     const startPose = parsed ? slugify(parsed.startPose) : `clip_${i}`;
     const endPose = parsed ? slugify(parsed.endPose) : `clip_${i}`;
     const clipType = parsed?.type || 'loop';
+    const role = clipRole(clip);
     if (!poseMap.has(startPose)) poseMap.set(startPose, { id: startPose, name: parsed?.startPose || `Clip ${i}` });
     if (!poseMap.has(endPose)) poseMap.set(endPose, { id: endPose, name: parsed?.endPose || `Clip ${i}` });
 
+    const id = `${clipType}_${startPose}${endPose !== startPose ? '_to_' + endPose : ''}_${i}`;
+    if (role) {
+      bodyAnimations[id] = { role };
+      if (clip.body?.displayName) bodyAnimations[id].display_name = clip.body.displayName;
+      if (clip.body?.description) bodyAnimations[id].description = clip.body.description;
+    }
     clips.push({
-      id: `${clipType}_${startPose}${endPose !== startPose ? '_to_' + endPose : ''}_${i}`,
+      id,
       file: 'master.mp4',
       start_pose: startPose,
       end_pose: endPose,
@@ -82,6 +83,8 @@ function buildManifest(
   return JSON.stringify({
     poses,
     clips,
+    // only when some clip has a role: without it Avatar Voice plays every loop as idle, as before
+    ...(Object.keys(bodyAnimations).length ? { body_animations: bodyAnimations } : {}),
     emotions: [
       { id: 'neutral', name: 'Neutral', css_filter: '', overlay_color: '' },
       { id: 'happy', name: 'Happy', css_filter: 'brightness(1.08) saturate(1.2)', overlay_color: 'rgba(250, 204, 21, 0.08)' },
@@ -218,6 +221,7 @@ async function seamlessLoop(
   blendFrames: number,
   transition: string,
   crf: number,
+  keyTimes: number[],
 ): Promise<void> {
   const totalDuration = probeDuration(inputPath);
   const blendSec = blendFrames / OUTPUT_FPS;
@@ -243,6 +247,8 @@ async function seamlessLoop(
     '-filter_complex', filter,
     '-map', '[out]',
     '-r', String(OUTPUT_FPS),
+    // the player seeks to clip starts, so each one needs a keyframe
+    ...(keyTimes.length ? ['-force_key_frames', keyTimes.map(t => t.toFixed(4)).join(',')] : []),
     '-c:v', 'libx264',
     '-preset', 'ultrafast', '-threads', '2',
     '-crf', String(crf),
@@ -402,7 +408,11 @@ async function processExport(sessionId: string, userId: string) {
       const concatPath = join(uploadsDir, `_export_xfade_${sessionId}.mp4`);
       tempFiles.push(concatPath);
       await xfadeConcat(tempFiles.slice(0, clipCount), concatPath, blendFrames, crossTransition, crossCrf);
-      await seamlessLoop(concatPath, outputPath, blendFrames, crossTransition, crossCrf);
+      // clip starts as in buildManifest; the seamless loop keeps times after the first blend
+      const blendSec = blendFrames / OUTPUT_FPS;
+      const keyTimes = clipDurations.slice(1).map((_, i) =>
+        clipDurations.slice(0, i + 1).reduce((a, b) => a + b, 0) - (i + 1) * blendSec);
+      await seamlessLoop(concatPath, outputPath, blendFrames, crossTransition, crossCrf, keyTimes);
     } else {
       const concatListPath = join(uploadsDir, `_export_concat_${sessionId}.txt`);
       const concatContent = tempFiles.map(f => `file '${f.replace(/\\/g, '/')}'`).join('\n');

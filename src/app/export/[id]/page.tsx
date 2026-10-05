@@ -10,6 +10,7 @@ import MaskPreview from '@/components/MaskPreview';
 import { analyzeAutofit, AutofitProgress } from '@/lib/autofit';
 import { setLastExportId } from '@/lib/nav-state';
 import ConfirmDialog from '@/components/ConfirmDialog';
+import { parseClipLabel, clipRole } from '@/lib/clip-role';
 
 function probeDuration(url: string): Promise<number> {
   return new Promise((resolve) => {
@@ -326,6 +327,13 @@ function ExportEditorContent() {
     debouncedSave({ clips });
     if (activeClipIdx >= clips.length) setActiveClipIdx(Math.max(0, clips.length - 1));
     if (lockedClipIdx !== null && lockedClipIdx >= clips.length) setLockedClipIdx(null);
+  }
+
+  function updateClipBody(idx: number, body: ExportClip['body']) {
+    if (!session) return;
+    const clips = session.clips.map((c, i) => i === idx ? { ...c, body } : c);
+    setSession({ ...session, clips, updatedAt: Date.now() });
+    debouncedSave({ clips });
   }
 
   function duplicateClip(idx: number) {
@@ -834,7 +842,43 @@ function ExportEditorContent() {
                         {projectMap[clip.projectId]}
                       </span>
                     )}
+                    {parseClipLabel(clip.label)?.type !== 'transition' && (
+                      <select
+                        value={clip.body?.role || ''}
+                        onChange={e => {
+                          const role = e.target.value as NonNullable<ExportClip['body']>['role'] | '';
+                          updateClipBody(idx, role ? { ...clip.body, role } : undefined);
+                        }}
+                        className="text-xs px-1 py-0.5 rounded flex-shrink-0"
+                        style={{ background: 'var(--bg-input)', color: 'var(--text2)', border: '1px solid var(--border)' }}
+                        title="Avatar Voice body animation role"
+                        aria-label="Body animation role"
+                      >
+                        <option value="">{clipRole(clip) === 'talk' ? 'talk (auto)' : 'idle (auto)'}</option>
+                        <option value="idle">idle</option>
+                        <option value="talk">talk</option>
+                        <option value="special">special</option>
+                      </select>
+                    )}
                   </div>
+                  {clip.body?.role === 'special' && (
+                    <div className="flex gap-1.5 mt-1">
+                      <input
+                        value={clip.body.displayName || ''}
+                        onChange={e => updateClipBody(idx, { ...clip.body!, displayName: e.target.value })}
+                        placeholder="Name for AI (e.g. wave)"
+                        className="text-xs px-1.5 py-0.5 rounded w-28 flex-shrink-0"
+                        style={{ background: 'var(--bg-input)', color: 'var(--text1)', border: '1px solid var(--border)' }}
+                      />
+                      <input
+                        value={clip.body.description || ''}
+                        onChange={e => updateClipBody(idx, { ...clip.body!, description: e.target.value })}
+                        placeholder="When the AI should play it"
+                        className="text-xs px-1.5 py-0.5 rounded flex-1 min-w-0"
+                        style={{ background: 'var(--bg-input)', color: 'var(--text1)', border: '1px solid var(--border)' }}
+                      />
+                    </div>
+                  )}
                 </div>
 
                 {/* Actions */}
@@ -1025,7 +1069,7 @@ function ExportEditorContent() {
                     }}
                     className="w-3.5 h-3.5 rounded"
                   />
-                  <span className="text-xs" style={{ color: 'var(--text2)' }}>Seamless transitions</span>
+                  <span className="text-xs" style={{ color: 'var(--text2)' }} title="Avatar Voice blends clip switches itself; leave off for kiosk avatars">Seamless transitions</span>
                 </label>
               )}
             </div>

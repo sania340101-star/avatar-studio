@@ -224,6 +224,8 @@ export interface ExportClip {
   label: string;
   duration?: number;
   source?: 'generation' | 'upload';
+  // Avatar Voice Body Animation of a loop clip; goes to the manifest's body_animations
+  body?: { role: 'idle' | 'talk' | 'special'; displayName?: string; description?: string };
   transform: {
     offsetX: number;
     offsetY: number;
