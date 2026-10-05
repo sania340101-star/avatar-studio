@@ -883,6 +883,15 @@ function ExportEditorContent() {
                       />
                     </div>
                   )}
+                  {clip.body?.role === 'special' && (() => {
+                    const p = parseClipLabel(clip.label);
+                    // a special is no longer a way between poses: the avatar may have no way back
+                    return p?.type === 'transition' && p.startPose !== p.endPose ? (
+                      <p className="text-xs mt-1" style={{ color: 'var(--text3)' }}>
+                        Ends in &quot;{p.endPose}&quot; and no longer counts as a transition: keep another way out of that pose.
+                      </p>
+                    ) : null;
+                  })()}
                 </div>
 
                 {/* Actions */}

@@ -14,7 +14,9 @@ export function parseClipLabel(label: string): { startPose: string; endPose: str
 // transitions have no role: they only move between poses.
 export function clipRole(clip: ExportClip): 'idle' | 'talk' | 'special' | undefined {
   if (clip.body?.role === 'special') return 'special';
-  if (parseClipLabel(clip.label)?.type === 'transition') return undefined;
+  const parsed = parseClipLabel(clip.label);
+  if (parsed?.type === 'transition') return undefined;
   if (clip.body?.role) return clip.body.role;
-  return /\btalk/i.test(clip.label) ? 'talk' : undefined;
+  // the pose name only: a matrix called "Talking head" must not make every loop talk
+  return /\btalk/i.test(parsed ? parsed.startPose : clip.label) ? 'talk' : undefined;
 }
