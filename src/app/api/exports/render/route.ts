@@ -7,7 +7,8 @@ import { writeFileSync, unlinkSync, existsSync, renameSync } from 'fs';
 import { join } from 'path';
 import { parseClipLabel, clipRole } from '@/lib/clip-role';
 
-const OUTPUT_FPS = 60;
+const EXPORT_FPS = [25, 30, 60];
+const DEFAULT_FPS = 60;
 
 function slugify(name: string): string {
   return name.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '') || 'unknown';
@@ -32,9 +33,10 @@ function buildManifest(
   clipDurations: number[],
   blendFrames: number,
   crossfadeEnabled: boolean,
+  fps: number,
   withClipFiles = false,
 ): string {
-  const B = crossfadeEnabled ? blendFrames / OUTPUT_FPS : 0;
+  const B = crossfadeEnabled ? blendFrames / fps : 0;
   const n = clipDurations.length;
   const offsets: { offset_ms: number; duration_ms: number }[] = [];
 
@@ -190,12 +192,13 @@ async function xfadeConcat(
   blendFrames: number,
   transition: string,
   crf: number,
+  fps: number,
 ): Promise<void> {
   if (clipPaths.length < 2) {
     throw new Error('Need at least 2 clips for crossfade');
   }
 
-  const blendSec = blendFrames / OUTPUT_FPS;
+  const blendSec = blendFrames / fps;
   const durations = clipPaths.map(p => probeDuration(p));
   console.log(`[EXPORT] xfadeConcat: clips=${clipPaths.length} blendSec=${blendSec.toFixed(4)} durations=[${durations.map(d => d.toFixed(4)).join(', ')}]`);
 
@@ -231,7 +234,7 @@ async function xfadeConcat(
     ...inputs,
     '-filter_complex', filter,
     '-map', `[${lastLabel}]`,
-    '-r', String(OUTPUT_FPS),
+    '-r', String(fps),
     '-c:v', 'libx264',
     '-preset', 'ultrafast',
     '-threads', '2',
@@ -249,9 +252,10 @@ async function seamlessLoop(
   transition: string,
   crf: number,
   keyTimes: number[],
+  fps: number,
 ): Promise<void> {
   const totalDuration = probeDuration(inputPath);
-  const blendSec = blendFrames / OUTPUT_FPS;
+  const blendSec = blendFrames / fps;
   console.log(`[EXPORT] seamlessLoop: duration=${totalDuration.toFixed(4)}s blendSec=${blendSec.toFixed(4)}s`);
 
   if (blendSec >= totalDuration * 0.5) {
@@ -273,7 +277,7 @@ async function seamlessLoop(
     '-i', inputPath,
     '-filter_complex', filter,
     '-map', '[out]',
-    '-r', String(OUTPUT_FPS),
+    '-r', String(fps),
     // the player seeks to clip starts, so each one needs a keyframe
     ...(keyTimes.length ? ['-force_key_frames', keyTimes.map(t => t.toFixed(4)).join(',')] : []),
     '-c:v', 'libx264',
@@ -291,6 +295,7 @@ function finishExport(
   transform: { offsetX: number; offsetY: number; scale: number },
   manifestUrl?: string,
   clipFiles?: ExportVersion['clipFiles'],
+  fps = DEFAULT_FPS,
 ) {
   const gen: Generation = {
     id: `gen-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
@@ -299,13 +304,13 @@ function finishExport(
     type: 'export',
     modelId: 'ffmpeg',
     modelLabel: `Export — ${preset.name}`,
-    prompt: `${session.name} (${session.clips.length} clips, ${W}x${H}@60fps)`,
+    prompt: `${session.name} (${session.clips.length} clips, ${W}x${H}@${fps}fps)`,
     params: {
       exportSessionId: session.id,
       device: session.device,
       clipCount: session.clips.length,
       resolution: `${W}x${H}`,
-      fps: 60,
+      fps,
       transform,
     },
     referenceUrls: session.clips.map(c => c.url),
@@ -345,8 +350,9 @@ async function processExport(sessionId: string, userId: string) {
     const blendFrames = session.crossfadeBlendFrames || 10;
     const crossTransition = session.crossfadeTransition || 'smoothleft';
     const crossCrf = session.crossfadeCrf || 18;
+    const fps = EXPORT_FPS.includes(session.fps ?? 0) ? session.fps! : DEFAULT_FPS;
 
-    console.log(`[EXPORT] session=${sessionId} clips=${clipCount} seamless=${useSeamless} blend=${blendFrames} transition=${crossTransition} crf=${crossCrf} device=${session.device} scale=${transform.scale} offset=${transform.offsetX},${transform.offsetY}`);
+    console.log(`[EXPORT] session=${sessionId} clips=${clipCount} seamless=${useSeamless} blend=${blendFrames} transition=${crossTransition} crf=${crossCrf} fps=${fps} device=${session.device} scale=${transform.scale} offset=${transform.offsetX},${transform.offsetY}`);
 
     if (useSeamless && clipCount === 1) {
       const clip = session.clips[0];
@@ -354,7 +360,7 @@ async function processExport(sessionId: string, userId: string) {
       if (!inputPath) throw new Error(`Source file not found for clip 1: ${clip.url}`);
 
       const totalDuration = probeDuration(inputPath);
-      const blendSec = blendFrames / OUTPUT_FPS;
+      const blendSec = blendFrames / fps;
       console.log(`[EXPORT] single-clip: duration=${totalDuration.toFixed(4)}s blendSec=${blendSec.toFixed(4)}s`);
       if (blendSec >= totalDuration * 0.5) throw new Error('Blend too long for video duration');
 
@@ -368,7 +374,7 @@ async function processExport(sessionId: string, userId: string) {
         `[tail][head]xfade=transition=${crossTransition}:duration=${blendSec.toFixed(4)}:offset=0[blend]`,
         `[blend][body]concat=n=2:v=1:a=0[looped]`,
         `[looped]scale=${scaledW}:${scaledH}:force_original_aspect_ratio=increase,crop=${scaledW}:${scaledH},setsar=1[sc]`,
-        `color=black:s=${W}x${H}:r=60:d=999[bg]`,
+        `color=black:s=${W}x${H}:r=${fps}:d=999[bg]`,
         `[bg][sc]overlay=${transform.offsetX}:${transform.offsetY}:shortest=1[out]`,
       ].join('; ');
 
@@ -379,19 +385,19 @@ async function processExport(sessionId: string, userId: string) {
         '-i', inputPath,
         '-filter_complex', filter,
         '-map', '[out]',
-        '-r', '60',
+        '-r', String(fps),
         '-c:v', 'libx264', '-preset', 'ultrafast', '-threads', '2', '-crf', String(crossCrf), '-pix_fmt', 'yuv420p',
         '-an',
         '-y', outputPath,
       ]);
 
       const exportUrl = `/api/files/${outputFilename}`;
-      const manifestJson = buildManifest(session, [totalDuration], blendFrames, true, true);
+      const manifestJson = buildManifest(session, [totalDuration], blendFrames, true, fps, true);
       const manifestFilename = `manifest-${sessionId}-${Date.now()}.json`;
       writeFileSync(join(uploadsDir, manifestFilename), manifestJson);
       // the seamless master is the clip itself
       finishExport(session, sessionId, userId, exportUrl, preset, W, H, transform, `/api/files/${manifestFilename}`,
-        [{ url: exportUrl, name: clipZipName(session, 0) }]);
+        [{ url: exportUrl, name: clipZipName(session, 0) }], fps);
       return;
     }
 
@@ -408,10 +414,10 @@ async function processExport(sessionId: string, userId: string) {
         '-i', inputPath,
         '-filter_complex',
         `[0:v]scale=${scaledW}:${scaledH}:force_original_aspect_ratio=increase,crop=${scaledW}:${scaledH},setsar=1[scaled];` +
-        `color=black:s=${W}x${H}:r=60:d=999[bg];` +
+        `color=black:s=${W}x${H}:r=${fps}:d=999[bg];` +
         `[bg][scaled]overlay=${transform.offsetX}:${transform.offsetY}:shortest=1[out]`,
         '-map', '[out]',
-        '-r', '60',
+        '-r', String(fps),
         '-c:v', 'libx264',
         '-preset', 'ultrafast', '-threads', '2',
         '-crf', useSeamless ? String(crossCrf) : '18',
@@ -438,12 +444,12 @@ async function processExport(sessionId: string, userId: string) {
     if (useSeamless) {
       const concatPath = join(uploadsDir, `_export_xfade_${sessionId}.mp4`);
       tempFiles.push(concatPath);
-      await xfadeConcat(tempFiles.slice(0, clipCount), concatPath, blendFrames, crossTransition, crossCrf);
+      await xfadeConcat(tempFiles.slice(0, clipCount), concatPath, blendFrames, crossTransition, crossCrf, fps);
       // clip starts as in buildManifest; the seamless loop keeps times after the first blend
-      const blendSec = blendFrames / OUTPUT_FPS;
+      const blendSec = blendFrames / fps;
       const keyTimes = clipDurations.slice(1).map((_, i) =>
         clipDurations.slice(0, i + 1).reduce((a, b) => a + b, 0) - (i + 1) * blendSec);
-      await seamlessLoop(concatPath, outputPath, blendFrames, crossTransition, crossCrf, keyTimes);
+      await seamlessLoop(concatPath, outputPath, blendFrames, crossTransition, crossCrf, keyTimes, fps);
     } else {
       const concatListPath = join(uploadsDir, `_export_concat_${sessionId}.txt`);
       const concatContent = tempFiles.map(f => `file '${f.replace(/\\/g, '/')}'`).join('\n');
@@ -462,12 +468,12 @@ async function processExport(sessionId: string, userId: string) {
 
     // keep every clip as its own file; a loop gets its seamless seam inside the clip
     const clipFiles: NonNullable<ExportVersion['clipFiles']> = [];
-    const blendSec = blendFrames / OUTPUT_FPS;
+    const blendSec = blendFrames / fps;
     for (let i = 0; i < clipCount; i++) {
       const clipFilename = `export-${sessionId}-${Date.now()}-clip${i + 1}.mp4`;
       const clipPath = join(uploadsDir, clipFilename);
       if (useSeamless && isLoopClip(session.clips[i]) && blendSec < clipDurations[i] * 0.5) {
-        await seamlessLoop(tempFiles[i], clipPath, blendFrames, crossTransition, crossCrf, []);
+        await seamlessLoop(tempFiles[i], clipPath, blendFrames, crossTransition, crossCrf, [], fps);
       } else {
         renameSync(tempFiles[i], clipPath);
       }
@@ -475,12 +481,12 @@ async function processExport(sessionId: string, userId: string) {
     }
 
     const exportUrl = `/api/files/${outputFilename}`;
-    const manifestJson = buildManifest(session, clipDurations, blendFrames, !!useSeamless, true);
+    const manifestJson = buildManifest(session, clipDurations, blendFrames, !!useSeamless, fps, true);
     const manifestFilename = `manifest-${sessionId}-${Date.now()}.json`;
     writeFileSync(join(uploadsDir, manifestFilename), manifestJson);
     const manifestUrl = `/api/files/${manifestFilename}`;
     console.log(`[EXPORT] manifest saved: ${manifestFilename}`);
-    finishExport(session, sessionId, userId, exportUrl, preset, W, H, transform, manifestUrl, clipFiles);
+    finishExport(session, sessionId, userId, exportUrl, preset, W, H, transform, manifestUrl, clipFiles, fps);
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : 'Export failed';
     console.error(`[EXPORT] FAILED session=${sessionId}: ${msg}`);

@@ -1048,7 +1048,7 @@ function ExportEditorContent() {
             <div>
               <p className="text-xs font-semibold mb-1" style={{ color: 'var(--text3)' }}>RENDER</p>
               <p className="text-xs" style={{ color: 'var(--text3)' }}>
-                {preset.width}x{preset.height} @ 60fps &middot; {session.clips.length} clip{session.clips.length !== 1 ? 's' : ''}
+                {preset.width}x{preset.height} @ {session.fps ?? 60}fps &middot; {session.clips.length} clip{session.clips.length !== 1 ? 's' : ''}
                 {totalDuration > 0 && ` · ${formatDuration(totalDuration)}`}
               </p>
               <label className="flex items-center gap-2 mt-2 cursor-pointer">
@@ -1063,6 +1063,20 @@ function ExportEditorContent() {
                   className="w-3.5 h-3.5 rounded"
                 />
                 <span className="text-xs" style={{ color: 'var(--text2)' }}>Mute audio</span>
+              </label>
+              <label className="flex items-center gap-2 mt-2">
+                <span className="text-xs" style={{ color: 'var(--text2)' }}>FPS</span>
+                <select value={session.fps ?? 60}
+                  onChange={e => {
+                    const fps = parseInt(e.target.value);
+                    setSession({ ...session, fps, updatedAt: Date.now() });
+                    debouncedSave({ fps });
+                  }}
+                  className="text-xs rounded px-2 py-1" style={{ background: 'var(--bg-input)', border: '1px solid var(--border)' }}>
+                  <option value={25}>25</option>
+                  <option value={30}>30</option>
+                  <option value={60}>60</option>
+                </select>
               </label>
               {session.clips.length >= 1 && (
                 <label className="flex items-center gap-2 mt-2 cursor-pointer">

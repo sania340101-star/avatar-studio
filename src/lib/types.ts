@@ -292,6 +292,7 @@ export interface ExportSession {
   crossfadeBlendFrames?: number;
   crossfadeTransition?: string;
   crossfadeCrf?: number;
+  fps?: number;
   status: 'draft' | 'exporting' | 'done' | 'error';
   exportUrl?: string;
   exports?: ExportVersion[];
