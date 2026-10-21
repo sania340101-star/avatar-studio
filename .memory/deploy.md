@@ -5,7 +5,7 @@
 - **Agent**: Node.js service on D30 host (`/srv/workspaces/system/avatar-studio/prod/agent/`)
 - **Systemd**: `avatar-agent.service` runs agent/server.js
 - **Git remote**: GitHub (`origin`) — `sania340101-star/avatar-studio`
-- **Domain**: `avatar-studio.app.local` via Traefik
+- **Domain**: `studio.hypervsn.com` via Traefik (entrypoint web)
 
 ### Deploy Sequence
 

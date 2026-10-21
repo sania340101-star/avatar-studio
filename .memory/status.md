@@ -347,3 +347,7 @@ Pending:
 - RENDER block has an FPS select (25/30/60, default 60); stored as ExportSession.fps
 - render/route.ts passes fps to every ffmpeg step (-r, color bg r=, blend seconds = blendFrames/fps, manifest crossfade ms)
 - commit e71ed36 on feature/body-animation, NOT deployed: D30 prod is master 2462ebd without the ZIP v2 / body-animation commits
+
+## 2026-10-21: deployed export FPS + body-animation export to D30
+- feature/body-animation fast-forwarded into master (11257d6), pushed github + origin; D30 prod merged it as c69c7aa (prod keeps its own merge commits, tree = origin/master)
+- Docker rebuilt only, agent untouched (v1.8.5, 0 active requests); container healthy, https://studio.hypervsn.com answers 307 to login
