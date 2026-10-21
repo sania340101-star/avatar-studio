@@ -342,3 +342,8 @@ Pending:
 - Phase 4a: Mask preview with canvas overlay (HYPERVSN device outline on result)
 - Phase 4b: Export with FFmpeg (resize/crop for device)
 - Pipeline: batch generation through templates (lower priority)
+
+## 2026-10-21: export output FPS choice
+- RENDER block has an FPS select (25/30/60, default 60); stored as ExportSession.fps
+- render/route.ts passes fps to every ffmpeg step (-r, color bg r=, blend seconds = blendFrames/fps, manifest crossfade ms)
+- commit e71ed36 on feature/body-animation, NOT deployed: D30 prod is master 2462ebd without the ZIP v2 / body-animation commits
